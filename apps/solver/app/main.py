@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
+import ortools
 from fastapi import FastAPI
-from google import ortools
 from pydantic import BaseModel
 
 app = FastAPI(title="Timetable Solver", version="0.1.0")
