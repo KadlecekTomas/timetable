@@ -7,157 +7,413 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum SchoolYearStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum TeachingGroup {
+  WHOLE
+  GROUP_1
+  GROUP_2
+}
+
+enum LessonShape {
+  SINGLE
+  DOUBLE
+  MIXED
+}
+
+enum AvailabilityEntityType {
+  TEACHER
+  CLASS
+  ROOM
+}
+
+enum AvailabilityKind {
+  UNAVAILABLE
+  PREFERRED
+  DISCOURAGED
+}
+
+enum DistributionRuleType {
+  MAX_PER_DAY
+  MIN_DAY_GAP
+  SAME_DAY_FORBIDDEN
+  CONSECUTIVE_REQUIRED
+}
+
 enum GenerationStatus {
-  PENDING
+  QUEUED
   RUNNING
-  SUCCEEDED
+  FEASIBLE
+  OPTIMAL
+  INFEASIBLE
+  TIME_LIMIT
   FAILED
   CANCELLED
 }
 
-enum LessonKind {
-  STANDARD
-  DOUBLE
-  SPLIT
+enum TimetableSource {
+  GENERATED
+  MANUAL_COPY
+  IMPORTED
+}
+
+enum LessonOrigin {
+  SOLVER
+  MANUAL
+  FIXED_RULE
+}
+
+enum ImportStatus {
+  ANALYZED
+  VALIDATION_FAILED
+  READY
+  APPLIED
+  FAILED
+}
+
+enum ImportSeverity {
+  ERROR
+  WARNING
+}
+
+model School {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  timezone    String       @default("Europe/Prague")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  schoolYears SchoolYear[]
 }
 
 model SchoolYear {
-  id          String   @id @default(cuid())
-  name        String
-  startsOn    DateTime
-  endsOn      DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  teachers    Teacher[]
-  classes     SchoolClass[]
-  subjects    Subject[]
-  rooms       Room[]
-  assignments TeachingAssignment[]
-  runs        GenerationRun[]
-  versions    TimetableVersion[]
+  id               String           @id @default(cuid())
+  schoolId         String
+  label            String
+  startsOn         DateTime
+  endsOn           DateTime
+  status           SchoolYearStatus @default(DRAFT)
+  periodsPerDay    Json
+  version          Int              @default(1)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  school           School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teachers         Teacher[]
+  classes          SchoolClass[]
+  subjects         Subject[]
+  roomTypes        RoomType[]
+  rooms            Room[]
+  assignments      TeachingAssignment[]
+  availability     AvailabilityRule[]
+  solverProfiles   SolverProfile[]
+  generationRuns   GenerationRun[]
+  timetableVersions TimetableVersion[]
+  importBatches    ImportBatch[]
+  auditEvents      AuditEvent[]
+
+  @@unique([schoolId, label])
 }
 
 model Teacher {
-  id           String   @id @default(cuid())
-  schoolYearId String
-  firstName    String
-  lastName     String
-  code         String
-  workload     Int
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
-  assignments  TeachingAssignment[]
-  lessons      TimetableLesson[]
+  id                 String   @id @default(cuid())
+  schoolYearId       String
+  code               String
+  firstName          String
+  lastName           String
+  targetWeeklyLoad   Int
+  minWeeklyLoad      Int?
+  maxWeeklyLoad      Int?
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  schoolYear         SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  assignments        TeachingAssignment[]
+
   @@unique([schoolYearId, code])
+  @@index([schoolYearId, lastName, firstName])
 }
 
 model SchoolClass {
   id           String   @id @default(cuid())
   schoolYearId String
-  name         String
+  code         String
   grade        Int
+  name         String
+  isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
   assignments  TeachingAssignment[]
-  lessons      TimetableLesson[]
-  @@unique([schoolYearId, name])
+
+  @@unique([schoolYearId, code])
+}
+
+model RoomType {
+  id           String   @id @default(cuid())
+  schoolYearId String
+  code         String
+  name         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  subjects     Subject[] @relation("SubjectDefaultRoomType")
+  rooms        Room[]
+  assignments  TeachingAssignment[] @relation("AssignmentRequiredRoomType")
+
+  @@unique([schoolYearId, code])
 }
 
 model Subject {
-  id           String   @id @default(cuid())
-  schoolYearId String
-  name         String
-  code         String
-  colorToken   String   @default("blue")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
-  assignments  TeachingAssignment[]
-  lessons      TimetableLesson[]
+  id                String   @id @default(cuid())
+  schoolYearId      String
+  code              String
+  name              String
+  defaultRoomTypeId String?
+  colorToken        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  schoolYear        SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  defaultRoomType   RoomType? @relation("SubjectDefaultRoomType", fields: [defaultRoomTypeId], references: [id], onDelete: SetNull)
+  assignments       TeachingAssignment[]
+
   @@unique([schoolYearId, code])
 }
 
 model Room {
   id           String   @id @default(cuid())
   schoolYearId String
-  name         String
   code         String
+  name         String
   capacity     Int?
+  roomTypeId   String?
+  isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  roomType     RoomType? @relation(fields: [roomTypeId], references: [id], onDelete: SetNull)
+  assignments  TeachingAssignment[] @relation("AssignmentRequiredRoom")
   lessons      TimetableLesson[]
+
   @@unique([schoolYearId, code])
 }
 
 model TeachingAssignment {
-  id           String   @id @default(cuid())
+  id                 String        @id @default(cuid())
+  schoolYearId       String
+  assignmentCode     String
+  classId             String
+  subjectId           String
+  teacherId           String
+  group               TeachingGroup @default(WHOLE)
+  weeklyPeriods       Int
+  lessonShape         LessonShape   @default(SINGLE)
+  doublePeriodsCount  Int           @default(0)
+  requiredRoomId      String?
+  requiredRoomTypeId  String?
+  priority            Int           @default(50)
+  notes               String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  schoolYear          SchoolYear    @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  schoolClass         SchoolClass   @relation(fields: [classId], references: [id], onDelete: Restrict)
+  subject             Subject       @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  teacher             Teacher       @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  requiredRoom        Room?         @relation("AssignmentRequiredRoom", fields: [requiredRoomId], references: [id], onDelete: SetNull)
+  requiredRoomType    RoomType?     @relation("AssignmentRequiredRoomType", fields: [requiredRoomTypeId], references: [id], onDelete: SetNull)
+  fixedLessons        FixedLessonRule[]
+  distributionRules  DistributionRule[]
+  lessons             TimetableLesson[]
+
+  @@unique([schoolYearId, assignmentCode])
+  @@index([schoolYearId, classId])
+  @@index([schoolYearId, teacherId])
+}
+
+model AvailabilityRule {
+  id           String                     @id @default(cuid())
   schoolYearId String
-  teacherId    String
-  classId      String
-  subjectId    String
-  lessonsPerWeek Int
-  kind         LessonKind @default(STANDARD)
-  groupCode    String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
-  teacher      Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  schoolClass  SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
-  subject      Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  entityType   AvailabilityEntityType
+  entityId     String
+  dayOfWeek    Int
+  period       Int
+  kind         AvailabilityKind
+  weight       Int?
+  reason       String?
+  createdAt    DateTime                   @default(now())
+  updatedAt    DateTime                   @updatedAt
+  schoolYear   SchoolYear                 @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolYearId, entityType, entityId, dayOfWeek, period, kind])
+  @@index([schoolYearId, entityType, entityId])
+}
+
+model FixedLessonRule {
+  id                   String   @id @default(cuid())
+  teachingAssignmentId String
+  blockIndex           Int      @default(0)
+  dayOfWeek             Int
+  startPeriod          Int
+  duration             Int
+  roomId               String?
+  locked               Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  teachingAssignment   TeachingAssignment @relation(fields: [teachingAssignmentId], references: [id], onDelete: Cascade)
+
+  @@unique([teachingAssignmentId, blockIndex])
+}
+
+model DistributionRule {
+  id                   String               @id @default(cuid())
+  teachingAssignmentId String
+  type                 DistributionRuleType
+  value                Int
+  hard                 Boolean              @default(false)
+  weight               Int?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  teachingAssignment   TeachingAssignment   @relation(fields: [teachingAssignmentId], references: [id], onDelete: Cascade)
+
+  @@unique([teachingAssignmentId, type])
+}
+
+model SolverProfile {
+  id               String   @id @default(cuid())
+  schoolYearId     String
+  name             String
+  scoringVersion   String   @default("1.0.0")
+  weightsJson      Json
+  timeLimitSeconds Int      @default(180)
+  randomSeed       Int      @default(1)
+  isDefault        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  schoolYear       SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  generationRuns   GenerationRun[]
+
+  @@unique([schoolYearId, name])
 }
 
 model GenerationRun {
-  id           String   @id @default(cuid())
-  schoolYearId String
-  status       GenerationStatus @default(PENDING)
-  snapshot     Json
-  score        Int?
-  incidentReport Json?
-  createdAt    DateTime @default(now())
-  startedAt    DateTime?
-  finishedAt   DateTime?
-  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
-  version      TimetableVersion?
+  id                String           @id @default(cuid())
+  schoolYearId      String
+  solverProfileId   String?
+  inputSnapshotHash String
+  snapshot          Json
+  status            GenerationStatus @default(QUEUED)
+  objectiveValue    Float?
+  qualityScore      Int?
+  solverStats       Json?
+  explanation       Json?
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  createdAt         DateTime         @default(now())
+  schoolYear        SchoolYear       @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  solverProfile     SolverProfile?   @relation(fields: [solverProfileId], references: [id], onDelete: SetNull)
+  candidateVersion  TimetableVersion?
+
+  @@index([schoolYearId, createdAt])
 }
 
 model TimetableVersion {
-  id           String   @id @default(cuid())
-  schoolYearId String
-  generationRunId String? @unique
-  name         String
-  score        Int
-  isCurrent    Boolean @default(false)
-  createdAt    DateTime @default(now())
-  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
-  generationRun GenerationRun? @relation(fields: [generationRunId], references: [id], onDelete: SetNull)
-  lessons      TimetableLesson[]
+  id               String          @id @default(cuid())
+  schoolYearId     String
+  generationRunId  String?         @unique
+  name             String
+  versionNumber    Int
+  source           TimetableSource @default(GENERATED)
+  isCurrent        Boolean         @default(false)
+  revision         Int             @default(1)
+  qualityScore     Int?
+  scoringVersion   String?
+  scoreBreakdown   Json?
+  incidentReport   Json?
+  createdBy        String          @default("system")
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  schoolYear       SchoolYear      @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  generationRun    GenerationRun?  @relation(fields: [generationRunId], references: [id], onDelete: SetNull)
+  lessons          TimetableLesson[]
+
+  @@unique([schoolYearId, versionNumber])
+  @@index([schoolYearId, isCurrent])
 }
 
 model TimetableLesson {
+  id                   String       @id @default(cuid())
+  versionId            String
+  blockId              String
+  teachingAssignmentId String
+  roomId               String?
+  dayOfWeek            Int
+  startPeriod          Int
+  duration             Int          @default(1)
+  isLocked             Boolean      @default(false)
+  origin               LessonOrigin @default(SOLVER)
+  manuallyChanged      Boolean      @default(false)
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  version              TimetableVersion  @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  teachingAssignment   TeachingAssignment @relation(fields: [teachingAssignmentId], references: [id], onDelete: Restrict)
+  room                 Room?        @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
+  @@unique([versionId, blockId])
+  @@index([versionId, dayOfWeek, startPeriod])
+  @@index([versionId, teachingAssignmentId])
+}
+
+model ImportBatch {
+  id                        String       @id @default(cuid())
+  schoolYearId              String
+  fileName                  String
+  fileHash                  String
+  templateVersion           String
+  status                    ImportStatus @default(ANALYZED)
+  expectedSchoolYearVersion Int
+  summary                    Json
+  payload                    Json?
+  createdAt                  DateTime     @default(now())
+  appliedAt                  DateTime?
+  schoolYear                SchoolYear   @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  issues                    ImportIssue[]
+
+  @@index([schoolYearId, createdAt])
+  @@index([schoolYearId, fileHash])
+}
+
+model ImportIssue {
+  id            String         @id @default(cuid())
+  importBatchId String
+  severity      ImportSeverity
+  sheet         String
+  row           Int?
+  column        String?
+  code          String
+  message       String
+  rawValue      String?
+  suggestion    String?
+  createdAt     DateTime       @default(now())
+  importBatch   ImportBatch    @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+
+  @@index([importBatchId, severity])
+}
+
+model AuditEvent {
   id           String   @id @default(cuid())
-  versionId    String
-  teacherId    String
-  classId      String
-  subjectId    String
-  roomId       String?
-  day          Int
-  period       Int
-  duration     Int @default(1)
-  groupCode    String?
-  locked       Boolean @default(false)
-  manuallyChanged Boolean @default(false)
+  schoolYearId String
+  actorId      String
+  action       String
+  entityType   String
+  entityId     String
+  before       Json?
+  after        Json?
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  version      TimetableVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
-  teacher      Teacher @relation(fields: [teacherId], references: [id])
-  schoolClass  SchoolClass @relation(fields: [classId], references: [id])
-  subject      Subject @relation(fields: [subjectId], references: [id])
-  room         Room? @relation(fields: [roomId], references: [id])
-  @@unique([versionId, classId, day, period, groupCode])
-  @@index([versionId, teacherId, day, period])
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  @@index([schoolYearId, createdAt])
 }
 
 model SystemHealth {
