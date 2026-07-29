@@ -11,16 +11,22 @@ import {
 async function validWorkbook(): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load((await createImportTemplate()) as never);
-  workbook.getWorksheet("Nastavení")!.addRow(["2026/2027", 8, 8, 8, 8, 7]);
+  workbook
+    .getWorksheet("Nastavení")!
+    .insertRow(2, ["2026/2027", 8, 8, 8, 8, 7]);
   workbook
     .getWorksheet("Učitelé")!
-    .addRow(["NOV", "Jan", "Novák", 2, "", "", "M", "6A"]);
-  workbook.getWorksheet("Třídy")!.addRow(["6A", 6, "6.A"]);
-  workbook.getWorksheet("Předměty")!.addRow(["M", "Matematika", ""]);
-  workbook.getWorksheet("Učebny")!.addRow(["101", "Učebna 101", "GENERAL", 30]);
+    .insertRow(2, ["NOV", "Jan", "Novák", 2, "", "", "M", "6A"]);
+  workbook.getWorksheet("Třídy")!.insertRow(2, ["6A", 6, "6.A"]);
+  workbook
+    .getWorksheet("Předměty")!
+    .insertRow(2, ["M", "Matematika", ""]);
+  workbook
+    .getWorksheet("Učebny")!
+    .insertRow(2, ["101", "Učebna 101", "GENERAL", 30]);
   workbook
     .getWorksheet("Výukové_vazby")!
-    .addRow([
+    .insertRow(2, [
       "6A-M-NOV",
       "6A",
       "M",
@@ -36,7 +42,15 @@ async function validWorkbook(): Promise<ExcelJS.Workbook> {
     ]);
   workbook
     .getWorksheet("Dostupnost")!
-    .addRow(["TEACHER", "NOV", "FRI", 7, "DISCOURAGED", 25, "Pozdní konec"]);
+    .insertRow(2, [
+      "TEACHER",
+      "NOV",
+      "FRI",
+      7,
+      "DISCOURAGED",
+      25,
+      "Pozdní konec",
+    ]);
   return workbook;
 }
 
@@ -51,7 +65,10 @@ test("generated template can be filled and analyzed as READY", async () => {
   assert.equal(analysis.summary.errors, 0);
   assert.equal(analysis.summary.teachers, 1);
   assert.equal(analysis.summary.assignments, 1);
-  assert.equal(analysis.payload?.assignments[0]?.assignment_code, "6A-M-NOV");
+  assert.equal(
+    analysis.payload?.assignments[0]?.assignment_code,
+    "6A-M-NOV",
+  );
 });
 
 test("missing reference blocks the entire import preview", async () => {
