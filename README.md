@@ -44,7 +44,15 @@ Dokumentace v `docs/` je hlavním zdrojem pravdy pro produkt i implementaci:
 12. [Akceptační testy](docs/12-acceptance-tests.md)
 13. [Pravidla pro AI vývoj](docs/13-vibecode-rules.md)
 14. [Budoucí funkce](docs/14-future-features.md)
+15. [Architecture Decision Records](docs/adr/README.md)
+
+## Pravidla repozitáře
+
+- [Pokyny pro přispívání](CONTRIBUTING.md)
+- [Instrukce pro AI agenty](AGENTS.md)
+- [Bezpečnostní zásady](SECURITY.md)
+- [Proces architektonických rozhodnutí](docs/adr/README.md)
 
 ## Aktuální stav
 
-Projekt je ve fázi dokumentačního základu. Další krok je vytvoření monorepo skeletonu podle roadmapy. Implementace nesmí měnit produktový scope nebo tvrdá pravidla bez aktualizace příslušné dokumentace a akceptačních testů.
+Dokumentační základ a pravidla repozitáře jsou připravené. Dalším krokem je vytvoření monorepo skeletonu podle roadmapy. Implementace nesmí měnit produktový scope, tvrdá pravidla nebo přijatá architektonická rozhodnutí bez aktualizace příslušné dokumentace a akceptačních testů.
