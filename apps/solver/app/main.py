@@ -301,7 +301,9 @@ def _add_gap_objective(
                 )
                 sources = occupancy_sources.get((entity_id, day, period), [])
                 if sources:
-                    model.add_max_equality(occupied, sources)
+                    source_sum = sum(sources)
+                    model.add(source_sum >= occupied)
+                    model.add(source_sum <= len(sources) * occupied)
                 else:
                     model.add(occupied == 0)
                 occupancy.append(occupied)
@@ -313,15 +315,22 @@ def _add_gap_objective(
                 after = model.new_bool_var(
                     f"{prefix}_after_{entity_id}_{day}_{period}"
                 )
-                gap = model.new_bool_var(f"{prefix}_gap_{entity_id}_{day}_{period}")
-                model.add_max_equality(before, occupancy[:period])
-                model.add_max_equality(after, occupancy[period + 1 :])
-                model.add_bool_and(
-                    [before, after, occupancy[period].Not()]
-                ).only_enforce_if(gap)
-                model.add_bool_or(
-                    [before.Not(), after.Not(), occupancy[period]]
-                ).only_enforce_if(gap.Not())
+                before_sum = sum(occupancy[:period])
+                after_sum = sum(occupancy[period + 1 :])
+                model.add(before_sum >= before)
+                model.add(before_sum <= period * before)
+                model.add(after_sum >= after)
+                model.add(after_sum <= (periods - period - 1) * after)
+
+                gap = model.new_bool_var(
+                    f"{prefix}_gap_{entity_id}_{day}_{period}"
+                )
+                model.add(gap <= before)
+                model.add(gap <= after)
+                model.add(gap + occupancy[period] <= 1)
+                model.add(
+                    gap >= before + after - occupancy[period] - 1
+                )
                 objective_terms.append(gap * weight)
 
 

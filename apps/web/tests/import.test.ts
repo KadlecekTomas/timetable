@@ -18,9 +18,7 @@ async function validWorkbook(): Promise<ExcelJS.Workbook> {
     .getWorksheet("Učitelé")!
     .insertRow(2, ["NOV", "Jan", "Novák", 2, "", "", "M", "6A"]);
   workbook.getWorksheet("Třídy")!.insertRow(2, ["6A", 6, "6.A"]);
-  workbook
-    .getWorksheet("Předměty")!
-    .insertRow(2, ["M", "Matematika", ""]);
+  workbook.getWorksheet("Předměty")!.insertRow(2, ["M", "Matematika", ""]);
   workbook
     .getWorksheet("Učebny")!
     .insertRow(2, ["101", "Učebna 101", "GENERAL", 30]);
@@ -65,10 +63,7 @@ test("generated template can be filled and analyzed as READY", async () => {
   assert.equal(analysis.summary.errors, 0);
   assert.equal(analysis.summary.teachers, 1);
   assert.equal(analysis.summary.assignments, 1);
-  assert.equal(
-    analysis.payload?.assignments[0]?.assignment_code,
-    "6A-M-NOV",
-  );
+  assert.equal(analysis.payload?.assignments[0]?.assignment_code, "6A-M-NOV");
 });
 
 test("missing reference blocks the entire import preview", async () => {
