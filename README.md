@@ -17,14 +17,36 @@ Zástupkyně školy nahraje připravenou Excel šablonu, doplní omezení a spus
 - Uživatel může rozvrh ručně upravit, zamknout a přegenerovat jeho nezamčenou část.
 - Každý návrh obsahuje vysvětlitelné hodnocení kvality.
 
-## Plánovaný stack
+## Stack
 
-- Next.js, React a TypeScript
+- Next.js, React a TypeScript strict
 - Tailwind CSS a shadcn/ui
 - PostgreSQL a Prisma
-- Python a Google OR-Tools CP-SAT
+- Python, FastAPI a Google OR-Tools CP-SAT
 - Docker Compose
-- Playwright
+- GitHub Actions
+
+## Rychlé spuštění
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Po startu je web dostupný na `http://localhost:3000` a dokumentace solver API na `http://localhost:8000/docs`.
+
+Podrobný postup a verifikační příkazy jsou v [lokálním vývojovém setupu](docs/16-development-setup.md).
+
+## Monorepo
+
+```text
+apps/
+  web/       Next.js aplikace
+  solver/    FastAPI a OR-Tools služba
+packages/
+  database/  Prisma schema a sdílený klient
+docs/        Produktová a technická dokumentace
+```
 
 ## Dokumentace
 
@@ -45,6 +67,7 @@ Dokumentace v `docs/` je hlavním zdrojem pravdy pro produkt i implementaci:
 13. [Pravidla pro AI vývoj](docs/13-vibecode-rules.md)
 14. [Budoucí funkce](docs/14-future-features.md)
 15. [Architecture Decision Records](docs/adr/README.md)
+16. [Lokální vývoj](docs/16-development-setup.md)
 
 ## Pravidla repozitáře
 
@@ -55,4 +78,4 @@ Dokumentace v `docs/` je hlavním zdrojem pravdy pro produkt i implementaci:
 
 ## Aktuální stav
 
-Dokumentační základ a pravidla repozitáře jsou připravené. Dalším krokem je vytvoření monorepo skeletonu podle roadmapy. Implementace nesmí měnit produktový scope, tvrdá pravidla nebo přijatá architektonická rozhodnutí bez aktualizace příslušné dokumentace a akceptačních testů.
+Fáze 1 — repository foundation je implementována na feature větvi. Skeleton obsahuje web, databázovou vrstvu, solver službu, Docker Compose, health checks a CI. Doménové funkce se budou přidávat až v dalších fázích podle roadmapy.
