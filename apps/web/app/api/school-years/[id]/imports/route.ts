@@ -18,15 +18,25 @@ function isXlsx(buffer: Buffer): boolean {
 
 export async function POST(request: Request, context: RouteContext) {
   const { id: schoolYearId } = await context.params;
-  const schoolYear = await prisma.schoolYear.findUnique({ where: { id: schoolYearId } });
+  const schoolYear = await prisma.schoolYear.findUnique({
+    where: { id: schoolYearId },
+  });
   if (!schoolYear) {
-    return apiError({ status: 404, code: "SCHOOL_YEAR_NOT_FOUND", message: "Školní rok nebyl nalezen." });
+    return apiError({
+      status: 404,
+      code: "SCHOOL_YEAR_NOT_FOUND",
+      message: "Školní rok nebyl nalezen.",
+    });
   }
 
   const formData = await request.formData();
   const uploaded = formData.get("file");
   if (!(uploaded instanceof File)) {
-    return apiError({ status: 400, code: "IMPORT_FILE_MISSING", message: "Vyberte soubor .xlsx." });
+    return apiError({
+      status: 400,
+      code: "IMPORT_FILE_MISSING",
+      message: "Vyberte soubor .xlsx.",
+    });
   }
   if (uploaded.size === 0 || uploaded.size > MAX_UPLOAD_BYTES) {
     return apiError({
@@ -75,7 +85,10 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const analysis = await analyzeImportWorkbook(buffer);
-  if (analysis.payload && analysis.payload.settings.school_year !== schoolYear.label) {
+  if (
+    analysis.payload &&
+    analysis.payload.settings.school_year !== schoolYear.label
+  ) {
     analysis.issues.unshift({
       severity: "ERROR",
       sheet: "Nastavení",

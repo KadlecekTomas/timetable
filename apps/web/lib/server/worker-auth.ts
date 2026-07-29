@@ -15,7 +15,9 @@ export function authorizeWorker(request: Request): WorkerAuthResult {
     };
   }
   const authorization = request.headers.get("authorization") ?? "";
-  const supplied = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+  const supplied = authorization.startsWith("Bearer ")
+    ? authorization.slice(7)
+    : "";
   const configuredBuffer = Buffer.from(configured);
   const suppliedBuffer = Buffer.from(supplied);
   if (

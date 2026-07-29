@@ -99,7 +99,8 @@ async function run() {
       await executeJob(job);
       console.info(`Finished generation run ${job.generationRunId}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown worker error";
+      const message =
+        error instanceof Error ? error.message : "Unknown worker error";
       console.error(`Worker iteration failed: ${message}`);
       await sleep(Math.max(pollIntervalMs, 2000));
     }

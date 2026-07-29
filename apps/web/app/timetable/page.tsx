@@ -17,7 +17,15 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 
-const dayNames = ["Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek", "Sobota", "Neděle"];
+const dayNames = [
+  "Pondělí",
+  "Úterý",
+  "Středa",
+  "Čtvrtek",
+  "Pátek",
+  "Sobota",
+  "Neděle",
+];
 const categoryLabels: Record<string, string> = {
   class_compactness: "Kompaktnost tříd",
   teacher_compactness: "Kompaktnost učitelů",
@@ -95,20 +103,25 @@ export default function TimetablePage() {
 
   useEffect(() => {
     if (versionId || !schoolYearId) return;
+    const currentSchoolYearId = schoolYearId;
     let cancelled = false;
     async function resolveLatest() {
-      const response = await fetch(`/api/school-years/${schoolYearId}/generation-runs`, {
-        cache: "no-store",
-      });
+      const response = await fetch(
+        `/api/school-years/${currentSchoolYearId}/generation-runs`,
+        {
+          cache: "no-store",
+        },
+      );
       if (!response.ok) return;
       const data = (await response.json()) as {
         items: Array<{ candidateVersion: { id: string } | null }>;
       };
-      const latest = data.items.find((item) => item.candidateVersion)?.candidateVersion?.id;
+      const latest = data.items.find((item) => item.candidateVersion)
+        ?.candidateVersion?.id;
       if (latest && !cancelled) {
         setVersionId(latest);
         router.replace(
-          `/timetable?schoolYearId=${encodeURIComponent(schoolYearId)}&versionId=${encodeURIComponent(latest)}`,
+          `/timetable?schoolYearId=${encodeURIComponent(currentSchoolYearId)}&versionId=${encodeURIComponent(latest)}`,
         );
       }
     }
@@ -123,10 +136,15 @@ export default function TimetablePage() {
     setError(null);
     const params = new URLSearchParams({ view });
     if (entityId) params.set("entityId", entityId);
-    const response = await fetch(`/api/timetable-versions/${versionId}?${params}`, {
-      cache: "no-store",
-    });
-    const data = (await response.json()) as TimetablePayload & { error?: { message?: string } };
+    const response = await fetch(
+      `/api/timetable-versions/${versionId}?${params}`,
+      {
+        cache: "no-store",
+      },
+    );
+    const data = (await response.json()) as TimetablePayload & {
+      error?: { message?: string };
+    };
     if (!response.ok) {
       setError(data.error?.message ?? "Rozvrh se nepodařilo načíst.");
       return;
@@ -156,7 +174,10 @@ export default function TimetablePage() {
     const response = await fetch(`/api/timetable-versions/${versionId}/locks`, {
       method: locked ? "POST" : "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lessonIds: [lesson.id], expectedRevision: payload.version.revision }),
+      body: JSON.stringify({
+        lessonIds: [lesson.id],
+        expectedRevision: payload.version.revision,
+      }),
     });
     const data = (await response.json()) as { error?: { message?: string } };
     if (!response.ok) setError(data.error?.message ?? "Změna zámku selhala.");
@@ -190,22 +211,31 @@ export default function TimetablePage() {
     const preview = (await previewResponse.json()) as {
       valid?: boolean;
       issues?: Array<{ message: string }>;
-      error?: { message?: string; details?: { issues?: Array<{ message: string }> } };
+      error?: {
+        message?: string;
+        details?: { issues?: Array<{ message: string }> };
+      };
     };
     const issues = preview.issues ?? preview.error?.details?.issues ?? [];
     if (!previewResponse.ok || !preview.valid) {
       setMoveIssues(issues.map((item) => item.message));
-      if (!issues.length) setError(preview.error?.message ?? "Přesun není validní.");
+      if (!issues.length)
+        setError(preview.error?.message ?? "Přesun není validní.");
       setBusy(false);
       return;
     }
 
-    const applyResponse = await fetch(`/api/timetable-versions/${versionId}/moves`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(move),
-    });
-    const applied = (await applyResponse.json()) as { error?: { message?: string } };
+    const applyResponse = await fetch(
+      `/api/timetable-versions/${versionId}/moves`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(move),
+      },
+    );
+    const applied = (await applyResponse.json()) as {
+      error?: { message?: string };
+    };
     if (!applyResponse.ok) {
       setError(applied.error?.message ?? "Přesun se nepodařilo uložit.");
     } else {
@@ -232,11 +262,14 @@ export default function TimetablePage() {
   async function accept() {
     if (!payload || !versionId) return;
     setBusy(true);
-    const response = await fetch(`/api/timetable-versions/${versionId}/accept`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ expectedRevision: payload.version.revision }),
-    });
+    const response = await fetch(
+      `/api/timetable-versions/${versionId}/accept`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expectedRevision: payload.version.revision }),
+      },
+    );
     const data = (await response.json()) as { error?: { message?: string } };
     if (!response.ok) setError(data.error?.message ?? "Verzi nelze přijmout.");
     await load();
@@ -247,8 +280,12 @@ export default function TimetablePage() {
     return (
       <div className="rounded-xl border border-border bg-surface p-8 text-center">
         <Sparkles className="mx-auto size-10 text-primary" aria-hidden="true" />
-        <h1 className="mt-4 text-lg font-semibold">Zatím není dostupný kandidátní rozvrh</h1>
-        <p className="mt-2 text-sm text-text-secondary">Nejprve dokončete generování návrhu.</p>
+        <h1 className="mt-4 text-lg font-semibold">
+          Zatím není dostupný kandidátní rozvrh
+        </h1>
+        <p className="mt-2 text-sm text-text-secondary">
+          Nejprve dokončete generování návrhu.
+        </p>
       </div>
     );
   }
@@ -261,15 +298,26 @@ export default function TimetablePage() {
         description="Dialogový přesun používá stejný serverový hard-validátor jako solver. Zamčené bloky nelze přesunout."
         actions={
           <>
-            <Button variant="outline" onClick={() => void undo()} disabled={busy || !payload}>
+            <Button
+              variant="outline"
+              onClick={() => void undo()}
+              disabled={busy || !payload}
+            >
               <RotateCcw className="size-4" aria-hidden="true" />
               Undo
             </Button>
-            <Button variant="outline" onClick={() => void load()} disabled={busy}>
+            <Button
+              variant="outline"
+              onClick={() => void load()}
+              disabled={busy}
+            >
               <RefreshCw className="size-4" aria-hidden="true" />
               Obnovit
             </Button>
-            <Button onClick={() => void accept()} disabled={busy || !payload || payload.version.isCurrent}>
+            <Button
+              onClick={() => void accept()}
+              disabled={busy || !payload || payload.version.isCurrent}
+            >
               <CheckCircle2 className="size-4" aria-hidden="true" />
               {payload?.version.isCurrent ? "Aktuální verze" : "Přijmout verzi"}
             </Button>
@@ -328,27 +376,43 @@ export default function TimetablePage() {
                 ))}
               </select>
             </label>
-            {payload ? <StatusBadge tone="neutral">Revision {payload.version.revision}</StatusBadge> : null}
+            {payload ? (
+              <StatusBadge tone="neutral">
+                Revision {payload.version.revision}
+              </StatusBadge>
+            ) : null}
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-border bg-surface">
             <div className="min-w-[980px]">
               <div className="grid grid-cols-[64px_repeat(5,minmax(170px,1fr))] border-b border-border bg-surface-subtle">
-                <div className="p-3 text-xs font-medium text-text-muted">Hodina</div>
+                <div className="p-3 text-xs font-medium text-text-muted">
+                  Hodina
+                </div>
                 {dayNames.slice(0, 5).map((day) => (
-                  <div key={day} className="border-l border-border p-3 text-sm font-semibold text-text-primary">
+                  <div
+                    key={day}
+                    className="border-l border-border p-3 text-sm font-semibold text-text-primary"
+                  >
                     {day}
                   </div>
                 ))}
               </div>
               {Array.from({ length: maximumPeriods }, (_, period) => (
-                <div key={period} className="grid min-h-24 grid-cols-[64px_repeat(5,minmax(170px,1fr))] border-b border-border last:border-b-0">
-                  <div className="p-3 text-center text-sm font-semibold text-text-muted">{period + 1}.</div>
+                <div
+                  key={period}
+                  className="grid min-h-24 grid-cols-[64px_repeat(5,minmax(170px,1fr))] border-b border-border last:border-b-0"
+                >
+                  <div className="p-3 text-center text-sm font-semibold text-text-muted">
+                    {period + 1}.
+                  </div>
                   {dayNames.slice(0, 5).map((_day, day) => {
                     const cellLessons = payload?.lessons.filter(
-                      (lesson) => lesson.day === day && lesson.period === period,
+                      (lesson) =>
+                        lesson.day === day && lesson.period === period,
                     );
-                    const disabled = period >= (payload?.periodsPerDay[day] ?? 0);
+                    const disabled =
+                      period >= (payload?.periodsPerDay[day] ?? 0);
                     return (
                       <div
                         key={`${day}-${period}`}
@@ -369,15 +433,31 @@ export default function TimetablePage() {
                             className="w-full rounded-md border border-primary/30 bg-primary-subtle p-2.5 text-left transition hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                           >
                             <div className="flex items-start justify-between gap-2">
-                              <strong className="text-sm text-text-primary">{lesson.subject?.code}</strong>
+                              <strong className="text-sm text-text-primary">
+                                {lesson.subject?.code}
+                              </strong>
                               <span className="flex items-center gap-1 text-text-muted">
-                                {lesson.locked ? <Lock className="size-3.5" aria-label="Zamčeno" /> : null}
-                                {lesson.manually_changed ? <Move className="size-3.5" aria-label="Ručně změněno" /> : null}
+                                {lesson.locked ? (
+                                  <Lock
+                                    className="size-3.5"
+                                    aria-label="Zamčeno"
+                                  />
+                                ) : null}
+                                {lesson.manually_changed ? (
+                                  <Move
+                                    className="size-3.5"
+                                    aria-label="Ručně změněno"
+                                  />
+                                ) : null}
                               </span>
                             </div>
                             <p className="mt-1 text-xs text-text-secondary">
-                              {view === "class" ? lesson.teacher?.code : lesson.schoolClass?.code}
-                              {lesson.group !== "WHOLE" ? ` · ${lesson.group}` : ""}
+                              {view === "class"
+                                ? lesson.teacher?.code
+                                : lesson.schoolClass?.code}
+                              {lesson.group !== "WHOLE"
+                                ? ` · ${lesson.group}`
+                                : ""}
                             </p>
                             <p className="mt-1 text-xs text-text-muted">
                               {lesson.room?.code ?? "bez učebny"}
@@ -397,37 +477,65 @@ export default function TimetablePage() {
         <aside className="space-y-4">
           <article className="rounded-xl border border-border bg-surface p-5">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="font-semibold text-text-primary">Kvalita návrhu</h2>
-              <StatusBadge tone={payload?.version.qualityScore != null ? "success" : "neutral"}>
+              <h2 className="font-semibold text-text-primary">
+                Kvalita návrhu
+              </h2>
+              <StatusBadge
+                tone={
+                  payload?.version.qualityScore != null ? "success" : "neutral"
+                }
+              >
                 {payload?.version.qualityScore ?? "–"}/100
               </StatusBadge>
             </div>
             <div className="mt-4 space-y-3">
-              {Object.entries(payload?.version.scoreBreakdown ?? {}).map(([category, value]) => (
-                <div key={category}>
-                  <div className="flex justify-between gap-3 text-xs">
-                    <span className="text-text-secondary">{categoryLabels[category] ?? category}</span>
-                    <strong>{value}</strong>
+              {Object.entries(payload?.version.scoreBreakdown ?? {}).map(
+                ([category, value]) => (
+                  <div key={category}>
+                    <div className="flex justify-between gap-3 text-xs">
+                      <span className="text-text-secondary">
+                        {categoryLabels[category] ?? category}
+                      </span>
+                      <strong>{value}</strong>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded bg-surface-subtle">
+                      <div
+                        className="h-full bg-primary"
+                        style={{ width: `${Math.min(100, value * 4)}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="mt-1 h-1.5 overflow-hidden rounded bg-surface-subtle">
-                    <div className="h-full bg-primary" style={{ width: `${Math.min(100, value * 4)}%` }} />
-                  </div>
-                </div>
-              ))}
+                ),
+              )}
             </div>
           </article>
 
           <article className="rounded-xl border border-border bg-surface p-5">
-            <h2 className="font-semibold text-text-primary">Největší rezervy</h2>
+            <h2 className="font-semibold text-text-primary">
+              Největší rezervy
+            </h2>
             <div className="mt-3 space-y-3">
-              {(payload?.version.incidentReport ?? []).slice(0, 5).map((incident) => (
-                <div key={`${incident.code}-${incident.message}`} className="rounded-lg bg-surface-subtle p-3">
-                  <p className="text-sm font-medium text-text-primary">−{incident.points} · {incident.message}</p>
-                  {incident.suggestion ? <p className="mt-1 text-xs text-text-muted">{incident.suggestion}</p> : null}
-                </div>
-              ))}
+              {(payload?.version.incidentReport ?? [])
+                .slice(0, 5)
+                .map((incident) => (
+                  <div
+                    key={`${incident.code}-${incident.message}`}
+                    className="rounded-lg bg-surface-subtle p-3"
+                  >
+                    <p className="text-sm font-medium text-text-primary">
+                      −{incident.points} · {incident.message}
+                    </p>
+                    {incident.suggestion ? (
+                      <p className="mt-1 text-xs text-text-muted">
+                        {incident.suggestion}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
               {!payload?.version.incidentReport?.length ? (
-                <p className="text-sm text-text-muted">Žádné evidované penalizace.</p>
+                <p className="text-sm text-text-muted">
+                  Žádné evidované penalizace.
+                </p>
               ) : null}
             </div>
           </article>
@@ -435,16 +543,36 @@ export default function TimetablePage() {
       </section>
 
       {selectedLesson ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
-          <div role="dialog" aria-modal="true" aria-labelledby="move-title" className="w-full max-w-lg rounded-xl border border-border bg-surface p-6 shadow-xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="move-title"
+            className="w-full max-w-lg rounded-xl border border-border bg-surface p-6 shadow-xl"
+          >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 id="move-title" className="text-lg font-semibold text-text-primary">Detail výukového bloku</h2>
+                <h2
+                  id="move-title"
+                  className="text-lg font-semibold text-text-primary"
+                >
+                  Detail výukového bloku
+                </h2>
                 <p className="mt-1 text-sm text-text-secondary">
-                  {selectedLesson.subject?.name} · {selectedLesson.schoolClass?.code} · {selectedLesson.teacher?.code}
+                  {selectedLesson.subject?.name} ·{" "}
+                  {selectedLesson.schoolClass?.code} ·{" "}
+                  {selectedLesson.teacher?.code}
                 </p>
               </div>
-              <button type="button" onClick={() => setSelectedLesson(null)} className="rounded p-1 text-text-muted hover:bg-surface-subtle" aria-label="Zavřít">
+              <button
+                type="button"
+                onClick={() => setSelectedLesson(null)}
+                className="rounded p-1 text-text-muted hover:bg-surface-subtle"
+                aria-label="Zavřít"
+              >
                 <X className="size-5" />
               </button>
             </div>
@@ -453,47 +581,90 @@ export default function TimetablePage() {
               <StatusBadge tone={selectedLesson.locked ? "warning" : "neutral"}>
                 {selectedLesson.locked ? "Zamčeno" : "Odemčeno"}
               </StatusBadge>
-              {selectedLesson.manually_changed ? <StatusBadge tone="info">Ručně změněno</StatusBadge> : null}
+              {selectedLesson.manually_changed ? (
+                <StatusBadge tone="info">Ručně změněno</StatusBadge>
+              ) : null}
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => void setLock(selectedLesson, !selectedLesson.locked)}
+                onClick={() =>
+                  void setLock(selectedLesson, !selectedLesson.locked)
+                }
                 disabled={busy || selectedLesson.origin === "FIXED_RULE"}
               >
-                {selectedLesson.locked ? <LockOpen className="size-3.5" /> : <Lock className="size-3.5" />}
+                {selectedLesson.locked ? (
+                  <LockOpen className="size-3.5" />
+                ) : (
+                  <Lock className="size-3.5" />
+                )}
                 {selectedLesson.locked ? "Odemknout" : "Zamknout"}
               </Button>
             </div>
 
-            <form onSubmit={submitMove} className="mt-5 grid gap-4 sm:grid-cols-2">
+            <form
+              onSubmit={submitMove}
+              className="mt-5 grid gap-4 sm:grid-cols-2"
+            >
               <label className="text-sm font-medium text-text-primary">
                 Den
-                <select name="day" defaultValue={selectedLesson.day} className="mt-1.5 h-10 w-full rounded-md border border-border-strong bg-surface px-3">
-                  {dayNames.slice(0, 5).map((day, index) => <option key={day} value={index}>{day}</option>)}
+                <select
+                  name="day"
+                  defaultValue={selectedLesson.day}
+                  className="mt-1.5 h-10 w-full rounded-md border border-border-strong bg-surface px-3"
+                >
+                  {dayNames.slice(0, 5).map((day, index) => (
+                    <option key={day} value={index}>
+                      {day}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="text-sm font-medium text-text-primary">
                 Hodina
-                <select name="period" defaultValue={selectedLesson.period} className="mt-1.5 h-10 w-full rounded-md border border-border-strong bg-surface px-3">
-                  {Array.from({ length: maximumPeriods }, (_, index) => <option key={index} value={index}>{index + 1}.</option>)}
+                <select
+                  name="period"
+                  defaultValue={selectedLesson.period}
+                  className="mt-1.5 h-10 w-full rounded-md border border-border-strong bg-surface px-3"
+                >
+                  {Array.from({ length: maximumPeriods }, (_, index) => (
+                    <option key={index} value={index}>
+                      {index + 1}.
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="sm:col-span-2 text-sm font-medium text-text-primary">
                 Učebna
-                <select name="roomId" defaultValue={selectedLesson.room_id ?? ""} className="mt-1.5 h-10 w-full rounded-md border border-border-strong bg-surface px-3">
+                <select
+                  name="roomId"
+                  defaultValue={selectedLesson.room_id ?? ""}
+                  className="mt-1.5 h-10 w-full rounded-md border border-border-strong bg-surface px-3"
+                >
                   <option value="">Bez učebny</option>
-                  {payload?.rooms.map((room) => <option key={room.id} value={room.id}>{room.code} · {room.name}</option>)}
+                  {payload?.rooms.map((room) => (
+                    <option key={room.id} value={room.id}>
+                      {room.code} · {room.name}
+                    </option>
+                  ))}
                 </select>
               </label>
 
               {moveIssues.length ? (
                 <div className="sm:col-span-2 rounded-lg border border-danger-border bg-danger-subtle p-3 text-sm text-danger-strong">
-                  {moveIssues.map((issue) => <p key={issue}>{issue}</p>)}
+                  {moveIssues.map((issue) => (
+                    <p key={issue}>{issue}</p>
+                  ))}
                 </div>
               ) : null}
 
               <div className="sm:col-span-2 flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setSelectedLesson(null)}>Zrušit</Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setSelectedLesson(null)}
+                >
+                  Zrušit
+                </Button>
                 <Button type="submit" disabled={busy || selectedLesson.locked}>
                   <Move className="size-4" aria-hidden="true" />
                   {busy ? "Ověřuji…" : "Ověřit a přesunout"}

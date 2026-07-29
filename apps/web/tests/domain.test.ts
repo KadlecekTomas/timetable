@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { CanonicalSnapshot, ScheduledLesson } from "../lib/domain/contracts";
+import type {
+  CanonicalSnapshot,
+  ScheduledLesson,
+} from "../lib/domain/contracts";
 import { evaluateReadiness } from "../lib/domain/readiness";
 import { scoreSchedule } from "../lib/domain/scoring";
 import { createSnapshotHash } from "../lib/domain/snapshot";
@@ -133,12 +136,18 @@ test("readiness blocks missing references and reports load warning", () => {
   const report = evaluateReadiness(source);
   assert.equal(report.ready, true);
   assert.equal(report.blockers.length, 0);
-  assert.ok(report.warnings.some((item) => item.code === "SPLIT_GROUP_COUNTERPART_MISSING"));
+  assert.ok(
+    report.warnings.some(
+      (item) => item.code === "SPLIT_GROUP_COUNTERPART_MISSING",
+    ),
+  );
 
   source.assignments[0]!.teacher_id = "missing";
   const invalid = evaluateReadiness(source);
   assert.equal(invalid.ready, false);
-  assert.ok(invalid.blockers.some((item) => item.code === "ASSIGNMENT_TEACHER_UNKNOWN"));
+  assert.ok(
+    invalid.blockers.some((item) => item.code === "ASSIGNMENT_TEACHER_UNKNOWN"),
+  );
 });
 
 test("valid schedule receives deterministic score", () => {
@@ -149,7 +158,10 @@ test("valid schedule receives deterministic score", () => {
   const second = scoreSchedule(source, timetable);
   assert.deepEqual(first, second);
   assert.equal(first.valid, true);
-  assert.equal(first.total, Object.values(first.categories).reduce((sum, value) => sum + value, 0));
+  assert.equal(
+    first.total,
+    Object.values(first.categories).reduce((sum, value) => sum + value, 0),
+  );
 });
 
 test("whole class lesson conflicts with split group but two distinct groups may overlap", () => {
@@ -183,7 +195,10 @@ test("whole class lesson conflicts with split group but two distinct groups may 
     origin: "SOLVER",
   });
   const issues = validateSchedule(source, timetable);
-  assert.equal(issues.some((item) => item.code === "CLASS_COLLISION"), false);
+  assert.equal(
+    issues.some((item) => item.code === "CLASS_COLLISION"),
+    false,
+  );
 
   timetable[0]!.day = 0;
   timetable[0]!.period = 1;

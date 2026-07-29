@@ -8,7 +8,10 @@ const createSchoolYearSchema = z
   .object({
     schoolId: z.string().cuid().optional(),
     schoolName: z.string().trim().min(2).max(160).optional(),
-    label: z.string().trim().regex(/^\d{4}\/\d{4}$/),
+    label: z
+      .string()
+      .trim()
+      .regex(/^\d{4}\/\d{4}$/),
     startsOn: z.coerce.date(),
     endsOn: z.coerce.date(),
     periodsPerDay: z.array(z.number().int().min(1).max(16)).min(5).max(7),
@@ -43,7 +46,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const parsed = createSchoolYearSchema.safeParse(await request.json().catch(() => null));
+  const parsed = createSchoolYearSchema.safeParse(
+    await request.json().catch(() => null),
+  );
   if (!parsed.success) {
     return validationError(
       "SCHOOL_YEAR_INVALID",
@@ -60,11 +65,17 @@ export async function POST(request: Request) {
         update: {},
       });
   if (!school) {
-    return apiError({ status: 404, code: "SCHOOL_NOT_FOUND", message: "Škola nebyla nalezena." });
+    return apiError({
+      status: 404,
+      code: "SCHOOL_NOT_FOUND",
+      message: "Škola nebyla nalezena.",
+    });
   }
 
   const existing = await prisma.schoolYear.findUnique({
-    where: { schoolId_label: { schoolId: school.id, label: parsed.data.label } },
+    where: {
+      schoolId_label: { schoolId: school.id, label: parsed.data.label },
+    },
   });
   if (existing) {
     return apiError({

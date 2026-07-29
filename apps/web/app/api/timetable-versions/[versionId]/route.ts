@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { apiError } from "@/lib/server/api-response";
-import { loadTimetableState, TimetableStateError } from "@/lib/server/timetable-state";
+import {
+  loadTimetableState,
+  TimetableStateError,
+} from "@/lib/server/timetable-state";
 
 interface RouteContext {
   params: Promise<{ versionId: string }>;
@@ -18,11 +21,17 @@ export async function GET(request: Request, context: RouteContext) {
     const teachers = new Map(
       snapshot.teachers.map((item) => [
         item.id,
-        { code: item.code, name: `${item.first_name} ${item.last_name}`.trim() },
+        {
+          code: item.code,
+          name: `${item.first_name} ${item.last_name}`.trim(),
+        },
       ]),
     );
     const classes = new Map(
-      snapshot.classes.map((item) => [item.id, { code: item.code, name: item.name }]),
+      snapshot.classes.map((item) => [
+        item.id,
+        { code: item.code, name: item.name },
+      ]),
     );
     const subjects = new Map(
       snapshot.subjects.map((item) => [
@@ -39,7 +48,9 @@ export async function GET(request: Request, context: RouteContext) {
     const rooms = new Map(roomItems.map((item) => [item.id, item]));
     const filtered = entityId
       ? lessons.filter((lesson) =>
-          view === "teacher" ? lesson.teacher_id === entityId : lesson.class_id === entityId,
+          view === "teacher"
+            ? lesson.teacher_id === entityId
+            : lesson.class_id === entityId,
         )
       : lessons;
 
@@ -66,7 +77,11 @@ export async function GET(request: Request, context: RouteContext) {
               code: item.code,
               name: `${item.first_name} ${item.last_name}`.trim(),
             }))
-          : snapshot.classes.map((item) => ({ id: item.id, code: item.code, name: item.name })),
+          : snapshot.classes.map((item) => ({
+              id: item.id,
+              code: item.code,
+              name: item.name,
+            })),
       rooms: roomItems,
       lessons: filtered.map((lesson) => ({
         ...lesson,
@@ -78,7 +93,12 @@ export async function GET(request: Request, context: RouteContext) {
     });
   } catch (error) {
     if (error instanceof TimetableStateError) {
-      return apiError({ status: error.status, code: error.code, message: error.message, details: error.details });
+      return apiError({
+        status: error.status,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+      });
     }
     throw error;
   }

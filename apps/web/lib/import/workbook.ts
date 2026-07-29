@@ -87,19 +87,31 @@ const DAY_VALUES = ["MON", "TUE", "WED", "THU", "FRI"] as const;
 const GROUP_VALUES = ["WHOLE", "GROUP_1", "GROUP_2"] as const;
 const SHAPE_VALUES = ["SINGLE", "DOUBLE", "MIXED"] as const;
 const ENTITY_VALUES = ["TEACHER", "CLASS", "ROOM"] as const;
-const AVAILABILITY_VALUES = ["UNAVAILABLE", "PREFERRED", "DISCOURAGED"] as const;
+const AVAILABILITY_VALUES = [
+  "UNAVAILABLE",
+  "PREFERRED",
+  "DISCOURAGED",
+] as const;
 
 function styleHeader(worksheet: Worksheet) {
   const row = worksheet.getRow(1);
   row.font = { bold: true, color: { argb: "FFFFFFFF" } };
-  row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF3157C8" } };
+  row.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF3157C8" },
+  };
   row.alignment = { vertical: "middle", horizontal: "left" };
   row.height = 24;
   worksheet.views = [{ state: "frozen", ySplit: 1 }];
   worksheet.autoFilter = { from: "A1", to: row.getCell(row.cellCount).address };
 }
 
-function addDataSheet(workbook: ExcelJS.Workbook, name: string, headers: string[]) {
+function addDataSheet(
+  workbook: ExcelJS.Workbook,
+  name: string,
+  headers: string[],
+) {
   const worksheet = workbook.addWorksheet(name);
   worksheet.addRow(headers);
   worksheet.columns = headers.map((header) => ({
@@ -145,7 +157,9 @@ export async function createImportTemplate(): Promise<Buffer> {
     "Vyplňte technické sloupce na jednotlivých listech. Neměňte názvy listů ani záhlaví. Vzorce, makra a externí odkazy nejsou podporované.",
   ]);
   readme.addRow([`Verze šablony: ${IMPORT_TEMPLATE_VERSION}`]);
-  readme.addRow(["Import nejprve vytvoří náhled. Data se zapíší až po explicitním potvrzení."]);
+  readme.addRow([
+    "Import nejprve vytvoří náhled. Data se zapíší až po explicitním potvrzení.",
+  ]);
 
   const metadata = workbook.addWorksheet("Metadata", { state: "veryHidden" });
   metadata.addRows([
@@ -153,7 +167,9 @@ export async function createImportTemplate(): Promise<Buffer> {
     ["generator", "Timetable"],
   ]);
 
-  const dictionaries = workbook.addWorksheet("Číselníky", { state: "veryHidden" });
+  const dictionaries = workbook.addWorksheet("Číselníky", {
+    state: "veryHidden",
+  });
   dictionaries.addRow(["groups", ...GROUP_VALUES]);
   dictionaries.addRow(["lesson_shapes", ...SHAPE_VALUES]);
   dictionaries.addRow(["entity_types", ...ENTITY_VALUES]);
@@ -209,13 +225,17 @@ function isFormula(value: CellValue): boolean {
   return Boolean(value && typeof value === "object" && "formula" in value);
 }
 
-function cellText(cell: Cell, issues: ImportIssueDraft[], sheet: string): string {
+function cellText(
+  cell: Cell,
+  issues: ImportIssueDraft[],
+  sheet: string,
+): string {
   if (isFormula(cell.value)) {
     issues.push(
       issue(
         "ERROR",
         sheet,
-        cell.row,
+        Number(cell.row),
         cell.col.toString(),
         "FORMULA_NOT_ALLOWED",
         "Import nepovoluje vzorce.",
@@ -234,7 +254,11 @@ function headerMap(
 ): Map<string, number> {
   const result = new Map<string, number>();
   const headerRow = worksheet.getRow(1);
-  for (let column = 1; column <= Math.max(headerRow.cellCount, 1); column += 1) {
+  for (
+    let column = 1;
+    column <= Math.max(headerRow.cellCount, 1);
+    column += 1
+  ) {
     const value = cellText(headerRow.getCell(column), issues, worksheet.name);
     if (value) result.set(value, column);
   }
@@ -263,7 +287,11 @@ function readRows(
 ): Array<{ rowNumber: number; values: Record<string, string> }> {
   const headers = headerMap(worksheet, issues);
   const rows: Array<{ rowNumber: number; values: Record<string, string> }> = [];
-  for (let rowNumber = 2; rowNumber <= worksheet.actualRowCount; rowNumber += 1) {
+  for (
+    let rowNumber = 2;
+    rowNumber <= worksheet.actualRowCount;
+    rowNumber += 1
+  ) {
     const row = worksheet.getRow(rowNumber);
     const values: Record<string, string> = {};
     for (const [header, column] of headers) {
@@ -456,11 +484,13 @@ function emptySummary(): ImportSummary {
   };
 }
 
-export async function analyzeImportWorkbook(buffer: Buffer): Promise<ImportAnalysis> {
+export async function analyzeImportWorkbook(
+  buffer: Buffer,
+): Promise<ImportAnalysis> {
   const issues: ImportIssueDraft[] = [];
   const workbook = new ExcelJS.Workbook();
   try {
-    await workbook.xlsx.load(buffer);
+    await workbook.xlsx.load(buffer as never);
   } catch {
     return {
       templateVersion: "unknown",
@@ -600,102 +630,108 @@ export async function analyzeImportWorkbook(buffer: Buffer): Promise<ImportAnaly
   };
 
   const teacherSources = readRows(worksheets.get(SHEETS.teachers)!, issues);
-  const teachers: ImportTeacherRow[] = teacherSources.map(({ rowNumber, values }) => ({
-    teacher_code: requiredText(
-      values.teacher_code ?? "",
-      issues,
-      SHEETS.teachers,
-      rowNumber,
-      "teacher_code",
-    ),
-    first_name: requiredText(
-      values.first_name ?? "",
-      issues,
-      SHEETS.teachers,
-      rowNumber,
-      "first_name",
-    ),
-    last_name: requiredText(
-      values.last_name ?? "",
-      issues,
-      SHEETS.teachers,
-      rowNumber,
-      "last_name",
-    ),
-    target_weekly_load:
-      integerValue(
-        values.target_weekly_load ?? "",
+  const teachers: ImportTeacherRow[] = teacherSources.map(
+    ({ rowNumber, values }) => ({
+      teacher_code: requiredText(
+        values.teacher_code ?? "",
         issues,
         SHEETS.teachers,
         rowNumber,
-        "target_weekly_load",
-        { required: true, min: 0, max: 60 },
-      ) ?? 0,
-    min_weekly_load: integerValue(
-      values.min_weekly_load ?? "",
-      issues,
-      SHEETS.teachers,
-      rowNumber,
-      "min_weekly_load",
-      { min: 0, max: 60 },
-    ),
-    max_weekly_load: integerValue(
-      values.max_weekly_load ?? "",
-      issues,
-      SHEETS.teachers,
-      rowNumber,
-      "max_weekly_load",
-      { min: 0, max: 60 },
-    ),
-    subjects: (values.subjects ?? "")
-      .split(";")
-      .map((value) => value.trim())
-      .filter(Boolean),
-    classes: (values.classes ?? "")
-      .split(";")
-      .map((value) => value.trim())
-      .filter(Boolean),
-  }));
+        "teacher_code",
+      ),
+      first_name: requiredText(
+        values.first_name ?? "",
+        issues,
+        SHEETS.teachers,
+        rowNumber,
+        "first_name",
+      ),
+      last_name: requiredText(
+        values.last_name ?? "",
+        issues,
+        SHEETS.teachers,
+        rowNumber,
+        "last_name",
+      ),
+      target_weekly_load:
+        integerValue(
+          values.target_weekly_load ?? "",
+          issues,
+          SHEETS.teachers,
+          rowNumber,
+          "target_weekly_load",
+          { required: true, min: 0, max: 60 },
+        ) ?? 0,
+      min_weekly_load: integerValue(
+        values.min_weekly_load ?? "",
+        issues,
+        SHEETS.teachers,
+        rowNumber,
+        "min_weekly_load",
+        { min: 0, max: 60 },
+      ),
+      max_weekly_load: integerValue(
+        values.max_weekly_load ?? "",
+        issues,
+        SHEETS.teachers,
+        rowNumber,
+        "max_weekly_load",
+        { min: 0, max: 60 },
+      ),
+      subjects: (values.subjects ?? "")
+        .split(";")
+        .map((value) => value.trim())
+        .filter(Boolean),
+      classes: (values.classes ?? "")
+        .split(";")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    }),
+  );
 
   const classSources = readRows(worksheets.get(SHEETS.classes)!, issues);
-  const classes: ImportClassRow[] = classSources.map(({ rowNumber, values }) => ({
-    class_code: requiredText(
-      values.class_code ?? "",
-      issues,
-      SHEETS.classes,
-      rowNumber,
-      "class_code",
-    ),
-    grade:
-      integerValue(
-        values.grade ?? "",
+  const classes: ImportClassRow[] = classSources.map(
+    ({ rowNumber, values }) => ({
+      class_code: requiredText(
+        values.class_code ?? "",
         issues,
         SHEETS.classes,
         rowNumber,
-        "grade",
-        { required: true, min: 1, max: 13 },
-      ) ?? 0,
-    class_name: values.class_name?.trim() || values.class_code?.trim() || "",
-  }));
+        "class_code",
+      ),
+      grade:
+        integerValue(
+          values.grade ?? "",
+          issues,
+          SHEETS.classes,
+          rowNumber,
+          "grade",
+          { required: true, min: 1, max: 13 },
+        ) ?? 0,
+      class_name: values.class_name?.trim() || values.class_code?.trim() || "",
+    }),
+  );
 
   const subjectSources = readRows(worksheets.get(SHEETS.subjects)!, issues);
-  const subjects: ImportSubjectRow[] = subjectSources.map(({ rowNumber, values }) => ({
-    subject_code: requiredText(
-      values.subject_code ?? "",
-      issues,
-      SHEETS.subjects,
-      rowNumber,
-      "subject_code",
-    ),
-    subject_name: requiredText(
-      values.subject_name ?? "",
-      issues,
-      SHEETS.subjects,
-      rowNumber,
-      "subject_name",
-    ),
-    default_room_type: values.default_room_type?.trim() || null,
-  }));
+  const subjects: ImportSubjectRow[] = subjectSources.map(
+    ({ rowNumber, values }) => ({
+      subject_code: requiredText(
+        values.subject_code ?? "",
+        issues,
+        SHEETS.subjects,
+        rowNumber,
+        "subject_code",
+      ),
+      subject_name: requiredText(
+        values.subject_name ?? "",
+        issues,
+        SHEETS.subjects,
+        rowNumber,
+        "subject_name",
+      ),
+      default_room_type: values.default_room_type?.trim() || null,
+    }),
+  );
 
   const roomSources = readRows(worksheets.get(SHEETS.rooms)!, issues);
   const rooms: ImportRoomRow[] = roomSources.map(({ rowNumber, values }) => ({
@@ -724,91 +760,99 @@ export async function analyzeImportWorkbook(buffer: Buffer): Promise<ImportAnaly
     ),
   }));
 
-  const assignmentSources = readRows(worksheets.get(SHEETS.assignments)!, issues);
-  const assignments: ImportAssignmentRow[] = assignmentSources.map(({ rowNumber, values }) => ({
-    assignment_code: requiredText(
-      values.assignment_code ?? "",
-      issues,
-      SHEETS.assignments,
-      rowNumber,
-      "assignment_code",
-    ),
-    class_code: requiredText(
-      values.class_code ?? "",
-      issues,
-      SHEETS.assignments,
-      rowNumber,
-      "class_code",
-    ),
-    subject_code: requiredText(
-      values.subject_code ?? "",
-      issues,
-      SHEETS.assignments,
-      rowNumber,
-      "subject_code",
-    ),
-    teacher_code: requiredText(
-      values.teacher_code ?? "",
-      issues,
-      SHEETS.assignments,
-      rowNumber,
-      "teacher_code",
-    ),
-    group: enumValue(
-      values.group ?? "",
-      GROUP_VALUES,
-      issues,
-      SHEETS.assignments,
-      rowNumber,
-      "group",
-    ),
-    weekly_periods:
-      integerValue(
-        values.weekly_periods ?? "",
+  const assignmentSources = readRows(
+    worksheets.get(SHEETS.assignments)!,
+    issues,
+  );
+  const assignments: ImportAssignmentRow[] = assignmentSources.map(
+    ({ rowNumber, values }) => ({
+      assignment_code: requiredText(
+        values.assignment_code ?? "",
         issues,
         SHEETS.assignments,
         rowNumber,
-        "weekly_periods",
-        { required: true, min: 1, max: 40 },
-      ) ?? 0,
-    lesson_shape: enumValue(
-      values.lesson_shape ?? "",
-      SHAPE_VALUES,
-      issues,
-      SHEETS.assignments,
-      rowNumber,
-      "lesson_shape",
-    ),
-    double_periods_count:
-      integerValue(
-        values.double_periods_count ?? "",
+        "assignment_code",
+      ),
+      class_code: requiredText(
+        values.class_code ?? "",
         issues,
         SHEETS.assignments,
         rowNumber,
-        "double_periods_count",
-        { required: true, min: 0, max: 20 },
-      ) ?? 0,
-    required_room: values.required_room?.trim() || null,
-    required_room_type: values.required_room_type?.trim() || null,
-    max_per_day: integerValue(
-      values.max_per_day ?? "",
-      issues,
-      SHEETS.assignments,
-      rowNumber,
-      "max_per_day",
-      { min: 1, max: 16 },
-    ),
-    min_day_gap: integerValue(
-      values.min_day_gap ?? "",
-      issues,
-      SHEETS.assignments,
-      rowNumber,
-      "min_day_gap",
-      { min: 0, max: 4 },
-    ),
-  }));
+        "class_code",
+      ),
+      subject_code: requiredText(
+        values.subject_code ?? "",
+        issues,
+        SHEETS.assignments,
+        rowNumber,
+        "subject_code",
+      ),
+      teacher_code: requiredText(
+        values.teacher_code ?? "",
+        issues,
+        SHEETS.assignments,
+        rowNumber,
+        "teacher_code",
+      ),
+      group: enumValue(
+        values.group ?? "",
+        GROUP_VALUES,
+        issues,
+        SHEETS.assignments,
+        rowNumber,
+        "group",
+      ),
+      weekly_periods:
+        integerValue(
+          values.weekly_periods ?? "",
+          issues,
+          SHEETS.assignments,
+          rowNumber,
+          "weekly_periods",
+          { required: true, min: 1, max: 40 },
+        ) ?? 0,
+      lesson_shape: enumValue(
+        values.lesson_shape ?? "",
+        SHAPE_VALUES,
+        issues,
+        SHEETS.assignments,
+        rowNumber,
+        "lesson_shape",
+      ),
+      double_periods_count:
+        integerValue(
+          values.double_periods_count ?? "",
+          issues,
+          SHEETS.assignments,
+          rowNumber,
+          "double_periods_count",
+          { required: true, min: 0, max: 20 },
+        ) ?? 0,
+      required_room: values.required_room?.trim() || null,
+      required_room_type: values.required_room_type?.trim() || null,
+      max_per_day: integerValue(
+        values.max_per_day ?? "",
+        issues,
+        SHEETS.assignments,
+        rowNumber,
+        "max_per_day",
+        { min: 1, max: 16 },
+      ),
+      min_day_gap: integerValue(
+        values.min_day_gap ?? "",
+        issues,
+        SHEETS.assignments,
+        rowNumber,
+        "min_day_gap",
+        { min: 0, max: 4 },
+      ),
+    }),
+  );
 
-  const availabilitySources = readRows(worksheets.get(SHEETS.availability)!, issues);
+  const availabilitySources = readRows(
+    worksheets.get(SHEETS.availability)!,
+    issues,
+  );
   const availability: ImportAvailabilityRow[] = availabilitySources.map(
     ({ rowNumber, values }) => ({
       entity_type: enumValue(
@@ -864,58 +908,60 @@ export async function analyzeImportWorkbook(buffer: Buffer): Promise<ImportAnaly
   );
 
   const fixedSources = readRows(worksheets.get(SHEETS.fixedLessons)!, issues);
-  const fixedLessons: ImportFixedLessonRow[] = fixedSources.map(({ rowNumber, values }) => ({
-    assignment_code: requiredText(
-      values.assignment_code ?? "",
-      issues,
-      SHEETS.fixedLessons,
-      rowNumber,
-      "assignment_code",
-    ),
-    block_index:
-      integerValue(
-        values.block_index ?? "",
+  const fixedLessons: ImportFixedLessonRow[] = fixedSources.map(
+    ({ rowNumber, values }) => ({
+      assignment_code: requiredText(
+        values.assignment_code ?? "",
         issues,
         SHEETS.fixedLessons,
         rowNumber,
-        "block_index",
-        { required: true, min: 0, max: 100 },
-      ) ?? 0,
-    day: enumValue(
-      values.day ?? "",
-      DAY_VALUES,
-      issues,
-      SHEETS.fixedLessons,
-      rowNumber,
-      "day",
-    ),
-    start_period:
-      integerValue(
-        values.start_period ?? "",
+        "assignment_code",
+      ),
+      block_index:
+        integerValue(
+          values.block_index ?? "",
+          issues,
+          SHEETS.fixedLessons,
+          rowNumber,
+          "block_index",
+          { required: true, min: 0, max: 100 },
+        ) ?? 0,
+      day: enumValue(
+        values.day ?? "",
+        DAY_VALUES,
         issues,
         SHEETS.fixedLessons,
         rowNumber,
-        "start_period",
-        { required: true, min: 1, max: 16 },
-      ) ?? 0,
-    duration:
-      integerValue(
-        values.duration ?? "",
+        "day",
+      ),
+      start_period:
+        integerValue(
+          values.start_period ?? "",
+          issues,
+          SHEETS.fixedLessons,
+          rowNumber,
+          "start_period",
+          { required: true, min: 1, max: 16 },
+        ) ?? 0,
+      duration:
+        integerValue(
+          values.duration ?? "",
+          issues,
+          SHEETS.fixedLessons,
+          rowNumber,
+          "duration",
+          { required: true, min: 1, max: 2 },
+        ) ?? 0,
+      room_code: values.room_code?.trim() || null,
+      locked: booleanValue(
+        values.locked ?? "",
         issues,
         SHEETS.fixedLessons,
         rowNumber,
-        "duration",
-        { required: true, min: 1, max: 2 },
-      ) ?? 0,
-    room_code: values.room_code?.trim() || null,
-    locked: booleanValue(
-      values.locked ?? "",
-      issues,
-      SHEETS.fixedLessons,
-      rowNumber,
-      "locked",
-    ),
-  }));
+        "locked",
+      ),
+    }),
+  );
 
   checkDuplicateCodes(
     teacherSources.map((source) => ({
@@ -970,14 +1016,31 @@ export async function analyzeImportWorkbook(buffer: Buffer): Promise<ImportAnaly
   const roomTypes = new Set(
     rooms.flatMap((item) => (item.room_type ? [item.room_type] : [])),
   );
-  const assignmentCodes = new Set(assignments.map((item) => item.assignment_code));
+  const assignmentCodes = new Set(
+    assignments.map((item) => item.assignment_code),
+  );
 
   assignments.forEach((assignment, index) => {
     const sourceRow = assignmentSources[index]?.rowNumber ?? index + 2;
     const references: Array<[boolean, string, string, string]> = [
-      [teacherCodes.has(assignment.teacher_code), "teacher_code", assignment.teacher_code, "učitele"],
-      [classCodes.has(assignment.class_code), "class_code", assignment.class_code, "třídu"],
-      [subjectCodes.has(assignment.subject_code), "subject_code", assignment.subject_code, "předmět"],
+      [
+        teacherCodes.has(assignment.teacher_code),
+        "teacher_code",
+        assignment.teacher_code,
+        "učitele",
+      ],
+      [
+        classCodes.has(assignment.class_code),
+        "class_code",
+        assignment.class_code,
+        "třídu",
+      ],
+      [
+        subjectCodes.has(assignment.subject_code),
+        "subject_code",
+        assignment.subject_code,
+        "předmět",
+      ],
     ];
     for (const [exists, column, value, noun] of references) {
       if (!exists) {
@@ -1007,7 +1070,10 @@ export async function analyzeImportWorkbook(buffer: Buffer): Promise<ImportAnaly
         ),
       );
     }
-    if (assignment.required_room_type && !roomTypes.has(assignment.required_room_type)) {
+    if (
+      assignment.required_room_type &&
+      !roomTypes.has(assignment.required_room_type)
+    ) {
       issues.push(
         issue(
           "ERROR",
@@ -1034,7 +1100,10 @@ export async function analyzeImportWorkbook(buffer: Buffer): Promise<ImportAnaly
         ),
       );
     }
-    if (assignment.lesson_shape === "DOUBLE" && assignment.weekly_periods % 2 !== 0) {
+    if (
+      assignment.lesson_shape === "DOUBLE" &&
+      assignment.weekly_periods % 2 !== 0
+    ) {
       issues.push(
         issue(
           "ERROR",
@@ -1148,7 +1217,8 @@ export async function analyzeImportWorkbook(buffer: Buffer): Promise<ImportAnaly
   for (const assignment of assignments) {
     teacherLoads.set(
       assignment.teacher_code,
-      (teacherLoads.get(assignment.teacher_code) ?? 0) + assignment.weekly_periods,
+      (teacherLoads.get(assignment.teacher_code) ?? 0) +
+        assignment.weekly_periods,
     );
   }
   teachers.forEach((teacher, index) => {
@@ -1206,7 +1276,8 @@ export async function analyzeImportWorkbook(buffer: Buffer): Promise<ImportAnaly
     fixedLessons,
   };
   issues.sort((left, right) => {
-    const severity = left.severity === right.severity ? 0 : left.severity === "ERROR" ? -1 : 1;
+    const severity =
+      left.severity === right.severity ? 0 : left.severity === "ERROR" ? -1 : 1;
     if (severity !== 0) return severity;
     return `${left.sheet}:${left.row ?? 0}:${left.column ?? ""}:${left.code}`.localeCompare(
       `${right.sheet}:${right.row ?? 0}:${right.column ?? ""}:${right.code}`,

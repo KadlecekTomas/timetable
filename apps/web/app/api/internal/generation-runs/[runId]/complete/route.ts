@@ -52,10 +52,16 @@ const completionSchema = z.discriminatedUnion("outcome", [
 export async function POST(request: Request, context: RouteContext) {
   const auth = authorizeWorker(request);
   if (!auth.authorized) {
-    return apiError({ status: auth.status, code: auth.code, message: auth.message });
+    return apiError({
+      status: auth.status,
+      code: auth.code,
+      message: auth.message,
+    });
   }
   const { runId } = await context.params;
-  const parsed = completionSchema.safeParse(await request.json().catch(() => null));
+  const parsed = completionSchema.safeParse(
+    await request.json().catch(() => null),
+  );
   if (!parsed.success) {
     return validationError(
       "WORKER_COMPLETION_INVALID",
@@ -66,7 +72,11 @@ export async function POST(request: Request, context: RouteContext) {
 
   const run = await prisma.generationRun.findUnique({ where: { id: runId } });
   if (!run) {
-    return apiError({ status: 404, code: "GENERATION_RUN_NOT_FOUND", message: "Běh generování nebyl nalezen." });
+    return apiError({
+      status: 404,
+      code: "GENERATION_RUN_NOT_FOUND",
+      message: "Běh generování nebyl nalezen.",
+    });
   }
   if (run.status !== "RUNNING") {
     return apiError({
@@ -77,7 +87,8 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   if (parsed.data.outcome !== "SOLVED") {
-    const status = parsed.data.outcome === "INFEASIBLE" ? "INFEASIBLE" : "FAILED";
+    const status =
+      parsed.data.outcome === "INFEASIBLE" ? "INFEASIBLE" : "FAILED";
     await prisma.generationRun.updateMany({
       where: { id: runId, status: "RUNNING" },
       data: {
@@ -88,6 +99,8 @@ export async function POST(request: Request, context: RouteContext) {
     });
     return NextResponse.json({ generationRunId: runId, status });
   }
+
+  const solvedResult = parsed.data.result;
 
   const snapshot = run.snapshot as unknown as CanonicalSnapshot;
   if (createSnapshotHash(snapshot) !== run.inputSnapshotHash) {
@@ -106,7 +119,7 @@ export async function POST(request: Request, context: RouteContext) {
     });
   }
 
-  const lessons = parsed.data.result.lessons.map((lesson) => ({
+  const lessons = solvedResult.lessons.map((lesson) => ({
     ...lesson,
     manually_changed: false,
   }));
@@ -173,12 +186,12 @@ export async function POST(request: Request, context: RouteContext) {
     await tx.generationRun.update({
       where: { id: runId },
       data: {
-        status: parsed.data.result.status,
-        objectiveValue: parsed.data.result.objective_value,
+        status: solvedResult.status,
+        objectiveValue: solvedResult.objective_value,
         qualityScore: score.total,
-        solverStats: parsed.data.result.solver_stats as Prisma.InputJsonValue,
+        solverStats: solvedResult.solver_stats as Prisma.InputJsonValue,
         explanation: {
-          diagnostics: parsed.data.result.diagnostics,
+          diagnostics: solvedResult.diagnostics,
           scoreLabel: score.label,
           incidents: score.incidents,
         } as unknown as Prisma.InputJsonValue,
@@ -190,7 +203,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   return NextResponse.json({
     generationRunId: runId,
-    status: parsed.data.result.status,
+    status: solvedResult.status,
     timetableVersionId: completed.candidate.id,
     qualityScore: score.total,
     scoreLabel: score.label,

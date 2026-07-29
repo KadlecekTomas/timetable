@@ -3,7 +3,10 @@ import { NextResponse } from "next/server";
 
 import { scoreSchedule } from "@/lib/domain/scoring";
 import { apiError } from "@/lib/server/api-response";
-import { loadTimetableState, TimetableStateError } from "@/lib/server/timetable-state";
+import {
+  loadTimetableState,
+  TimetableStateError,
+} from "@/lib/server/timetable-state";
 
 interface RouteContext {
   params: Promise<{ versionId: string }>;
@@ -23,7 +26,11 @@ export async function GET(_request: Request, context: RouteContext) {
     });
   } catch (error) {
     if (error instanceof TimetableStateError) {
-      return apiError({ status: error.status, code: error.code, message: error.message });
+      return apiError({
+        status: error.status,
+        code: error.code,
+        message: error.message,
+      });
     }
     throw error;
   }
@@ -48,7 +55,11 @@ export async function POST(_request: Request, context: RouteContext) {
     return NextResponse.json(score);
   } catch (error) {
     if (error instanceof TimetableStateError) {
-      return apiError({ status: error.status, code: error.code, message: error.message });
+      return apiError({
+        status: error.status,
+        code: error.code,
+        message: error.message,
+      });
     }
     throw error;
   }

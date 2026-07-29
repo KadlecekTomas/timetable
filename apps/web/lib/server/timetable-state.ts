@@ -1,6 +1,9 @@
 import { prisma } from "@timetable/database";
 
-import type { CanonicalSnapshot, ScheduledLesson } from "@/lib/domain/contracts";
+import type {
+  CanonicalSnapshot,
+  ScheduledLesson,
+} from "@/lib/domain/contracts";
 import { loadCanonicalSnapshot } from "@/lib/server/snapshot-builder";
 
 export class TimetableStateError extends Error {
@@ -15,7 +18,9 @@ export class TimetableStateError extends Error {
 }
 
 export async function loadTimetableState(versionId: string): Promise<{
-  version: Awaited<ReturnType<typeof prisma.timetableVersion.findUniqueOrThrow>>;
+  version: Awaited<
+    ReturnType<typeof prisma.timetableVersion.findUniqueOrThrow>
+  >;
   snapshot: CanonicalSnapshot;
   lessons: ScheduledLesson[];
 }> {
@@ -34,7 +39,11 @@ export async function loadTimetableState(versionId: string): Promise<{
           },
           room: true,
         },
-        orderBy: [{ dayOfWeek: "asc" }, { startPeriod: "asc" }, { blockId: "asc" }],
+        orderBy: [
+          { dayOfWeek: "asc" },
+          { startPeriod: "asc" },
+          { blockId: "asc" },
+        ],
       },
     },
   });

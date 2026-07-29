@@ -19,17 +19,27 @@ function assignmentIdentity(assignment: SnapshotAssignment): string {
   return assignment.code ?? assignment.id;
 }
 
-export function evaluateReadiness(snapshot: CanonicalSnapshot): ReadinessReport {
+export function evaluateReadiness(
+  snapshot: CanonicalSnapshot,
+): ReadinessReport {
   const blockers: ReadinessIssue[] = [];
   const warnings: ReadinessIssue[] = [];
   const add = (item: ReadinessIssue) =>
     item.severity === "ERROR" ? blockers.push(item) : warnings.push(item);
 
   if (snapshot.teachers.length === 0) {
-    add(issue("TEACHERS_MISSING", "ERROR", "Školní rok nemá žádné aktivní učitele."));
+    add(
+      issue(
+        "TEACHERS_MISSING",
+        "ERROR",
+        "Školní rok nemá žádné aktivní učitele.",
+      ),
+    );
   }
   if (snapshot.classes.length === 0) {
-    add(issue("CLASSES_MISSING", "ERROR", "Školní rok nemá žádné aktivní třídy."));
+    add(
+      issue("CLASSES_MISSING", "ERROR", "Školní rok nemá žádné aktivní třídy."),
+    );
   }
   if (snapshot.subjects.length === 0) {
     add(issue("SUBJECTS_MISSING", "ERROR", "Školní rok nemá žádné předměty."));
@@ -60,12 +70,18 @@ export function evaluateReadiness(snapshot: CanonicalSnapshot): ReadinessReport 
     }
   });
 
-  const teachers = new Map(snapshot.teachers.map((teacher) => [teacher.id, teacher]));
-  const classes = new Set(snapshot.classes.map((schoolClass) => schoolClass.id));
+  const teachers = new Map(
+    snapshot.teachers.map((teacher) => [teacher.id, teacher]),
+  );
+  const classes = new Set(
+    snapshot.classes.map((schoolClass) => schoolClass.id),
+  );
   const subjects = new Set(snapshot.subjects.map((subject) => subject.id));
   const rooms = new Set(snapshot.rooms.map((room) => room.id));
   const roomTypes = new Set(
-    snapshot.rooms.flatMap((room) => (room.room_type_id ? [room.room_type_id] : [])),
+    snapshot.rooms.flatMap((room) =>
+      room.room_type_id ? [room.room_type_id] : [],
+    ),
   );
   const teacherLoads = new Map<string, number>();
 
@@ -101,7 +117,10 @@ export function evaluateReadiness(snapshot: CanonicalSnapshot): ReadinessReport 
         ),
       );
     }
-    if (!Number.isInteger(assignment.weekly_periods) || assignment.weekly_periods < 1) {
+    if (
+      !Number.isInteger(assignment.weekly_periods) ||
+      assignment.weekly_periods < 1
+    ) {
       add(
         issue(
           "ASSIGNMENT_WEEKLY_PERIODS_INVALID",
@@ -122,7 +141,10 @@ export function evaluateReadiness(snapshot: CanonicalSnapshot): ReadinessReport 
         ),
       );
     }
-    if (assignment.lesson_shape === "DOUBLE" && assignment.weekly_periods % 2 !== 0) {
+    if (
+      assignment.lesson_shape === "DOUBLE" &&
+      assignment.weekly_periods % 2 !== 0
+    ) {
       add(
         issue(
           "ASSIGNMENT_DOUBLE_SHAPE_ODD",
@@ -132,7 +154,10 @@ export function evaluateReadiness(snapshot: CanonicalSnapshot): ReadinessReport 
         ),
       );
     }
-    if (assignment.required_room_id && !rooms.has(assignment.required_room_id)) {
+    if (
+      assignment.required_room_id &&
+      !rooms.has(assignment.required_room_id)
+    ) {
       add(
         issue(
           "ASSIGNMENT_ROOM_UNKNOWN",
@@ -142,7 +167,10 @@ export function evaluateReadiness(snapshot: CanonicalSnapshot): ReadinessReport 
         ),
       );
     }
-    if (assignment.required_room_type_id && !roomTypes.has(assignment.required_room_type_id)) {
+    if (
+      assignment.required_room_type_id &&
+      !roomTypes.has(assignment.required_room_type_id)
+    ) {
       add(
         issue(
           "ASSIGNMENT_ROOM_TYPE_UNAVAILABLE",
@@ -154,7 +182,8 @@ export function evaluateReadiness(snapshot: CanonicalSnapshot): ReadinessReport 
     }
     teacherLoads.set(
       assignment.teacher_id,
-      (teacherLoads.get(assignment.teacher_id) ?? 0) + assignment.weekly_periods,
+      (teacherLoads.get(assignment.teacher_id) ?? 0) +
+        assignment.weekly_periods,
     );
   }
 
@@ -232,7 +261,10 @@ export function evaluateReadiness(snapshot: CanonicalSnapshot): ReadinessReport 
 
   const sortIssues = (items: ReadinessIssue[]) =>
     items.sort((left, right) =>
-      `${left.code}:${left.message}`.localeCompare(`${right.code}:${right.message}`, "cs"),
+      `${left.code}:${left.message}`.localeCompare(
+        `${right.code}:${right.message}`,
+        "cs",
+      ),
     );
   sortIssues(blockers);
   sortIssues(warnings);

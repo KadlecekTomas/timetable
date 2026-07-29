@@ -44,7 +44,11 @@ function occupancy(
   for (const lesson of lessons) {
     const key = `${lesson[attribute]}:${lesson.day}`;
     const periods = result.get(key) ?? new Set<number>();
-    for (let period = lesson.period; period < lesson.period + lesson.duration; period += 1) {
+    for (
+      let period = lesson.period;
+      period < lesson.period + lesson.duration;
+      period += 1
+    ) {
       periods.add(period);
     }
     result.set(key, periods);
@@ -60,7 +64,11 @@ function entityOccupies(
   period: number,
 ): boolean {
   return lessons.some((lesson) => {
-    if (lesson.day !== day || period < lesson.period || period >= lesson.period + lesson.duration) {
+    if (
+      lesson.day !== day ||
+      period < lesson.period ||
+      period >= lesson.period + lesson.duration
+    ) {
       return false;
     }
     if (entityType === "TEACHER") return lesson.teacher_id === entityId;
@@ -109,15 +117,18 @@ export function scoreSchedule(
   ];
 
   for (const definition of gapDefinitions) {
-    for (const [key, occupied] of [...occupancy(lessons, definition.attribute).entries()].sort()) {
+    for (const [key, occupied] of [
+      ...occupancy(lessons, definition.attribute).entries(),
+    ].sort()) {
       if (occupied.size < 2) continue;
       const [entityId, dayValue] = key.split(":");
       const day = Number(dayValue);
       const first = Math.min(...occupied);
       const last = Math.max(...occupied);
-      const gaps = Array.from({ length: last - first + 1 }, (_, index) => first + index).filter(
-        (period) => !occupied.has(period),
-      );
+      const gaps = Array.from(
+        { length: last - first + 1 },
+        (_, index) => first + index,
+      ).filter((period) => !occupied.has(period));
       gaps.forEach((period, index) => {
         const points = index === 0 ? 1 : index === 1 ? 2 : 3;
         deduct(categories, incidents, {
@@ -128,20 +139,29 @@ export function scoreSchedule(
           entity_ids: [entityId],
           day,
           period,
-          suggestion: "Přesuňte sousední výuku blíže k sobě, pokud to tvrdá omezení dovolí.",
+          suggestion:
+            "Přesuňte sousední výuku blíže k sobě, pokud to tvrdá omezení dovolí.",
         });
       });
     }
   }
 
-  const assignments = new Map(snapshot.assignments.map((assignment) => [assignment.id, assignment]));
+  const assignments = new Map(
+    snapshot.assignments.map((assignment) => [assignment.id, assignment]),
+  );
   const assignmentDays = new Map<string, ScheduledLesson[]>();
   const subjectDays = new Map<string, number>();
   for (const lesson of lessons) {
     const assignmentKey = `${lesson.assignment_id}:${lesson.day}`;
-    assignmentDays.set(assignmentKey, [...(assignmentDays.get(assignmentKey) ?? []), lesson]);
+    assignmentDays.set(assignmentKey, [
+      ...(assignmentDays.get(assignmentKey) ?? []),
+      lesson,
+    ]);
     const subjectKey = `${lesson.class_id}:${lesson.subject_id}:${lesson.day}`;
-    subjectDays.set(subjectKey, (subjectDays.get(subjectKey) ?? 0) + lesson.duration);
+    subjectDays.set(
+      subjectKey,
+      (subjectDays.get(subjectKey) ?? 0) + lesson.duration,
+    );
   }
 
   for (const [key, dayLessons] of [...assignmentDays.entries()].sort()) {
@@ -149,7 +169,11 @@ export function scoreSchedule(
     const assignmentId = key.slice(0, separator);
     const day = Number(key.slice(separator + 1));
     const assignment = assignments.get(assignmentId);
-    if (assignment && dayLessons.length > 1 && assignment.lesson_shape !== "DOUBLE") {
+    if (
+      assignment &&
+      dayLessons.length > 1 &&
+      assignment.lesson_shape !== "DOUBLE"
+    ) {
       deduct(categories, incidents, {
         category: "distribution",
         code: "ASSIGNMENT_SAME_DAY_CONCENTRATION",
@@ -211,12 +235,16 @@ export function scoreSchedule(
         entity_ids: [rule.entity_id],
         day: rule.day,
         period: rule.period,
-        suggestion: rule.reason ?? "Při další optimalizaci zkuste preferovaný slot využít.",
+        suggestion:
+          rule.reason ??
+          "Při další optimalizaci zkuste preferovaný slot využít.",
       });
     }
   }
 
-  for (const [key, occupied] of [...occupancy(lessons, "teacher_id").entries()].sort()) {
+  for (const [key, occupied] of [
+    ...occupancy(lessons, "teacher_id").entries(),
+  ].sort()) {
     if (occupied.size !== 1) continue;
     const [teacherId, dayValue] = key.split(":");
     const day = Number(dayValue);
@@ -235,7 +263,9 @@ export function scoreSchedule(
     }
   }
 
-  for (const [key, occupied] of [...occupancy(lessons, "class_id").entries()].sort()) {
+  for (const [key, occupied] of [
+    ...occupancy(lessons, "class_id").entries(),
+  ].sort()) {
     const [classId, dayValue] = key.split(":");
     const day = Number(dayValue);
     const lastPeriod = Math.max(...occupied);
@@ -253,7 +283,10 @@ export function scoreSchedule(
     }
   }
 
-  const total = Object.values(categories).reduce((sum, value) => sum + value, 0);
+  const total = Object.values(categories).reduce(
+    (sum, value) => sum + value,
+    0,
+  );
   return {
     valid: true,
     total,

@@ -38,14 +38,22 @@ export function validateSchedule(
   lessons: ScheduledLesson[],
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const assignments = new Map(snapshot.assignments.map((assignment) => [assignment.id, assignment]));
+  const assignments = new Map(
+    snapshot.assignments.map((assignment) => [assignment.id, assignment]),
+  );
   const rooms = new Map(snapshot.rooms.map((room) => [room.id, room]));
   const fixed = fixedLessonsByBlock(snapshot);
-  const expectedBlocks = new Map<string, { assignmentId: string; duration: number }>();
+  const expectedBlocks = new Map<
+    string,
+    { assignmentId: string; duration: number }
+  >();
 
   for (const assignment of snapshot.assignments) {
     assignmentBlockDurations(assignment).forEach((duration, index) => {
-      expectedBlocks.set(`${assignment.id}:${index}`, { assignmentId: assignment.id, duration });
+      expectedBlocks.set(`${assignment.id}:${index}`, {
+        assignmentId: assignment.id,
+        duration,
+      });
     });
   }
 
@@ -74,7 +82,10 @@ export function validateSchedule(
       continue;
     }
 
-    if (expected.assignmentId !== lesson.assignment_id || expected.duration !== lesson.duration) {
+    if (
+      expected.assignmentId !== lesson.assignment_id ||
+      expected.duration !== lesson.duration
+    ) {
       pushIssue(
         issues,
         "BLOCK_CONTRACT_MISMATCH",
@@ -120,7 +131,10 @@ export function validateSchedule(
       continue;
     }
 
-    if (assignment.required_room_id && lesson.room_id !== assignment.required_room_id) {
+    if (
+      assignment.required_room_id &&
+      lesson.room_id !== assignment.required_room_id
+    ) {
       pushIssue(
         issues,
         "REQUIRED_ROOM_MISMATCH",
@@ -162,7 +176,9 @@ export function validateSchedule(
     }
   }
 
-  for (const blockId of [...expectedBlocks.keys()].filter((blockId) => !seen.has(blockId)).sort()) {
+  for (const blockId of [...expectedBlocks.keys()]
+    .filter((blockId) => !seen.has(blockId))
+    .sort()) {
     pushIssue(
       issues,
       "MISSING_BLOCK",
@@ -174,7 +190,10 @@ export function validateSchedule(
   const unavailable = new Set(
     snapshot.availability
       .filter((rule) => rule.kind === "UNAVAILABLE")
-      .map((rule) => `${rule.entity_type}:${rule.entity_id}:${rule.day}:${rule.period}`),
+      .map(
+        (rule) =>
+          `${rule.entity_type}:${rule.entity_id}:${rule.day}:${rule.period}`,
+      ),
   );
   const teacherSlots = new Map<string, ScheduledLesson>();
   const roomSlots = new Map<string, ScheduledLesson>();
@@ -183,15 +202,22 @@ export function validateSchedule(
   for (const lesson of lessons) {
     const periods = snapshot.periods_per_day[lesson.day];
     if (periods == null) continue;
-    for (let period = lesson.period; period < lesson.period + lesson.duration; period += 1) {
+    for (
+      let period = lesson.period;
+      period < lesson.period + lesson.duration;
+      period += 1
+    ) {
       if (period < 0 || period >= periods) continue;
-      const unavailableEntities: Array<["TEACHER" | "CLASS" | "ROOM", string]> = [
-        ["TEACHER", lesson.teacher_id],
-        ["CLASS", lesson.class_id],
-      ];
+      const unavailableEntities: Array<["TEACHER" | "CLASS" | "ROOM", string]> =
+        [
+          ["TEACHER", lesson.teacher_id],
+          ["CLASS", lesson.class_id],
+        ];
       if (lesson.room_id) unavailableEntities.push(["ROOM", lesson.room_id]);
       for (const [entityType, entityId] of unavailableEntities) {
-        if (unavailable.has(`${entityType}:${entityId}:${lesson.day}:${period}`)) {
+        if (
+          unavailable.has(`${entityType}:${entityId}:${lesson.day}:${period}`)
+        ) {
           pushIssue(
             issues,
             "UNAVAILABLE_SLOT",
@@ -265,7 +291,9 @@ export function validateMove(
   lessons: ScheduledLesson[],
   move: TimetableMove,
 ): MoveValidationResult {
-  const target = lessons.find((lesson) => (lesson.id ?? lesson.block_id) === move.lesson_id);
+  const target = lessons.find(
+    (lesson) => (lesson.id ?? lesson.block_id) === move.lesson_id,
+  );
   if (!target) {
     return {
       valid: false,

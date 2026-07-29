@@ -14,7 +14,11 @@ export async function GET(_request: Request, context: RouteContext) {
     include: { candidateVersion: true },
   });
   if (!run) {
-    return apiError({ status: 404, code: "GENERATION_RUN_NOT_FOUND", message: "Běh generování nebyl nalezen." });
+    return apiError({
+      status: 404,
+      code: "GENERATION_RUN_NOT_FOUND",
+      message: "Běh generování nebyl nalezen.",
+    });
   }
   return NextResponse.json({
     id: run.id,
@@ -39,9 +43,15 @@ export async function DELETE(_request: Request, context: RouteContext) {
     data: { status: "CANCELLED", finishedAt: new Date() },
   });
   if (updated.count === 0) {
-    const exists = await prisma.generationRun.findUnique({ where: { id: runId } });
+    const exists = await prisma.generationRun.findUnique({
+      where: { id: runId },
+    });
     if (!exists) {
-      return apiError({ status: 404, code: "GENERATION_RUN_NOT_FOUND", message: "Běh generování nebyl nalezen." });
+      return apiError({
+        status: 404,
+        code: "GENERATION_RUN_NOT_FOUND",
+        message: "Běh generování nebyl nalezen.",
+      });
     }
     return apiError({
       status: 409,

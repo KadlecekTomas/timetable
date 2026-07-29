@@ -15,7 +15,11 @@ interface RouteContext {
 export async function PATCH(request: Request, context: RouteContext) {
   const { id: schoolYearId, resource, resourceId } = await context.params;
   if (!isMasterResource(resource)) {
-    return apiError({ status: 404, code: "RESOURCE_NOT_FOUND", message: "Požadovaný zdroj neexistuje." });
+    return apiError({
+      status: 404,
+      code: "RESOURCE_NOT_FOUND",
+      message: "Požadovaný zdroj neexistuje.",
+    });
   }
   try {
     const result = await updateMasterData(
@@ -37,12 +41,18 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 }
 
-const deleteSchema = z.object({ expectedSchoolYearVersion: z.number().int().positive() });
+const deleteSchema = z.object({
+  expectedSchoolYearVersion: z.number().int().positive(),
+});
 
 export async function DELETE(request: Request, context: RouteContext) {
   const { id: schoolYearId, resource, resourceId } = await context.params;
   if (!isMasterResource(resource)) {
-    return apiError({ status: 404, code: "RESOURCE_NOT_FOUND", message: "Požadovaný zdroj neexistuje." });
+    return apiError({
+      status: 404,
+      code: "RESOURCE_NOT_FOUND",
+      message: "Požadovaný zdroj neexistuje.",
+    });
   }
   const parsed = deleteSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -50,7 +60,10 @@ export async function DELETE(request: Request, context: RouteContext) {
       status: 422,
       code: "EXPECTED_VERSION_REQUIRED",
       message: "Pro odstranění je nutná aktuální verze školního roku.",
-      fieldErrors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
+      fieldErrors: parsed.error.flatten().fieldErrors as Record<
+        string,
+        string[]
+      >,
     });
   }
   try {

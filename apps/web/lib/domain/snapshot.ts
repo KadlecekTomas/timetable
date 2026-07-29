@@ -6,7 +6,9 @@ function sorted<T>(items: T[], key: (item: T) => string): T[] {
   return [...items].sort((left, right) => key(left).localeCompare(key(right)));
 }
 
-export function canonicalizeSnapshot(snapshot: CanonicalSnapshot): CanonicalSnapshot {
+export function canonicalizeSnapshot(
+  snapshot: CanonicalSnapshot,
+): CanonicalSnapshot {
   return {
     ...snapshot,
     periods_per_day: [...snapshot.periods_per_day],
@@ -14,10 +16,14 @@ export function canonicalizeSnapshot(snapshot: CanonicalSnapshot): CanonicalSnap
     classes: sorted(snapshot.classes, (item) => `${item.code}:${item.id}`),
     subjects: sorted(snapshot.subjects, (item) => `${item.code}:${item.id}`),
     rooms: sorted(snapshot.rooms, (item) => `${item.code ?? ""}:${item.id}`),
-    assignments: sorted(snapshot.assignments, (item) => `${item.code ?? ""}:${item.id}`),
+    assignments: sorted(
+      snapshot.assignments,
+      (item) => `${item.code ?? ""}:${item.id}`,
+    ),
     availability: sorted(
       snapshot.availability,
-      (item) => `${item.entity_type}:${item.entity_id}:${item.day}:${item.period}:${item.kind}`,
+      (item) =>
+        `${item.entity_type}:${item.entity_id}:${item.day}:${item.period}:${item.kind}`,
     ),
     fixed_lessons: sorted(
       snapshot.fixed_lessons,
@@ -31,12 +37,16 @@ export function canonicalizeSnapshot(snapshot: CanonicalSnapshot): CanonicalSnap
   };
 }
 
-export function serializeCanonicalSnapshot(snapshot: CanonicalSnapshot): string {
+export function serializeCanonicalSnapshot(
+  snapshot: CanonicalSnapshot,
+): string {
   return JSON.stringify(canonicalizeSnapshot(snapshot));
 }
 
 export function createSnapshotHash(snapshot: CanonicalSnapshot): string {
-  return createHash("sha256").update(serializeCanonicalSnapshot(snapshot)).digest("hex");
+  return createHash("sha256")
+    .update(serializeCanonicalSnapshot(snapshot))
+    .digest("hex");
 }
 
 export function toSolverRequest(snapshot: CanonicalSnapshot) {

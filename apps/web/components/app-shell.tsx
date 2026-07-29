@@ -46,7 +46,9 @@ export function AppShell({ children }: AppShellProps) {
             T
           </div>
           <div className="ml-3 min-w-0">
-            <p className="truncate text-sm font-semibold text-text-primary">Timetable</p>
+            <p className="truncate text-sm font-semibold text-text-primary">
+              Timetable
+            </p>
             <p className="truncate text-xs text-text-muted">Školní rozvrhy</p>
           </div>
         </div>
@@ -60,9 +62,15 @@ export function AppShell({ children }: AppShellProps) {
           </p>
         </div>
 
-        <nav aria-label="Hlavní navigace" className="flex gap-1 overflow-x-auto p-3 lg:block">
+        <nav
+          aria-label="Hlavní navigace"
+          className="flex gap-1 overflow-x-auto p-3 lg:block"
+        >
           {navigation.map(({ label, icon: Icon, href }) => {
-            const active = href === "/" ? pathname === "/" : pathname.startsWith(href.split("?")[0]!);
+            const active =
+              href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(href.split("?")[0]!);
             return (
               <Link
                 key={label}
@@ -103,7 +111,9 @@ export function AppShell({ children }: AppShellProps) {
             Tomáš Kadleček
           </button>
         </div>
-        <main className="mx-auto w-full max-w-[1440px] p-6 lg:p-8">{children}</main>
+        <main className="mx-auto w-full max-w-[1440px] p-6 lg:p-8">
+          {children}
+        </main>
       </div>
     </div>
   );

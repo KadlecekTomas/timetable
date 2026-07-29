@@ -25,12 +25,15 @@ function parsePeriodsPerDay(value: unknown): number[] {
 }
 
 function parseWeights(value: unknown): SolverWeights {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return DEFAULT_WEIGHTS;
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return DEFAULT_WEIGHTS;
   const record = value as Record<string, unknown>;
   return {
     teacher_gap: Number(record.teacher_gap ?? DEFAULT_WEIGHTS.teacher_gap),
     class_gap: Number(record.class_gap ?? DEFAULT_WEIGHTS.class_gap),
-    discouraged_slot: Number(record.discouraged_slot ?? DEFAULT_WEIGHTS.discouraged_slot),
+    discouraged_slot: Number(
+      record.discouraged_slot ?? DEFAULT_WEIGHTS.discouraged_slot,
+    ),
     preferred_slot_bonus: Number(
       record.preferred_slot_bonus ?? DEFAULT_WEIGHTS.preferred_slot_bonus,
     ),
@@ -71,8 +74,11 @@ export async function loadCanonicalSnapshot(
   }
 
   const profile = options.solverProfileId
-    ? schoolYear.solverProfiles.find((item) => item.id === options.solverProfileId)
-    : schoolYear.solverProfiles.find((item) => item.isDefault) ?? schoolYear.solverProfiles[0];
+    ? schoolYear.solverProfiles.find(
+        (item) => item.id === options.solverProfileId,
+      )
+    : (schoolYear.solverProfiles.find((item) => item.isDefault) ??
+      schoolYear.solverProfiles[0]);
 
   const lockedLessons = options.baseTimetableVersionId
     ? await prisma.timetableLesson.findMany({
@@ -172,6 +178,7 @@ export async function loadCanonicalSnapshot(
     })),
     weights: parseWeights(profile?.weightsJson),
     random_seed: profile?.randomSeed ?? 1,
-    time_limit_seconds: options.timeLimitSeconds ?? profile?.timeLimitSeconds ?? 180,
+    time_limit_seconds:
+      options.timeLimitSeconds ?? profile?.timeLimitSeconds ?? 180,
   };
 }

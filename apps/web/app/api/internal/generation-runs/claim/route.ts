@@ -11,7 +11,11 @@ const STALE_AFTER_MS = 15 * 60 * 1000;
 export async function POST(request: Request) {
   const auth = authorizeWorker(request);
   if (!auth.authorized) {
-    return apiError({ status: auth.status, code: auth.code, message: auth.message });
+    return apiError({
+      status: auth.status,
+      code: auth.code,
+      message: auth.message,
+    });
   }
 
   await prisma.generationRun.updateMany({

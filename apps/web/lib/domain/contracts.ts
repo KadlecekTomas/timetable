@@ -1,4 +1,12 @@
-export const DAY_CODES = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const;
+export const DAY_CODES = [
+  "MON",
+  "TUE",
+  "WED",
+  "THU",
+  "FRI",
+  "SAT",
+  "SUN",
+] as const;
 
 export type TeachingGroup = "WHOLE" | "GROUP_1" | "GROUP_2";
 export type LessonShape = "SINGLE" | "DOUBLE" | "MIXED";
@@ -192,14 +200,20 @@ export interface MoveValidationResult {
   preview: ScheduledLesson[];
 }
 
-export function assignmentBlockDurations(assignment: SnapshotAssignment): number[] {
+export function assignmentBlockDurations(
+  assignment: SnapshotAssignment,
+): number[] {
   if (assignment.lesson_shape === "SINGLE") {
     return Array.from({ length: assignment.weekly_periods }, () => 1);
   }
   if (assignment.lesson_shape === "DOUBLE") {
-    return Array.from({ length: Math.floor(assignment.weekly_periods / 2) }, () => 2);
+    return Array.from(
+      { length: Math.floor(assignment.weekly_periods / 2) },
+      () => 2,
+    );
   }
-  const singleCount = assignment.weekly_periods - assignment.double_periods_count * 2;
+  const singleCount =
+    assignment.weekly_periods - assignment.double_periods_count * 2;
   return [
     ...Array.from({ length: assignment.double_periods_count }, () => 2),
     ...Array.from({ length: singleCount }, () => 1),

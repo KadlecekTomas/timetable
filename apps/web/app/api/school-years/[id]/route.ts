@@ -10,17 +10,29 @@ interface RouteContext {
 
 const updateSchema = z
   .object({
-    label: z.string().trim().regex(/^\d{4}\/\d{4}$/).optional(),
+    label: z
+      .string()
+      .trim()
+      .regex(/^\d{4}\/\d{4}$/)
+      .optional(),
     startsOn: z.coerce.date().optional(),
     endsOn: z.coerce.date().optional(),
-    periodsPerDay: z.array(z.number().int().min(1).max(16)).min(5).max(7).optional(),
+    periodsPerDay: z
+      .array(z.number().int().min(1).max(16))
+      .min(5)
+      .max(7)
+      .optional(),
     status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]).optional(),
     expectedVersion: z.number().int().positive(),
   })
-  .refine((value) => !value.startsOn || !value.endsOn || value.startsOn < value.endsOn, {
-    path: ["endsOn"],
-    message: "Konec školního roku musí být po začátku.",
-  });
+  .refine(
+    (value) =>
+      !value.startsOn || !value.endsOn || value.startsOn < value.endsOn,
+    {
+      path: ["endsOn"],
+      message: "Konec školního roku musí být po začátku.",
+    },
+  );
 
 export async function GET(_request: Request, context: RouteContext) {
   const { id } = await context.params;
@@ -29,7 +41,11 @@ export async function GET(_request: Request, context: RouteContext) {
     include: { school: true },
   });
   if (!schoolYear) {
-    return apiError({ status: 404, code: "SCHOOL_YEAR_NOT_FOUND", message: "Školní rok nebyl nalezen." });
+    return apiError({
+      status: 404,
+      code: "SCHOOL_YEAR_NOT_FOUND",
+      message: "Školní rok nebyl nalezen.",
+    });
   }
   return NextResponse.json({
     id: schoolYear.id,
@@ -57,14 +73,21 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const current = await prisma.schoolYear.findUnique({ where: { id } });
   if (!current) {
-    return apiError({ status: 404, code: "SCHOOL_YEAR_NOT_FOUND", message: "Školní rok nebyl nalezen." });
+    return apiError({
+      status: 404,
+      code: "SCHOOL_YEAR_NOT_FOUND",
+      message: "Školní rok nebyl nalezen.",
+    });
   }
   if (current.version !== parsed.data.expectedVersion) {
     return apiError({
       status: 409,
       code: "SCHOOL_YEAR_VERSION_CONFLICT",
       message: "Školní rok mezitím změnil jiný uživatel.",
-      details: { expectedVersion: parsed.data.expectedVersion, actualVersion: current.version },
+      details: {
+        expectedVersion: parsed.data.expectedVersion,
+        actualVersion: current.version,
+      },
     });
   }
 

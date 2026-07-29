@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "npm@11.4.2",
-  "workspaces": ["apps/web", "apps/worker", "packages/*"],
+  "workspaces": [
+    "apps/web",
+    "apps/worker",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "npm run dev --workspace @timetable/web",
     "build": "npm run build --workspace @timetable/database && npm run build --workspace @timetable/worker && npm run build --workspace @timetable/web",

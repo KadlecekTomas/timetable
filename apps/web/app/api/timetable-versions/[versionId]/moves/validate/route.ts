@@ -56,7 +56,12 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ valid: result.valid, issues: result.issues });
   } catch (error) {
     if (error instanceof TimetableStateError) {
-      return apiError({ status: error.status, code: error.code, message: error.message, details: error.details });
+      return apiError({
+        status: error.status,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+      });
     }
     throw error;
   }

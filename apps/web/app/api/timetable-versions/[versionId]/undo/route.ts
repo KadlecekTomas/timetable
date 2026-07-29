@@ -40,7 +40,14 @@ export async function POST(request: Request, context: RouteContext) {
     const recentEvents = await prisma.auditEvent.findMany({
       where: {
         schoolYearId: version.schoolYearId,
-        action: { in: ["TIMETABLE_LESSON_MOVED", "TIMETABLE_MOVE_UNDONE", "TIMETABLE_LESSONS_LOCKED", "TIMETABLE_LESSONS_UNLOCKED"] },
+        action: {
+          in: [
+            "TIMETABLE_LESSON_MOVED",
+            "TIMETABLE_MOVE_UNDONE",
+            "TIMETABLE_LESSONS_LOCKED",
+            "TIMETABLE_LESSONS_UNLOCKED",
+          ],
+        },
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 50,
@@ -48,13 +55,18 @@ export async function POST(request: Request, context: RouteContext) {
     const latest = recentEvents.find((event) => {
       const before = jsonRecord(event.before);
       const after = jsonRecord(event.after);
-      return before?.versionId === versionId || after?.versionId === versionId || event.entityId === versionId;
+      return (
+        before?.versionId === versionId ||
+        after?.versionId === versionId ||
+        event.entityId === versionId
+      );
     });
     if (!latest || latest.action !== "TIMETABLE_LESSON_MOVED") {
       return apiError({
         status: 409,
         code: "TIMETABLE_NOTHING_TO_UNDO",
-        message: "Poslední změna této verze není ruční přesun, který lze vrátit.",
+        message:
+          "Poslední změna této verze není ruční přesun, který lze vrátit.",
       });
     }
 
@@ -64,7 +76,8 @@ export async function POST(request: Request, context: RouteContext) {
       return apiError({
         status: 409,
         code: "TIMETABLE_UNDO_CHAIN_BROKEN",
-        message: "Od přesunu již vznikla další změna. Tento krok nelze bezpečně vrátit.",
+        message:
+          "Od přesunu již vznikla další změna. Tento krok nelze bezpečně vrátit.",
       });
     }
     const day = Number(before.dayOfWeek);
@@ -157,7 +170,12 @@ export async function POST(request: Request, context: RouteContext) {
     });
   } catch (error) {
     if (error instanceof TimetableStateError) {
-      return apiError({ status: error.status, code: error.code, message: error.message, details: error.details });
+      return apiError({
+        status: error.status,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+      });
     }
     throw error;
   }

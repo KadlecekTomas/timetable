@@ -317,11 +317,11 @@ def _add_gap_objective(
                 model.add_max_equality(before, occupancy[:period])
                 model.add_max_equality(after, occupancy[period + 1 :])
                 model.add_bool_and(
-                    [before, after, occupancy[period].not_()]
+                    [before, after, occupancy[period].Not()]
                 ).only_enforce_if(gap)
                 model.add_bool_or(
-                    [before.not_(), after.not_(), occupancy[period]]
-                ).only_enforce_if(gap.not_())
+                    [before.Not(), after.Not(), occupancy[period]]
+                ).only_enforce_if(gap.Not())
                 objective_terms.append(gap * weight)
 
 
@@ -432,7 +432,7 @@ def solve(payload: SolveRequest) -> SolveResponse:
             model.add(count == sum(day_variables))
             used = model.new_bool_var(f"used_{assignment.id}_{day}")
             model.add(count >= 1).only_enforce_if(used)
-            model.add(count == 0).only_enforce_if(used.not_())
+            model.add(count == 0).only_enforce_if(used.Not())
             day_used.append(used)
 
             excess = model.new_int_var(
@@ -466,8 +466,8 @@ def solve(payload: SolveRequest) -> SolveResponse:
                         [day_used[left_day], day_used[right_day]]
                     ).only_enforce_if(both)
                     model.add_bool_or(
-                        [day_used[left_day].not_(), day_used[right_day].not_()]
-                    ).only_enforce_if(both.not_())
+                        [day_used[left_day].Not(), day_used[right_day].Not()]
+                    ).only_enforce_if(both.Not())
                     objective_terms.append(
                         both * payload.weights.same_day_concentration
                     )

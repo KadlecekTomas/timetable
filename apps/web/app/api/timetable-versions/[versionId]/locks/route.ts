@@ -74,7 +74,9 @@ async function setLocked(
         data: {
           schoolYearId: version.schoolYearId,
           actorId: "system",
-          action: locked ? "TIMETABLE_LESSONS_LOCKED" : "TIMETABLE_LESSONS_UNLOCKED",
+          action: locked
+            ? "TIMETABLE_LESSONS_LOCKED"
+            : "TIMETABLE_LESSONS_UNLOCKED",
           entityType: "TimetableVersion",
           entityId: versionId,
           before: { revision: parsed.data.expectedRevision },
@@ -85,12 +87,20 @@ async function setLocked(
           },
         },
       });
-      return { count: updated.count, revision: parsed.data.expectedRevision + 1 };
+      return {
+        count: updated.count,
+        revision: parsed.data.expectedRevision + 1,
+      };
     });
     return NextResponse.json({ versionId, locked, ...result });
   } catch (error) {
     if (error instanceof TimetableStateError) {
-      return apiError({ status: error.status, code: error.code, message: error.message, details: error.details });
+      return apiError({
+        status: error.status,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+      });
     }
     throw error;
   }

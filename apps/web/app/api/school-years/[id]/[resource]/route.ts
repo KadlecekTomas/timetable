@@ -15,7 +15,11 @@ interface RouteContext {
 export async function GET(_request: Request, context: RouteContext) {
   const { id: schoolYearId, resource } = await context.params;
   if (!isMasterResource(resource)) {
-    return apiError({ status: 404, code: "RESOURCE_NOT_FOUND", message: "Požadovaný zdroj neexistuje." });
+    return apiError({
+      status: 404,
+      code: "RESOURCE_NOT_FOUND",
+      message: "Požadovaný zdroj neexistuje.",
+    });
   }
   const items = await listMasterData(schoolYearId, resource);
   return NextResponse.json({ items });
@@ -24,7 +28,11 @@ export async function GET(_request: Request, context: RouteContext) {
 export async function POST(request: Request, context: RouteContext) {
   const { id: schoolYearId, resource } = await context.params;
   if (!isMasterResource(resource)) {
-    return apiError({ status: 404, code: "RESOURCE_NOT_FOUND", message: "Požadovaný zdroj neexistuje." });
+    return apiError({
+      status: 404,
+      code: "RESOURCE_NOT_FOUND",
+      message: "Požadovaný zdroj neexistuje.",
+    });
   }
   try {
     const result = await createMasterData(

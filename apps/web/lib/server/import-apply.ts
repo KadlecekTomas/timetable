@@ -35,12 +35,23 @@ export async function applyImportBatch(
     include: { issues: true },
   });
   if (!batch) {
-    throw new ImportApplyError("IMPORT_BATCH_NOT_FOUND", "Import nebyl nalezen.", 404);
+    throw new ImportApplyError(
+      "IMPORT_BATCH_NOT_FOUND",
+      "Import nebyl nalezen.",
+      404,
+    );
   }
   if (batch.status === "APPLIED") {
-    return { importBatchId: batch.id, status: batch.status, appliedAt: batch.appliedAt };
+    return {
+      importBatchId: batch.id,
+      status: batch.status,
+      appliedAt: batch.appliedAt,
+    };
   }
-  if (batch.status !== "READY" || batch.issues.some((item) => item.severity === "ERROR")) {
+  if (
+    batch.status !== "READY" ||
+    batch.issues.some((item) => item.severity === "ERROR")
+  ) {
     throw new ImportApplyError(
       "IMPORT_BATCH_NOT_READY",
       "Import obsahuje blokující chyby a nelze jej potvrdit.",
@@ -51,9 +62,15 @@ export async function applyImportBatch(
   const payload = asImportPayload(batch.payload);
 
   return prisma.$transaction(async (tx) => {
-    const schoolYear = await tx.schoolYear.findUnique({ where: { id: schoolYearId } });
+    const schoolYear = await tx.schoolYear.findUnique({
+      where: { id: schoolYearId },
+    });
     if (!schoolYear) {
-      throw new ImportApplyError("SCHOOL_YEAR_NOT_FOUND", "Školní rok nebyl nalezen.", 404);
+      throw new ImportApplyError(
+        "SCHOOL_YEAR_NOT_FOUND",
+        "Školní rok nebyl nalezen.",
+        404,
+      );
     }
     if (schoolYear.version !== batch.expectedSchoolYearVersion) {
       throw new ImportApplyError(
@@ -76,7 +93,9 @@ export async function applyImportBatch(
 
     const roomTypeCodes = new Set(
       [
-        ...payload.rooms.flatMap((room) => (room.room_type ? [room.room_type] : [])),
+        ...payload.rooms.flatMap((room) =>
+          room.room_type ? [room.room_type] : [],
+        ),
         ...payload.subjects.flatMap((subject) =>
           subject.default_room_type ? [subject.default_room_type] : [],
         ),
@@ -100,7 +119,9 @@ export async function applyImportBatch(
       ).map((item) => [item.code, item.id]),
     );
 
-    const importedTeacherCodes = payload.teachers.map((item) => item.teacher_code);
+    const importedTeacherCodes = payload.teachers.map(
+      (item) => item.teacher_code,
+    );
     const importedClassCodes = payload.classes.map((item) => item.class_code);
     const importedRoomCodes = payload.rooms.map((item) => item.room_code);
     await tx.teacher.updateMany({
@@ -202,16 +223,27 @@ export async function applyImportBatch(
     }
 
     const teachers = new Map(
-      (await tx.teacher.findMany({ where: { schoolYearId } })).map((item) => [item.code, item.id]),
+      (await tx.teacher.findMany({ where: { schoolYearId } })).map((item) => [
+        item.code,
+        item.id,
+      ]),
     );
     const classes = new Map(
-      (await tx.schoolClass.findMany({ where: { schoolYearId } })).map((item) => [item.code, item.id]),
+      (await tx.schoolClass.findMany({ where: { schoolYearId } })).map(
+        (item) => [item.code, item.id],
+      ),
     );
     const subjects = new Map(
-      (await tx.subject.findMany({ where: { schoolYearId } })).map((item) => [item.code, item.id]),
+      (await tx.subject.findMany({ where: { schoolYearId } })).map((item) => [
+        item.code,
+        item.id,
+      ]),
     );
     const rooms = new Map(
-      (await tx.room.findMany({ where: { schoolYearId } })).map((item) => [item.code, item.id]),
+      (await tx.room.findMany({ where: { schoolYearId } })).map((item) => [
+        item.code,
+        item.id,
+      ]),
     );
 
     for (const assignment of payload.assignments) {
@@ -268,10 +300,9 @@ export async function applyImportBatch(
     }
 
     const assignments = new Map(
-      (await tx.teachingAssignment.findMany({ where: { schoolYearId } })).map((item) => [
-        item.assignmentCode,
-        item.id,
-      ]),
+      (await tx.teachingAssignment.findMany({ where: { schoolYearId } })).map(
+        (item) => [item.assignmentCode, item.id],
+      ),
     );
     const importedAssignmentIds = payload.assignments
       .map((item) => assignments.get(item.assignment_code))
@@ -348,7 +379,9 @@ export async function applyImportBatch(
     if (payload.fixedLessons.length > 0) {
       await tx.fixedLessonRule.createMany({
         data: payload.fixedLessons.map((fixedLesson) => {
-          const teachingAssignmentId = assignments.get(fixedLesson.assignment_code);
+          const teachingAssignmentId = assignments.get(
+            fixedLesson.assignment_code,
+          );
           if (!teachingAssignmentId) {
             throw new ImportApplyError(
               "IMPORT_REFERENCE_RESOLUTION_FAILED",
@@ -362,7 +395,9 @@ export async function applyImportBatch(
             dayOfWeek: DAY_CODES.indexOf(fixedLesson.day),
             startPeriod: fixedLesson.start_period - 1,
             duration: fixedLesson.duration,
-            roomId: fixedLesson.room_code ? rooms.get(fixedLesson.room_code) : null,
+            roomId: fixedLesson.room_code
+              ? rooms.get(fixedLesson.room_code)
+              : null,
             locked: fixedLesson.locked,
           };
         }),

@@ -3,20 +3,40 @@ import test from "node:test";
 
 import ExcelJS from "exceljs";
 
-import { analyzeImportWorkbook, createImportTemplate } from "../lib/import/workbook";
+import {
+  analyzeImportWorkbook,
+  createImportTemplate,
+} from "../lib/import/workbook";
 
 async function validWorkbook(): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(await createImportTemplate());
+  await workbook.xlsx.load((await createImportTemplate()) as never);
   workbook.getWorksheet("Nastavení")!.addRow(["2026/2027", 8, 8, 8, 8, 7]);
-  workbook.getWorksheet("Učitelé")!.addRow(["NOV", "Jan", "Novák", 2, "", "", "M", "6A"]);
+  workbook
+    .getWorksheet("Učitelé")!
+    .addRow(["NOV", "Jan", "Novák", 2, "", "", "M", "6A"]);
   workbook.getWorksheet("Třídy")!.addRow(["6A", 6, "6.A"]);
   workbook.getWorksheet("Předměty")!.addRow(["M", "Matematika", ""]);
   workbook.getWorksheet("Učebny")!.addRow(["101", "Učebna 101", "GENERAL", 30]);
   workbook
     .getWorksheet("Výukové_vazby")!
-    .addRow(["6A-M-NOV", "6A", "M", "NOV", "WHOLE", 2, "SINGLE", 0, "", "", 1, ""]);
-  workbook.getWorksheet("Dostupnost")!.addRow(["TEACHER", "NOV", "FRI", 7, "DISCOURAGED", 25, "Pozdní konec"]);
+    .addRow([
+      "6A-M-NOV",
+      "6A",
+      "M",
+      "NOV",
+      "WHOLE",
+      2,
+      "SINGLE",
+      0,
+      "",
+      "",
+      1,
+      "",
+    ]);
+  workbook
+    .getWorksheet("Dostupnost")!
+    .addRow(["TEACHER", "NOV", "FRI", 7, "DISCOURAGED", 25, "Pozdní konec"]);
   return workbook;
 }
 
@@ -40,7 +60,9 @@ test("missing reference blocks the entire import preview", async () => {
   const analysis = await analyzeImportWorkbook(await bufferOf(workbook));
   assert.equal(analysis.status, "VALIDATION_FAILED");
   assert.equal(analysis.payload, null);
-  assert.ok(analysis.issues.some((item) => item.code === "REFERENCE_NOT_FOUND"));
+  assert.ok(
+    analysis.issues.some((item) => item.code === "REFERENCE_NOT_FOUND"),
+  );
 });
 
 test("formula cells are rejected instead of evaluated", async () => {
@@ -51,7 +73,9 @@ test("formula cells are rejected instead of evaluated", async () => {
   };
   const analysis = await analyzeImportWorkbook(await bufferOf(workbook));
   assert.equal(analysis.status, "VALIDATION_FAILED");
-  assert.ok(analysis.issues.some((item) => item.code === "FORMULA_NOT_ALLOWED"));
+  assert.ok(
+    analysis.issues.some((item) => item.code === "FORMULA_NOT_ALLOWED"),
+  );
 });
 
 test("corrupted upload produces one structured workbook error", async () => {

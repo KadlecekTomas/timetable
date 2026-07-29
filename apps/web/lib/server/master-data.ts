@@ -25,7 +25,9 @@ export class MasterDataError extends Error {
   }
 }
 
-const optimisticSchema = z.object({ expectedSchoolYearVersion: z.number().int().positive() });
+const optimisticSchema = z.object({
+  expectedSchoolYearVersion: z.number().int().positive(),
+});
 const teacherSchema = optimisticSchema.extend({
   code: z.string().trim().min(1).max(24),
   firstName: z.string().trim().min(1).max(80),
@@ -88,10 +90,13 @@ const assignmentSchema = optimisticSchema
     path: ["doublePeriodsCount"],
     message: "Počet dvojhodin překračuje týdenní dotaci.",
   })
-  .refine((value) => value.lessonShape !== "DOUBLE" || value.weeklyPeriods % 2 === 0, {
-    path: ["weeklyPeriods"],
-    message: "Vazba typu DOUBLE musí mít sudý počet hodin.",
-  });
+  .refine(
+    (value) => value.lessonShape !== "DOUBLE" || value.weeklyPeriods % 2 === 0,
+    {
+      path: ["weeklyPeriods"],
+      message: "Vazba typu DOUBLE musí mít sudý počet hodin.",
+    },
+  );
 const availabilitySchema = optimisticSchema.extend({
   entityType: z.enum(["TEACHER", "CLASS", "ROOM"]),
   entityId: z.string().cuid(),
@@ -131,14 +136,29 @@ async function ensureScopedReference(
   if (!id) return;
   const record =
     type === "teacher"
-      ? await tx.teacher.findFirst({ where: { id, schoolYearId }, select: { id: true } })
+      ? await tx.teacher.findFirst({
+          where: { id, schoolYearId },
+          select: { id: true },
+        })
       : type === "class"
-        ? await tx.schoolClass.findFirst({ where: { id, schoolYearId }, select: { id: true } })
+        ? await tx.schoolClass.findFirst({
+            where: { id, schoolYearId },
+            select: { id: true },
+          })
         : type === "subject"
-          ? await tx.subject.findFirst({ where: { id, schoolYearId }, select: { id: true } })
+          ? await tx.subject.findFirst({
+              where: { id, schoolYearId },
+              select: { id: true },
+            })
           : type === "room"
-            ? await tx.room.findFirst({ where: { id, schoolYearId }, select: { id: true } })
-            : await tx.roomType.findFirst({ where: { id, schoolYearId }, select: { id: true } });
+            ? await tx.room.findFirst({
+                where: { id, schoolYearId },
+                select: { id: true },
+              })
+            : await tx.roomType.findFirst({
+                where: { id, schoolYearId },
+                select: { id: true },
+              });
   if (!record) {
     throw new MasterDataError(
       "MASTER_DATA_REFERENCE_INVALID",
@@ -160,7 +180,11 @@ async function withSchoolYearVersion<T>(
       select: { version: true },
     });
     if (!schoolYear) {
-      throw new MasterDataError("SCHOOL_YEAR_NOT_FOUND", "Školní rok nebyl nalezen.", 404);
+      throw new MasterDataError(
+        "SCHOOL_YEAR_NOT_FOUND",
+        "Školní rok nebyl nalezen.",
+        404,
+      );
     }
     if (schoolYear.version !== expectedVersion) {
       throw new MasterDataError(
@@ -185,18 +209,38 @@ export function isMasterResource(value: string): value is MasterResource {
   return MASTER_RESOURCES.includes(value as MasterResource);
 }
 
-export async function listMasterData(schoolYearId: string, resource: MasterResource) {
+export async function listMasterData(
+  schoolYearId: string,
+  resource: MasterResource,
+) {
   switch (resource) {
     case "teachers":
-      return prisma.teacher.findMany({ where: { schoolYearId }, orderBy: [{ lastName: "asc" }, { firstName: "asc" }] });
+      return prisma.teacher.findMany({
+        where: { schoolYearId },
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      });
     case "classes":
-      return prisma.schoolClass.findMany({ where: { schoolYearId }, orderBy: [{ grade: "asc" }, { code: "asc" }] });
+      return prisma.schoolClass.findMany({
+        where: { schoolYearId },
+        orderBy: [{ grade: "asc" }, { code: "asc" }],
+      });
     case "subjects":
-      return prisma.subject.findMany({ where: { schoolYearId }, include: { defaultRoomType: true }, orderBy: { code: "asc" } });
+      return prisma.subject.findMany({
+        where: { schoolYearId },
+        include: { defaultRoomType: true },
+        orderBy: { code: "asc" },
+      });
     case "room-types":
-      return prisma.roomType.findMany({ where: { schoolYearId }, orderBy: { code: "asc" } });
+      return prisma.roomType.findMany({
+        where: { schoolYearId },
+        orderBy: { code: "asc" },
+      });
     case "rooms":
-      return prisma.room.findMany({ where: { schoolYearId }, include: { roomType: true }, orderBy: { code: "asc" } });
+      return prisma.room.findMany({
+        where: { schoolYearId },
+        include: { roomType: true },
+        orderBy: { code: "asc" },
+      });
     case "assignments":
       return prisma.teachingAssignment.findMany({
         where: { schoolYearId },
@@ -214,7 +258,12 @@ export async function listMasterData(schoolYearId: string, resource: MasterResou
     case "availability":
       return prisma.availabilityRule.findMany({
         where: { schoolYearId },
-        orderBy: [{ entityType: "asc" }, { entityId: "asc" }, { dayOfWeek: "asc" }, { period: "asc" }],
+        orderBy: [
+          { entityType: "asc" },
+          { entityId: "asc" },
+          { dayOfWeek: "asc" },
+          { period: "asc" },
+        ],
       });
   }
 }
@@ -226,137 +275,234 @@ export async function createMasterData(
 ) {
   const parsed = createSchemas[resource].safeParse(body);
   if (!parsed.success) validationFailure(parsed.error);
-  const input = parsed.data as Record<string, unknown> & { expectedSchoolYearVersion: number };
+  const input = parsed.data as Record<string, unknown> & {
+    expectedSchoolYearVersion: number;
+  };
 
-  return withSchoolYearVersion(schoolYearId, input.expectedSchoolYearVersion, async (tx) => {
-    switch (resource) {
-      case "teachers": {
-        const data = teacherSchema.parse(body);
-        return tx.teacher.create({
-          data: {
-            schoolYearId,
-            code: data.code,
-            firstName: data.firstName,
-            lastName: data.lastName,
-            targetWeeklyLoad: data.targetWeeklyLoad,
-            minWeeklyLoad: data.minWeeklyLoad,
-            maxWeeklyLoad: data.maxWeeklyLoad,
-            isActive: data.isActive ?? true,
-          },
-        });
-      }
-      case "classes": {
-        const data = classSchema.parse(body);
-        return tx.schoolClass.create({
-          data: { schoolYearId, code: data.code, grade: data.grade, name: data.name, isActive: data.isActive ?? true },
-        });
-      }
-      case "room-types": {
-        const data = roomTypeSchema.parse(body);
-        return tx.roomType.create({ data: { schoolYearId, code: data.code, name: data.name } });
-      }
-      case "subjects": {
-        const data = subjectSchema.parse(body);
-        await ensureScopedReference(tx, schoolYearId, "roomType", data.defaultRoomTypeId, "defaultRoomTypeId");
-        return tx.subject.create({
-          data: {
-            schoolYearId,
-            code: data.code,
-            name: data.name,
-            defaultRoomTypeId: data.defaultRoomTypeId,
-            colorToken: data.colorToken,
-          },
-        });
-      }
-      case "rooms": {
-        const data = roomSchema.parse(body);
-        await ensureScopedReference(tx, schoolYearId, "roomType", data.roomTypeId, "roomTypeId");
-        return tx.room.create({
-          data: {
-            schoolYearId,
-            code: data.code,
-            name: data.name,
-            capacity: data.capacity,
-            roomTypeId: data.roomTypeId,
-            isActive: data.isActive ?? true,
-          },
-        });
-      }
-      case "availability": {
-        const data = availabilitySchema.parse(body);
-        await ensureScopedReference(
-          tx,
-          schoolYearId,
-          data.entityType === "TEACHER" ? "teacher" : data.entityType === "CLASS" ? "class" : "room",
-          data.entityId,
-          "entityId",
-        );
-        return tx.availabilityRule.create({
-          data: {
-            schoolYearId,
-            entityType: data.entityType,
-            entityId: data.entityId,
-            dayOfWeek: data.dayOfWeek,
-            period: data.period,
-            kind: data.kind,
-            weight: data.weight,
-            reason: data.reason,
-          },
-        });
-      }
-      case "assignments": {
-        const data = assignmentSchema.parse(body);
-        await Promise.all([
-          ensureScopedReference(tx, schoolYearId, "teacher", data.teacherId, "teacherId"),
-          ensureScopedReference(tx, schoolYearId, "class", data.classId, "classId"),
-          ensureScopedReference(tx, schoolYearId, "subject", data.subjectId, "subjectId"),
-          ensureScopedReference(tx, schoolYearId, "room", data.requiredRoomId, "requiredRoomId"),
-          ensureScopedReference(tx, schoolYearId, "roomType", data.requiredRoomTypeId, "requiredRoomTypeId"),
-        ]);
-        return tx.teachingAssignment.create({
-          data: {
-            schoolYearId,
-            assignmentCode: data.assignmentCode,
-            teacherId: data.teacherId,
-            classId: data.classId,
-            subjectId: data.subjectId,
-            group: data.group,
-            weeklyPeriods: data.weeklyPeriods,
-            lessonShape: data.lessonShape,
-            doublePeriodsCount: data.doublePeriodsCount,
-            requiredRoomId: data.requiredRoomId,
-            requiredRoomTypeId: data.requiredRoomTypeId,
-            priority: data.priority,
-            notes: data.notes,
-            fixedLessons: data.fixedLessons?.length
-              ? { create: data.fixedLessons.map((item) => ({ ...item, locked: item.locked ?? true })) }
-              : undefined,
-            distributionRules: {
-              create: [
-                ...(data.maxPerDay != null
-                  ? [{ type: "MAX_PER_DAY" as const, value: data.maxPerDay, hard: true }]
-                  : []),
-                ...(data.minDayGap != null
-                  ? [{ type: "MIN_DAY_GAP" as const, value: data.minDayGap, hard: false }]
-                  : []),
-              ],
+  return withSchoolYearVersion(
+    schoolYearId,
+    input.expectedSchoolYearVersion,
+    async (tx) => {
+      switch (resource) {
+        case "teachers": {
+          const data = teacherSchema.parse(body);
+          return tx.teacher.create({
+            data: {
+              schoolYearId,
+              code: data.code,
+              firstName: data.firstName,
+              lastName: data.lastName,
+              targetWeeklyLoad: data.targetWeeklyLoad,
+              minWeeklyLoad: data.minWeeklyLoad,
+              maxWeeklyLoad: data.maxWeeklyLoad,
+              isActive: data.isActive ?? true,
             },
-          },
-          include: { fixedLessons: true, distributionRules: true },
-        });
+          });
+        }
+        case "classes": {
+          const data = classSchema.parse(body);
+          return tx.schoolClass.create({
+            data: {
+              schoolYearId,
+              code: data.code,
+              grade: data.grade,
+              name: data.name,
+              isActive: data.isActive ?? true,
+            },
+          });
+        }
+        case "room-types": {
+          const data = roomTypeSchema.parse(body);
+          return tx.roomType.create({
+            data: { schoolYearId, code: data.code, name: data.name },
+          });
+        }
+        case "subjects": {
+          const data = subjectSchema.parse(body);
+          await ensureScopedReference(
+            tx,
+            schoolYearId,
+            "roomType",
+            data.defaultRoomTypeId,
+            "defaultRoomTypeId",
+          );
+          return tx.subject.create({
+            data: {
+              schoolYearId,
+              code: data.code,
+              name: data.name,
+              defaultRoomTypeId: data.defaultRoomTypeId,
+              colorToken: data.colorToken,
+            },
+          });
+        }
+        case "rooms": {
+          const data = roomSchema.parse(body);
+          await ensureScopedReference(
+            tx,
+            schoolYearId,
+            "roomType",
+            data.roomTypeId,
+            "roomTypeId",
+          );
+          return tx.room.create({
+            data: {
+              schoolYearId,
+              code: data.code,
+              name: data.name,
+              capacity: data.capacity,
+              roomTypeId: data.roomTypeId,
+              isActive: data.isActive ?? true,
+            },
+          });
+        }
+        case "availability": {
+          const data = availabilitySchema.parse(body);
+          await ensureScopedReference(
+            tx,
+            schoolYearId,
+            data.entityType === "TEACHER"
+              ? "teacher"
+              : data.entityType === "CLASS"
+                ? "class"
+                : "room",
+            data.entityId,
+            "entityId",
+          );
+          return tx.availabilityRule.create({
+            data: {
+              schoolYearId,
+              entityType: data.entityType,
+              entityId: data.entityId,
+              dayOfWeek: data.dayOfWeek,
+              period: data.period,
+              kind: data.kind,
+              weight: data.weight,
+              reason: data.reason,
+            },
+          });
+        }
+        case "assignments": {
+          const data = assignmentSchema.parse(body);
+          await Promise.all([
+            ensureScopedReference(
+              tx,
+              schoolYearId,
+              "teacher",
+              data.teacherId,
+              "teacherId",
+            ),
+            ensureScopedReference(
+              tx,
+              schoolYearId,
+              "class",
+              data.classId,
+              "classId",
+            ),
+            ensureScopedReference(
+              tx,
+              schoolYearId,
+              "subject",
+              data.subjectId,
+              "subjectId",
+            ),
+            ensureScopedReference(
+              tx,
+              schoolYearId,
+              "room",
+              data.requiredRoomId,
+              "requiredRoomId",
+            ),
+            ensureScopedReference(
+              tx,
+              schoolYearId,
+              "roomType",
+              data.requiredRoomTypeId,
+              "requiredRoomTypeId",
+            ),
+          ]);
+          return tx.teachingAssignment.create({
+            data: {
+              schoolYearId,
+              assignmentCode: data.assignmentCode,
+              teacherId: data.teacherId,
+              classId: data.classId,
+              subjectId: data.subjectId,
+              group: data.group,
+              weeklyPeriods: data.weeklyPeriods,
+              lessonShape: data.lessonShape,
+              doublePeriodsCount: data.doublePeriodsCount,
+              requiredRoomId: data.requiredRoomId,
+              requiredRoomTypeId: data.requiredRoomTypeId,
+              priority: data.priority,
+              notes: data.notes,
+              fixedLessons: data.fixedLessons?.length
+                ? {
+                    create: data.fixedLessons.map((item) => ({
+                      ...item,
+                      locked: item.locked ?? true,
+                    })),
+                  }
+                : undefined,
+              distributionRules: {
+                create: [
+                  ...(data.maxPerDay != null
+                    ? [
+                        {
+                          type: "MAX_PER_DAY" as const,
+                          value: data.maxPerDay,
+                          hard: true,
+                        },
+                      ]
+                    : []),
+                  ...(data.minDayGap != null
+                    ? [
+                        {
+                          type: "MIN_DAY_GAP" as const,
+                          value: data.minDayGap,
+                          hard: false,
+                        },
+                      ]
+                    : []),
+                ],
+              },
+            },
+            include: { fixedLessons: true, distributionRules: true },
+          });
+        }
       }
-    }
-  });
+    },
+  );
 }
 
 const updateSchemas = {
-  teachers: teacherSchema.omit({ code: true }).partial().required({ expectedSchoolYearVersion: true }),
-  classes: classSchema.omit({ code: true }).partial().required({ expectedSchoolYearVersion: true }),
-  subjects: subjectSchema.omit({ code: true }).partial().required({ expectedSchoolYearVersion: true }),
-  "room-types": roomTypeSchema.omit({ code: true }).partial().required({ expectedSchoolYearVersion: true }),
-  rooms: roomSchema.omit({ code: true }).partial().required({ expectedSchoolYearVersion: true }),
-  availability: availabilitySchema.partial().required({ expectedSchoolYearVersion: true }),
-  assignments: assignmentSchema.omit({ assignmentCode: true }).partial().required({ expectedSchoolYearVersion: true }),
+  teachers: teacherSchema
+    .omit({ code: true })
+    .partial()
+    .required({ expectedSchoolYearVersion: true }),
+  classes: classSchema
+    .omit({ code: true })
+    .partial()
+    .required({ expectedSchoolYearVersion: true }),
+  subjects: subjectSchema
+    .omit({ code: true })
+    .partial()
+    .required({ expectedSchoolYearVersion: true }),
+  "room-types": roomTypeSchema
+    .omit({ code: true })
+    .partial()
+    .required({ expectedSchoolYearVersion: true }),
+  rooms: roomSchema
+    .omit({ code: true })
+    .partial()
+    .required({ expectedSchoolYearVersion: true }),
+  availability: availabilitySchema
+    .partial()
+    .required({ expectedSchoolYearVersion: true }),
+  assignments: assignmentSchema
+    .omit({ assignmentCode: true })
+    .partial()
+    .required({ expectedSchoolYearVersion: true }),
 } satisfies Record<MasterResource, z.ZodType>;
 
 export async function updateMasterData(
@@ -367,95 +513,213 @@ export async function updateMasterData(
 ) {
   const parsed = updateSchemas[resource].safeParse(body);
   if (!parsed.success) validationFailure(parsed.error);
-  const input = parsed.data as Record<string, unknown> & { expectedSchoolYearVersion: number };
+  const input = parsed.data as Record<string, unknown> & {
+    expectedSchoolYearVersion: number;
+  };
   const { expectedSchoolYearVersion, ...data } = input;
 
-  return withSchoolYearVersion(schoolYearId, expectedSchoolYearVersion, async (tx) => {
-    const scoped = { id: resourceId, schoolYearId };
-    switch (resource) {
-      case "teachers": {
-        const found = await tx.teacher.findFirst({ where: scoped });
-        if (!found) throw new MasterDataError("RESOURCE_NOT_FOUND", "Učitel nebyl nalezen.", 404);
-        return tx.teacher.update({ where: { id: resourceId }, data });
-      }
-      case "classes": {
-        const found = await tx.schoolClass.findFirst({ where: scoped });
-        if (!found) throw new MasterDataError("RESOURCE_NOT_FOUND", "Třída nebyla nalezena.", 404);
-        return tx.schoolClass.update({ where: { id: resourceId }, data });
-      }
-      case "subjects": {
-        const found = await tx.subject.findFirst({ where: scoped });
-        if (!found) throw new MasterDataError("RESOURCE_NOT_FOUND", "Předmět nebyl nalezen.", 404);
-        await ensureScopedReference(tx, schoolYearId, "roomType", data.defaultRoomTypeId as string | null | undefined, "defaultRoomTypeId");
-        return tx.subject.update({ where: { id: resourceId }, data });
-      }
-      case "room-types": {
-        const found = await tx.roomType.findFirst({ where: scoped });
-        if (!found) throw new MasterDataError("RESOURCE_NOT_FOUND", "Typ učebny nebyl nalezen.", 404);
-        return tx.roomType.update({ where: { id: resourceId }, data });
-      }
-      case "rooms": {
-        const found = await tx.room.findFirst({ where: scoped });
-        if (!found) throw new MasterDataError("RESOURCE_NOT_FOUND", "Učebna nebyla nalezena.", 404);
-        await ensureScopedReference(tx, schoolYearId, "roomType", data.roomTypeId as string | null | undefined, "roomTypeId");
-        return tx.room.update({ where: { id: resourceId }, data });
-      }
-      case "availability": {
-        const found = await tx.availabilityRule.findFirst({ where: scoped });
-        if (!found) throw new MasterDataError("RESOURCE_NOT_FOUND", "Pravidlo dostupnosti nebylo nalezeno.", 404);
-        if (data.entityId || data.entityType) {
-          const entityType = (data.entityType ?? found.entityType) as "TEACHER" | "CLASS" | "ROOM";
-          const entityId = (data.entityId ?? found.entityId) as string;
+  return withSchoolYearVersion(
+    schoolYearId,
+    expectedSchoolYearVersion,
+    async (tx) => {
+      const scoped = { id: resourceId, schoolYearId };
+      switch (resource) {
+        case "teachers": {
+          const found = await tx.teacher.findFirst({ where: scoped });
+          if (!found)
+            throw new MasterDataError(
+              "RESOURCE_NOT_FOUND",
+              "Učitel nebyl nalezen.",
+              404,
+            );
+          return tx.teacher.update({ where: { id: resourceId }, data });
+        }
+        case "classes": {
+          const found = await tx.schoolClass.findFirst({ where: scoped });
+          if (!found)
+            throw new MasterDataError(
+              "RESOURCE_NOT_FOUND",
+              "Třída nebyla nalezena.",
+              404,
+            );
+          return tx.schoolClass.update({ where: { id: resourceId }, data });
+        }
+        case "subjects": {
+          const found = await tx.subject.findFirst({ where: scoped });
+          if (!found)
+            throw new MasterDataError(
+              "RESOURCE_NOT_FOUND",
+              "Předmět nebyl nalezen.",
+              404,
+            );
           await ensureScopedReference(
             tx,
             schoolYearId,
-            entityType === "TEACHER" ? "teacher" : entityType === "CLASS" ? "class" : "room",
-            entityId,
-            "entityId",
+            "roomType",
+            data.defaultRoomTypeId as string | null | undefined,
+            "defaultRoomTypeId",
           );
+          return tx.subject.update({ where: { id: resourceId }, data });
         }
-        return tx.availabilityRule.update({ where: { id: resourceId }, data });
-      }
-      case "assignments": {
-        const found = await tx.teachingAssignment.findFirst({ where: scoped });
-        if (!found) throw new MasterDataError("RESOURCE_NOT_FOUND", "Výuková vazba nebyla nalezena.", 404);
-        const { fixedLessons, maxPerDay, minDayGap, ...assignmentData } = data;
-        await Promise.all([
-          ensureScopedReference(tx, schoolYearId, "teacher", assignmentData.teacherId as string | undefined, "teacherId"),
-          ensureScopedReference(tx, schoolYearId, "class", assignmentData.classId as string | undefined, "classId"),
-          ensureScopedReference(tx, schoolYearId, "subject", assignmentData.subjectId as string | undefined, "subjectId"),
-          ensureScopedReference(tx, schoolYearId, "room", assignmentData.requiredRoomId as string | null | undefined, "requiredRoomId"),
-          ensureScopedReference(tx, schoolYearId, "roomType", assignmentData.requiredRoomTypeId as string | null | undefined, "requiredRoomTypeId"),
-        ]);
-        if (fixedLessons !== undefined) {
-          await tx.fixedLessonRule.deleteMany({ where: { teachingAssignmentId: resourceId } });
-          const items = fixedLessons as z.infer<typeof fixedLessonSchema>[];
-          if (items.length) {
-            await tx.fixedLessonRule.createMany({
-              data: items.map((item) => ({
-                teachingAssignmentId: resourceId,
-                ...item,
-                locked: item.locked ?? true,
-              })),
-            });
+        case "room-types": {
+          const found = await tx.roomType.findFirst({ where: scoped });
+          if (!found)
+            throw new MasterDataError(
+              "RESOURCE_NOT_FOUND",
+              "Typ učebny nebyl nalezen.",
+              404,
+            );
+          return tx.roomType.update({ where: { id: resourceId }, data });
+        }
+        case "rooms": {
+          const found = await tx.room.findFirst({ where: scoped });
+          if (!found)
+            throw new MasterDataError(
+              "RESOURCE_NOT_FOUND",
+              "Učebna nebyla nalezena.",
+              404,
+            );
+          await ensureScopedReference(
+            tx,
+            schoolYearId,
+            "roomType",
+            data.roomTypeId as string | null | undefined,
+            "roomTypeId",
+          );
+          return tx.room.update({ where: { id: resourceId }, data });
+        }
+        case "availability": {
+          const found = await tx.availabilityRule.findFirst({ where: scoped });
+          if (!found)
+            throw new MasterDataError(
+              "RESOURCE_NOT_FOUND",
+              "Pravidlo dostupnosti nebylo nalezeno.",
+              404,
+            );
+          if (data.entityId || data.entityType) {
+            const entityType = (data.entityType ?? found.entityType) as
+              | "TEACHER"
+              | "CLASS"
+              | "ROOM";
+            const entityId = (data.entityId ?? found.entityId) as string;
+            await ensureScopedReference(
+              tx,
+              schoolYearId,
+              entityType === "TEACHER"
+                ? "teacher"
+                : entityType === "CLASS"
+                  ? "class"
+                  : "room",
+              entityId,
+              "entityId",
+            );
           }
+          return tx.availabilityRule.update({
+            where: { id: resourceId },
+            data,
+          });
         }
-        if (maxPerDay !== undefined || minDayGap !== undefined) {
-          await tx.distributionRule.deleteMany({ where: { teachingAssignmentId: resourceId } });
-          const rules = [
-            ...(maxPerDay != null
-              ? [{ teachingAssignmentId: resourceId, type: "MAX_PER_DAY" as const, value: maxPerDay as number, hard: true }]
-              : []),
-            ...(minDayGap != null
-              ? [{ teachingAssignmentId: resourceId, type: "MIN_DAY_GAP" as const, value: minDayGap as number, hard: false }]
-              : []),
-          ];
-          if (rules.length) await tx.distributionRule.createMany({ data: rules });
+        case "assignments": {
+          const found = await tx.teachingAssignment.findFirst({
+            where: scoped,
+          });
+          if (!found)
+            throw new MasterDataError(
+              "RESOURCE_NOT_FOUND",
+              "Výuková vazba nebyla nalezena.",
+              404,
+            );
+          const { fixedLessons, maxPerDay, minDayGap, ...assignmentData } =
+            data;
+          await Promise.all([
+            ensureScopedReference(
+              tx,
+              schoolYearId,
+              "teacher",
+              assignmentData.teacherId as string | undefined,
+              "teacherId",
+            ),
+            ensureScopedReference(
+              tx,
+              schoolYearId,
+              "class",
+              assignmentData.classId as string | undefined,
+              "classId",
+            ),
+            ensureScopedReference(
+              tx,
+              schoolYearId,
+              "subject",
+              assignmentData.subjectId as string | undefined,
+              "subjectId",
+            ),
+            ensureScopedReference(
+              tx,
+              schoolYearId,
+              "room",
+              assignmentData.requiredRoomId as string | null | undefined,
+              "requiredRoomId",
+            ),
+            ensureScopedReference(
+              tx,
+              schoolYearId,
+              "roomType",
+              assignmentData.requiredRoomTypeId as string | null | undefined,
+              "requiredRoomTypeId",
+            ),
+          ]);
+          if (fixedLessons !== undefined) {
+            await tx.fixedLessonRule.deleteMany({
+              where: { teachingAssignmentId: resourceId },
+            });
+            const items = fixedLessons as z.infer<typeof fixedLessonSchema>[];
+            if (items.length) {
+              await tx.fixedLessonRule.createMany({
+                data: items.map((item) => ({
+                  teachingAssignmentId: resourceId,
+                  ...item,
+                  locked: item.locked ?? true,
+                })),
+              });
+            }
+          }
+          if (maxPerDay !== undefined || minDayGap !== undefined) {
+            await tx.distributionRule.deleteMany({
+              where: { teachingAssignmentId: resourceId },
+            });
+            const rules = [
+              ...(maxPerDay != null
+                ? [
+                    {
+                      teachingAssignmentId: resourceId,
+                      type: "MAX_PER_DAY" as const,
+                      value: maxPerDay as number,
+                      hard: true,
+                    },
+                  ]
+                : []),
+              ...(minDayGap != null
+                ? [
+                    {
+                      teachingAssignmentId: resourceId,
+                      type: "MIN_DAY_GAP" as const,
+                      value: minDayGap as number,
+                      hard: false,
+                    },
+                  ]
+                : []),
+            ];
+            if (rules.length)
+              await tx.distributionRule.createMany({ data: rules });
+          }
+          return tx.teachingAssignment.update({
+            where: { id: resourceId },
+            data: assignmentData,
+          });
         }
-        return tx.teachingAssignment.update({ where: { id: resourceId }, data: assignmentData });
       }
-    }
-  });
+    },
+  );
 }
 
 export async function deleteMasterData(
@@ -464,31 +728,47 @@ export async function deleteMasterData(
   resourceId: string,
   expectedSchoolYearVersion: number,
 ) {
-  return withSchoolYearVersion(schoolYearId, expectedSchoolYearVersion, async (tx) => {
-    switch (resource) {
-      case "teachers":
-        return tx.teacher.delete({ where: { id: resourceId, schoolYearId } });
-      case "classes":
-        return tx.schoolClass.delete({ where: { id: resourceId, schoolYearId } });
-      case "subjects":
-        return tx.subject.delete({ where: { id: resourceId, schoolYearId } });
-      case "room-types":
-        return tx.roomType.delete({ where: { id: resourceId, schoolYearId } });
-      case "rooms":
-        return tx.room.delete({ where: { id: resourceId, schoolYearId } });
-      case "assignments":
-        return tx.teachingAssignment.delete({ where: { id: resourceId, schoolYearId } });
-      case "availability":
-        return tx.availabilityRule.delete({ where: { id: resourceId, schoolYearId } });
-    }
-  });
+  return withSchoolYearVersion(
+    schoolYearId,
+    expectedSchoolYearVersion,
+    async (tx) => {
+      switch (resource) {
+        case "teachers":
+          return tx.teacher.delete({ where: { id: resourceId, schoolYearId } });
+        case "classes":
+          return tx.schoolClass.delete({
+            where: { id: resourceId, schoolYearId },
+          });
+        case "subjects":
+          return tx.subject.delete({ where: { id: resourceId, schoolYearId } });
+        case "room-types":
+          return tx.roomType.delete({
+            where: { id: resourceId, schoolYearId },
+          });
+        case "rooms":
+          return tx.room.delete({ where: { id: resourceId, schoolYearId } });
+        case "assignments":
+          return tx.teachingAssignment.delete({
+            where: { id: resourceId, schoolYearId },
+          });
+        case "availability":
+          return tx.availabilityRule.delete({
+            where: { id: resourceId, schoolYearId },
+          });
+      }
+    },
+  );
 }
 
 export function normalizeMasterDataError(error: unknown): MasterDataError {
   if (error instanceof MasterDataError) return error;
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2002") {
-      return new MasterDataError("DUPLICATE_CODE", "Položka se stejným kódem již existuje.", 409);
+      return new MasterDataError(
+        "DUPLICATE_CODE",
+        "Položka se stejným kódem již existuje.",
+        409,
+      );
     }
     if (error.code === "P2003") {
       return new MasterDataError(
@@ -498,7 +778,11 @@ export function normalizeMasterDataError(error: unknown): MasterDataError {
       );
     }
     if (error.code === "P2025") {
-      return new MasterDataError("RESOURCE_NOT_FOUND", "Položka nebyla nalezena.", 404);
+      return new MasterDataError(
+        "RESOURCE_NOT_FOUND",
+        "Položka nebyla nalezena.",
+        404,
+      );
     }
   }
   throw error;

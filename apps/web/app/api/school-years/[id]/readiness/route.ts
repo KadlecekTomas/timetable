@@ -15,7 +15,11 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json(evaluateReadiness(snapshot));
   } catch (error) {
     if (error instanceof Error && error.message === "SCHOOL_YEAR_NOT_FOUND") {
-      return apiError({ status: 404, code: "SCHOOL_YEAR_NOT_FOUND", message: "Školní rok nebyl nalezen." });
+      return apiError({
+        status: 404,
+        code: "SCHOOL_YEAR_NOT_FOUND",
+        message: "Školní rok nebyl nalezen.",
+      });
     }
     throw error;
   }

@@ -16,10 +16,18 @@ function errorRecord(body: unknown, status: number): Record<string, unknown> {
   return { httpStatus: status, message: "Solver vrátil nečitelnou odpověď." };
 }
 
-export function completionFromSolver(response: SolverHttpResult): CompletionPayload {
+export function completionFromSolver(
+  response: SolverHttpResult,
+): CompletionPayload {
   if (response.ok) return { outcome: "SOLVED", result: response.body };
   if (response.status === 422) {
-    return { outcome: "INFEASIBLE", error: errorRecord(response.body, response.status) };
+    return {
+      outcome: "INFEASIBLE",
+      error: errorRecord(response.body, response.status),
+    };
   }
-  return { outcome: "FAILED", error: errorRecord(response.body, response.status) };
+  return {
+    outcome: "FAILED",
+    error: errorRecord(response.body, response.status),
+  };
 }

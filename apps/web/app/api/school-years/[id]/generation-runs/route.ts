@@ -21,7 +21,11 @@ export async function GET(_request: Request, context: RouteContext) {
   const { id: schoolYearId } = await context.params;
   const items = await prisma.generationRun.findMany({
     where: { schoolYearId },
-    include: { candidateVersion: { select: { id: true, name: true, qualityScore: true } } },
+    include: {
+      candidateVersion: {
+        select: { id: true, name: true, qualityScore: true },
+      },
+    },
     orderBy: { createdAt: "desc" },
     take: 50,
   });
@@ -71,7 +75,11 @@ export async function POST(request: Request, context: RouteContext) {
     );
   } catch (error) {
     if (error instanceof Error && error.message === "SCHOOL_YEAR_NOT_FOUND") {
-      return apiError({ status: 404, code: "SCHOOL_YEAR_NOT_FOUND", message: "Školní rok nebyl nalezen." });
+      return apiError({
+        status: 404,
+        code: "SCHOOL_YEAR_NOT_FOUND",
+        message: "Školní rok nebyl nalezen.",
+      });
     }
     throw error;
   }

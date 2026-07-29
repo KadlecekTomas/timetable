@@ -11,10 +11,18 @@ export async function GET(_request: Request, context: RouteContext) {
   const { id: schoolYearId, batchId } = await context.params;
   const batch = await prisma.importBatch.findFirst({
     where: { id: batchId, schoolYearId },
-    include: { issues: { orderBy: [{ severity: "asc" }, { sheet: "asc" }, { row: "asc" }] } },
+    include: {
+      issues: {
+        orderBy: [{ severity: "asc" }, { sheet: "asc" }, { row: "asc" }],
+      },
+    },
   });
   if (!batch) {
-    return apiError({ status: 404, code: "IMPORT_BATCH_NOT_FOUND", message: "Import nebyl nalezen." });
+    return apiError({
+      status: 404,
+      code: "IMPORT_BATCH_NOT_FOUND",
+      message: "Import nebyl nalezen.",
+    });
   }
   return NextResponse.json({
     importBatchId: batch.id,
