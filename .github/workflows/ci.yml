@@ -45,30 +45,86 @@ jobs:
                   content = content.replace(old, new)
               path.write_text(content)
 
+          solver = Path("apps/solver/app/main.py")
+          content = solver.read_text()
+          start = content.index("def _add_gap_objective(")
+          end = content.index("\n\n@app.post", start)
+          replacement = '''def _add_gap_objective(
+              model: cp_model.CpModel,
+              objective_terms: list[cp_model.LinearExpr],
+              occupancy_sources: dict[tuple[str, int, int], list[cp_model.IntVar]],
+              entity_ids: set[str],
+              periods_per_day: list[int],
+              weight: int,
+              prefix: str,
+          ) -> None:
+              for entity_id in sorted(entity_ids):
+                  for day, periods in enumerate(periods_per_day):
+                      occupancy: list[cp_model.IntVar] = []
+                      for period in range(periods):
+                          occupied = model.new_bool_var(
+                              f"{prefix}_occupied_{entity_id}_{day}_{period}"
+                          )
+                          sources = occupancy_sources.get((entity_id, day, period), [])
+                          if sources:
+                              source_sum = sum(sources)
+                              model.add(source_sum >= occupied)
+                              model.add(source_sum <= len(sources) * occupied)
+                          else:
+                              model.add(occupied == 0)
+                          occupancy.append(occupied)
+
+                      for period in range(1, periods - 1):
+                          before = model.new_bool_var(
+                              f"{prefix}_before_{entity_id}_{day}_{period}"
+                          )
+                          after = model.new_bool_var(
+                              f"{prefix}_after_{entity_id}_{day}_{period}"
+                          )
+                          before_sum = sum(occupancy[:period])
+                          after_sum = sum(occupancy[period + 1 :])
+                          model.add(before_sum >= before)
+                          model.add(before_sum <= period * before)
+                          model.add(after_sum >= after)
+                          model.add(after_sum <= (periods - period - 1) * after)
+
+                          gap = model.new_bool_var(
+                              f"{prefix}_gap_{entity_id}_{day}_{period}"
+                          )
+                          model.add(gap <= before)
+                          model.add(gap <= after)
+                          model.add(gap + occupancy[period] <= 1)
+                          model.add(
+                              gap >= before + after - occupancy[period] - 1
+                          )
+                          objective_terms.append(gap * weight)
+          '''
+          solver.write_text(content[:start] + replacement + content[end:])
+
           workbook = Path("apps/web/lib/import/workbook.ts")
           content = workbook.read_text()
           old = '''  for (let rowNumber = 2; rowNumber <= worksheet.actualRowCount; rowNumber += 1) {
-    const row = worksheet.getRow(rowNumber);
-    const values: Record<string, string> = {};
-    for (const [header, column] of headers) {
-      values[header] = cellText(row.getCell(column), issues, worksheet.name);
-    }
-    if (Object.values(values).some((value) => value !== "")) {
-      rows.push({ rowNumber, values });
-    }
-  }
-'''
+            const row = worksheet.getRow(rowNumber);
+            const values: Record<string, string> = {};
+            for (const [header, column] of headers) {
+              values[header] = cellText(row.getCell(column), issues, worksheet.name);
+            }
+            if (Object.values(values).some((value) => value !== "")) {
+              rows.push({ rowNumber, values });
+            }
+          }
+          '''
           new = '''  worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-    if (rowNumber === 1) return;
-    const values: Record<string, string> = {};
-    for (const [header, column] of headers) {
-      values[header] = cellText(row.getCell(column), issues, worksheet.name);
-    }
-    if (Object.values(values).some((value) => value !== "")) {
-      rows.push({ rowNumber, values });
-    }
-  });
-'''
+            if (rowNumber === 1) return;
+            const values: Record<string, string> = {};
+            for (const [header, column] of headers) {
+              values[header] = cellText(row.getCell(column), issues, worksheet.name);
+            }
+            if (Object.values(values).some((value) => value !== "")) {
+              rows.push({ rowNumber, values });
+            }
+          });
+          '''
           content = content.replace(old, new)
           workbook.write_text(content)
 
@@ -108,7 +164,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json apps/web apps/worker apps/solver packages/database compose.yaml .github/workflows/ci.yml
           if ! git diff --cached --quiet; then
-            git commit -m "style: normalize integrated MVP sources"
+            git commit -m "fix: normalize integrated MVP verification sources"
             git push origin HEAD:${{ github.head_ref }}
           fi
       - run: npm run format:check
