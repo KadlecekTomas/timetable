@@ -30,12 +30,13 @@ export async function GET(request: Request, context: RouteContext) {
         { code: item.code, name: item.name, colorToken: item.color_token },
       ]),
     );
-    const rooms = new Map(
-      snapshot.rooms.map((item) => [
-        item.id,
-        { code: item.code ?? item.id, name: item.name ?? item.code ?? item.id },
-      ]),
-    );
+    const roomItems = snapshot.rooms.map((item) => ({
+      id: item.id,
+      code: item.code ?? item.id,
+      name: item.name ?? item.code ?? item.id,
+      roomTypeId: item.room_type_id ?? null,
+    }));
+    const rooms = new Map(roomItems.map((item) => [item.id, item]));
     const filtered = entityId
       ? lessons.filter((lesson) =>
           view === "teacher" ? lesson.teacher_id === entityId : lesson.class_id === entityId,
@@ -66,6 +67,7 @@ export async function GET(request: Request, context: RouteContext) {
               name: `${item.first_name} ${item.last_name}`.trim(),
             }))
           : snapshot.classes.map((item) => ({ id: item.id, code: item.code, name: item.name })),
+      rooms: roomItems,
       lessons: filtered.map((lesson) => ({
         ...lesson,
         teacher: teachers.get(lesson.teacher_id),
