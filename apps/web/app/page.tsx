@@ -19,8 +19,8 @@ export default function HomePage() {
           Kvalitní školní rozvrh bez tvrdých konfliktů.
         </h1>
         <p className="max-w-2xl text-lg leading-8 text-slate-600">
-          Repository foundation je připravený pro import školních dat,
-          verzované generování a vysvětlitelné optimalizační skóre.
+          Repository foundation je připravený pro import školních dat, verzované
+          generování a vysvětlitelné optimalizační skóre.
         </p>
       </section>
 
