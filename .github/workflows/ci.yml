@@ -20,6 +20,18 @@ jobs:
       - run: npm run db:generate
         env:
           DATABASE_URL: postgresql://timetable:timetable@localhost:5432/timetable?schema=public
+      - run: npm run format
+      - uses: actions/upload-artifact@v4
+        with:
+          name: formatted-source
+          path: |
+            package.json
+            apps/web
+            apps/worker
+            packages/database
+            compose.yaml
+            .github/workflows/ci.yml
+          if-no-files-found: error
       - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
@@ -28,6 +40,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://timetable:timetable@localhost:5432/timetable?schema=public
           SOLVER_URL: http://localhost:8000
+          WORKER_TOKEN: ci-worker-token
 
   solver:
     runs-on: ubuntu-latest
