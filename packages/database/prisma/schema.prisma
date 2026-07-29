@@ -7,6 +7,159 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum GenerationStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum LessonKind {
+  STANDARD
+  DOUBLE
+  SPLIT
+}
+
+model SchoolYear {
+  id          String   @id @default(cuid())
+  name        String
+  startsOn    DateTime
+  endsOn      DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  teachers    Teacher[]
+  classes     SchoolClass[]
+  subjects    Subject[]
+  rooms       Room[]
+  assignments TeachingAssignment[]
+  runs        GenerationRun[]
+  versions    TimetableVersion[]
+}
+
+model Teacher {
+  id           String   @id @default(cuid())
+  schoolYearId String
+  firstName    String
+  lastName     String
+  code         String
+  workload     Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  assignments  TeachingAssignment[]
+  lessons      TimetableLesson[]
+  @@unique([schoolYearId, code])
+}
+
+model SchoolClass {
+  id           String   @id @default(cuid())
+  schoolYearId String
+  name         String
+  grade        Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  assignments  TeachingAssignment[]
+  lessons      TimetableLesson[]
+  @@unique([schoolYearId, name])
+}
+
+model Subject {
+  id           String   @id @default(cuid())
+  schoolYearId String
+  name         String
+  code         String
+  colorToken   String   @default("blue")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  assignments  TeachingAssignment[]
+  lessons      TimetableLesson[]
+  @@unique([schoolYearId, code])
+}
+
+model Room {
+  id           String   @id @default(cuid())
+  schoolYearId String
+  name         String
+  code         String
+  capacity     Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  lessons      TimetableLesson[]
+  @@unique([schoolYearId, code])
+}
+
+model TeachingAssignment {
+  id           String   @id @default(cuid())
+  schoolYearId String
+  teacherId    String
+  classId      String
+  subjectId    String
+  lessonsPerWeek Int
+  kind         LessonKind @default(STANDARD)
+  groupCode    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  teacher      Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  schoolClass  SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject      Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+}
+
+model GenerationRun {
+  id           String   @id @default(cuid())
+  schoolYearId String
+  status       GenerationStatus @default(PENDING)
+  snapshot     Json
+  score        Int?
+  incidentReport Json?
+  createdAt    DateTime @default(now())
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  version      TimetableVersion?
+}
+
+model TimetableVersion {
+  id           String   @id @default(cuid())
+  schoolYearId String
+  generationRunId String? @unique
+  name         String
+  score        Int
+  isCurrent    Boolean @default(false)
+  createdAt    DateTime @default(now())
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  generationRun GenerationRun? @relation(fields: [generationRunId], references: [id], onDelete: SetNull)
+  lessons      TimetableLesson[]
+}
+
+model TimetableLesson {
+  id           String   @id @default(cuid())
+  versionId    String
+  teacherId    String
+  classId      String
+  subjectId    String
+  roomId       String?
+  day          Int
+  period       Int
+  duration     Int @default(1)
+  groupCode    String?
+  locked       Boolean @default(false)
+  manuallyChanged Boolean @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  version      TimetableVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  teacher      Teacher @relation(fields: [teacherId], references: [id])
+  schoolClass  SchoolClass @relation(fields: [classId], references: [id])
+  subject      Subject @relation(fields: [subjectId], references: [id])
+  room         Room? @relation(fields: [roomId], references: [id])
+  @@unique([versionId, classId, day, period, groupCode])
+  @@index([versionId, teacherId, day, period])
+}
+
 model SystemHealth {
   id        String   @id @default(cuid())
   service   String   @unique
