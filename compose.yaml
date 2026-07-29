@@ -34,6 +34,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://timetable:timetable@postgres:5432/timetable?schema=public}
       SOLVER_URL: ${SOLVER_URL:-http://solver:8000}
+      WORKER_TOKEN: ${WORKER_TOKEN:-local-development-worker-token-change-me}
       NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Timetable}
     ports:
       - "3000:3000"
@@ -47,6 +48,22 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    environment:
+      WEB_INTERNAL_URL: ${WEB_INTERNAL_URL:-http://web:3000}
+      SOLVER_URL: ${SOLVER_URL:-http://solver:8000}
+      WORKER_TOKEN: ${WORKER_TOKEN:-local-development-worker-token-change-me}
+      WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-1500}
+    depends_on:
+      web:
+        condition: service_healthy
+      solver:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   postgres-data:
