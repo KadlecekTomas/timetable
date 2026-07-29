@@ -6,7 +6,9 @@ export const metadata: Metadata = {
   description: "AI-assisted school timetable generator",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="cs">
       <body>{children}</body>
