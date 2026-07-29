@@ -13,8 +13,8 @@
     "lint": "npm run lint --workspace @timetable/web",
     "typecheck": "npm run typecheck --workspace @timetable/database && npm run typecheck --workspace @timetable/web",
     "test": "npm run test --workspace @timetable/web",
-    "format": "prettier --write apps packages package.json .github/workflows/ci.yml",
-    "format:check": "prettier --check apps packages package.json .github/workflows/ci.yml",
+    "format": "prettier --write package.json apps/web/package.json apps/web/tsconfig.json apps/web/next.config.ts apps/web/eslint.config.mjs apps/web/postcss.config.mjs packages/database .github/workflows/ci.yml",
+    "format:check": "prettier --check package.json apps/web/package.json apps/web/tsconfig.json apps/web/next.config.ts apps/web/eslint.config.mjs apps/web/postcss.config.mjs packages/database .github/workflows/ci.yml",
     "db:generate": "npm run prisma:generate --workspace @timetable/database",
     "db:migrate": "npm run prisma:migrate --workspace @timetable/database",
     "db:studio": "npm run prisma:studio --workspace @timetable/database"
