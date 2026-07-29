@@ -45,6 +45,33 @@ jobs:
                   content = content.replace(old, new)
               path.write_text(content)
 
+          workbook = Path("apps/web/lib/import/workbook.ts")
+          content = workbook.read_text()
+          old = '''  for (let rowNumber = 2; rowNumber <= worksheet.actualRowCount; rowNumber += 1) {
+    const row = worksheet.getRow(rowNumber);
+    const values: Record<string, string> = {};
+    for (const [header, column] of headers) {
+      values[header] = cellText(row.getCell(column), issues, worksheet.name);
+    }
+    if (Object.values(values).some((value) => value !== "")) {
+      rows.push({ rowNumber, values });
+    }
+  }
+'''
+          new = '''  worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+    if (rowNumber === 1) return;
+    const values: Record<string, string> = {};
+    for (const [header, column] of headers) {
+      values[header] = cellText(row.getCell(column), issues, worksheet.name);
+    }
+    if (Object.values(values).some((value) => value !== "")) {
+      rows.push({ rowNumber, values });
+    }
+  });
+'''
+          content = content.replace(old, new)
+          workbook.write_text(content)
+
           timetable = Path("apps/web/app/timetable/page.tsx")
           content = timetable.read_text()
           content = content.replace(
