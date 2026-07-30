@@ -24,10 +24,10 @@ test("local settings survive reload and a corrupted backup is rejected", async (
   ).toBeVisible();
 
   await page.reload();
-  await expect(page.getByLabel("Název školy")).toHaveValue(
-    "ZŠ Trvalé uložení",
-  );
-  await expect(page.getByText("ZŠ Trvalé uložení", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Název školy")).toHaveValue("ZŠ Trvalé uložení");
+  await expect(
+    page.getByText("ZŠ Trvalé uložení", { exact: true }),
+  ).toBeVisible();
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Stáhnout zálohu projektu" }).click();
@@ -54,9 +54,7 @@ test("local settings survive reload and a corrupted backup is rejected", async (
   ).toBeVisible();
 
   await page.reload();
-  await expect(page.getByLabel("Název školy")).toHaveValue(
-    "ZŠ Trvalé uložení",
-  );
+  await expect(page.getByLabel("Název školy")).toHaveValue("ZŠ Trvalé uložení");
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });
