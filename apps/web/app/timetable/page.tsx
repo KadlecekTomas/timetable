@@ -14,6 +14,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
+import { localApiFetch } from "@/lib/local/api";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { teachingGroupLabels } from "@/lib/ui-labels";
@@ -107,7 +108,7 @@ export default function TimetablePage() {
     const currentSchoolYearId = schoolYearId;
     let cancelled = false;
     async function resolveLatest() {
-      const response = await fetch(
+      const response = await localApiFetch(
         `/api/school-years/${currentSchoolYearId}/generation-runs`,
         {
           cache: "no-store",
@@ -137,7 +138,7 @@ export default function TimetablePage() {
     setError(null);
     const params = new URLSearchParams({ view });
     if (entityId) params.set("entityId", entityId);
-    const response = await fetch(
+    const response = await localApiFetch(
       `/api/timetable-versions/${versionId}?${params}`,
       {
         cache: "no-store",
@@ -172,14 +173,17 @@ export default function TimetablePage() {
     if (!payload || !versionId) return;
     setBusy(true);
     setError(null);
-    const response = await fetch(`/api/timetable-versions/${versionId}/locks`, {
-      method: locked ? "POST" : "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        lessonIds: [lesson.id],
-        expectedRevision: payload.version.revision,
-      }),
-    });
+    const response = await localApiFetch(
+      `/api/timetable-versions/${versionId}/locks`,
+      {
+        method: locked ? "POST" : "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lessonIds: [lesson.id],
+          expectedRevision: payload.version.revision,
+        }),
+      },
+    );
     const data = (await response.json()) as { error?: { message?: string } };
     if (!response.ok) setError(data.error?.message ?? "Změna zámku selhala.");
     await load();
@@ -201,7 +205,7 @@ export default function TimetablePage() {
     setMoveIssues([]);
     setError(null);
 
-    const previewResponse = await fetch(
+    const previewResponse = await localApiFetch(
       `/api/timetable-versions/${versionId}/moves/validate`,
       {
         method: "POST",
@@ -226,7 +230,7 @@ export default function TimetablePage() {
       return;
     }
 
-    const applyResponse = await fetch(
+    const applyResponse = await localApiFetch(
       `/api/timetable-versions/${versionId}/moves`,
       {
         method: "POST",
@@ -249,11 +253,14 @@ export default function TimetablePage() {
   async function undo() {
     if (!payload || !versionId) return;
     setBusy(true);
-    const response = await fetch(`/api/timetable-versions/${versionId}/undo`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ expectedRevision: payload.version.revision }),
-    });
+    const response = await localApiFetch(
+      `/api/timetable-versions/${versionId}/undo`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expectedRevision: payload.version.revision }),
+      },
+    );
     const data = (await response.json()) as { error?: { message?: string } };
     if (!response.ok)
       setError(data.error?.message ?? "Poslední změnu nelze vrátit.");
@@ -264,7 +271,7 @@ export default function TimetablePage() {
   async function accept() {
     if (!payload || !versionId) return;
     setBusy(true);
-    const response = await fetch(
+    const response = await localApiFetch(
       `/api/timetable-versions/${versionId}/accept`,
       {
         method: "POST",
@@ -297,7 +304,7 @@ export default function TimetablePage() {
       <PageHeader
         eyebrow="Fáze 7"
         title={payload?.version.name ?? "Úprava rozvrhu"}
-        description="Přesun ověřuje stejná serverová kontrola pevných pravidel jako automatická tvorba rozvrhu. Zamčené bloky nelze přesunout."
+        description="Přesun ověřuje stejná lokální kontrola pevných pravidel jako automatická tvorba rozvrhu. Zamčené bloky nelze přesunout."
         actions={
           <>
             <Button

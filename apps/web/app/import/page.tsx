@@ -11,8 +11,10 @@ import { useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
+import { localApiFetch } from "@/lib/local/api";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { createImportTemplate } from "@/lib/import/workbook";
 import { importSeverityLabels, importSummaryLabels } from "@/lib/ui-labels";
 
 interface ImportIssueView {
@@ -42,6 +44,19 @@ export default function ImportPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  async function downloadTemplate() {
+    const bytes = await createImportTemplate();
+    const blob = new Blob([bytes], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "rozvrhar-sablona-1.0.0.xlsx";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function analyze(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!schoolYearId) return;
@@ -54,7 +69,7 @@ export default function ImportPage() {
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(
+      const response = await localApiFetch(
         `/api/school-years/${schoolYearId}/imports`,
         {
           method: "POST",
@@ -82,7 +97,7 @@ export default function ImportPage() {
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(
+      const response = await localApiFetch(
         `/api/school-years/${schoolYearId}/imports/${result.importBatchId}/apply`,
         { method: "POST" },
       );
@@ -131,11 +146,13 @@ export default function ImportPage() {
         title="Načtení dat z Excelu"
         description="Soubor se nejprve zkontroluje bez zápisu. Uložení je dostupné pouze pro náhled bez blokujících chyb."
         actions={
-          <Button asChild variant="outline">
-            <a href={`/api/school-years/${schoolYearId}/import-template`}>
-              <Download className="size-4" aria-hidden="true" />
-              Stáhnout šablonu 1.0.0
-            </a>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void downloadTemplate()}
+          >
+            <Download className="size-4" aria-hidden="true" />
+            Stáhnout šablonu 1.0.0
           </Button>
         }
       />
