@@ -1,0 +1,30 @@
+name: Generate initial migration artifact
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  migration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Generate SQL from the committed Prisma schema
+        run: |
+          mkdir -p migration-artifact
+          npx prisma migrate diff \
+            --from-empty \
+            --to-schema-datamodel packages/database/prisma/schema.prisma \
+            --script > migration-artifact/migration.sql
+          printf 'provider = "postgresql"\n' > migration-artifact/migration_lock.toml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: initial-prisma-migration
+          path: migration-artifact
+          if-no-files-found: error
