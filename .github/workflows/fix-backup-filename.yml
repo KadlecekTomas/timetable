@@ -25,16 +25,13 @@ jobs:
           from pathlib import Path
           path = Path('apps/web/app/settings/page.tsx')
           text = path.read_text()
-          old = '''  return value
-            .normalize("NFKD")
-            .replace(/[^a-zA-Z0-9]+/g, "-")'''
-          new = '''  return value
-            .normalize("NFKD")
-            .replace(/[\\u0300-\\u036f]/g, "")
-            .replace(/[^a-zA-Z0-9]+/g, "-")'''
-          if old not in text:
-              raise SystemExit('safeFilePart pattern missing')
-          path.write_text(text.replace(old, new, 1))
+          marker = '.normalize("NFKD")\n'
+          replacement = '.normalize("NFKD")\n    .replace(/[\\u0300-\\u036f]/g, "")\n'
+          if marker not in text:
+              raise SystemExit('safeFilePart normalize marker missing')
+          if '[\\u0300-\\u036f]' not in text:
+              text = text.replace(marker, replacement, 1)
+          path.write_text(text)
           PY
       - run: npx prettier --write apps/web/app/settings/page.tsx
       - name: Commit product fix
