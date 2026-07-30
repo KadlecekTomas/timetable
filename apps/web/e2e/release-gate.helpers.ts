@@ -152,7 +152,14 @@ export async function buildWorkbook(
   await workbook.xlsx.load((await templateResponse.body()) as never);
 
   writeRows(workbook.getWorksheet("Nastavení")!, [
-    [variant === "wrong-school-year" ? "2025/2026" : "2026/2027", 8, 8, 8, 8, 7],
+    [
+      variant === "wrong-school-year" ? "2025/2026" : "2026/2027",
+      8,
+      8,
+      8,
+      8,
+      7,
+    ],
   ]);
   writeRows(workbook.getWorksheet("Učitelé")!, [
     ["NOV", "Jan", "Novák", 2, 2, 2, "M", "6A"],
@@ -187,20 +194,7 @@ export async function buildWorkbook(
       1,
       1,
     ],
-    [
-      "6A-CJ-SVO",
-      "6A",
-      "CJ",
-      "SVO",
-      "WHOLE",
-      2,
-      "SINGLE",
-      0,
-      "102",
-      "",
-      1,
-      1,
-    ],
+    ["6A-CJ-SVO", "6A", "CJ", "SVO", "WHOLE", 2, "SINGLE", 0, "102", "", 1, 1],
   ]);
 
   return Buffer.from(await workbook.xlsx.writeBuffer());

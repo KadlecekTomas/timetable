@@ -74,9 +74,9 @@ test.describe("Release gate celého workflow", () => {
     const afterInvalid = (await listAfterInvalid.json()) as {
       items: Array<{ schoolName: string }>;
     };
-    expect(afterInvalid.items.some((item) => item.schoolName === schoolName)).toBe(
-      false,
-    );
+    expect(
+      afterInvalid.items.some((item) => item.schoolName === schoolName),
+    ).toBe(false);
 
     const validResponse = await request.post("/api/school-years", {
       data: {
@@ -185,9 +185,9 @@ test.describe("Release gate celého workflow", () => {
       firstPreview.preview.importBatchId,
     );
     expect(idempotentApply.ok()).toBeTruthy();
-    expect(
-      ((await idempotentApply.json()) as { status: string }).status,
-    ).toBe("APPLIED");
+    expect(((await idempotentApply.json()) as { status: string }).status).toBe(
+      "APPLIED",
+    );
 
     const secondPreview = await analyzeWorkbook(
       request,
@@ -229,17 +229,23 @@ test.describe("Release gate celého workflow", () => {
   test("generování zvládne odmítnutí, vytvoří validní návrh a všechny služby zůstanou dostupné", async ({
     request,
   }) => {
-    const unreadySchoolYear = await createSchoolYear(request, "Nepřipravený běh");
+    const unreadySchoolYear = await createSchoolYear(
+      request,
+      "Nepřipravený běh",
+    );
     const unreadyResponse = await request.post(
       `/api/school-years/${unreadySchoolYear.id}/generation-runs`,
       { data: { timeLimitSeconds: 30 } },
     );
     expect(unreadyResponse.status()).toBe(422);
-    expect(
-      ((await unreadyResponse.json()) as ErrorPayload).error?.code,
-    ).toBe("SCHOOL_YEAR_NOT_READY");
+    expect(((await unreadyResponse.json()) as ErrorPayload).error?.code).toBe(
+      "SCHOOL_YEAR_NOT_READY",
+    );
 
-    const workflow = await prepareGeneratedWorkflow(request, "Validní generování");
+    const workflow = await prepareGeneratedWorkflow(
+      request,
+      "Validní generování",
+    );
 
     const invalidRequest = await request.post(
       `/api/school-years/${workflow.schoolYear.id}/generation-runs`,
@@ -286,8 +292,8 @@ test.describe("Release gate celého workflow", () => {
   }) => {
     const workflow = await prepareGeneratedWorkflow(request, "Editor rozvrhu");
     const initial = workflow.timetable;
-    const [moving, occupied] = [...initial.lessons].sort(
-      (left, right) => left.id.localeCompare(right.id),
+    const [moving, occupied] = [...initial.lessons].sort((left, right) =>
+      left.id.localeCompare(right.id),
     );
     expect(moving).toBeDefined();
     expect(occupied).toBeDefined();
@@ -391,9 +397,9 @@ test.describe("Release gate celého workflow", () => {
       issues: Array<{ code: string }>;
     };
     expect(lockedMovePayload.valid).toBe(false);
-    expect(lockedMovePayload.issues.some((item) => item.code === "LESSON_LOCKED")).toBe(
-      true,
-    );
+    expect(
+      lockedMovePayload.issues.some((item) => item.code === "LESSON_LOCKED"),
+    ).toBe(true);
 
     const unlockResponse = await request.delete(
       `/api/timetable-versions/${workflow.versionId}/locks`,
@@ -439,7 +445,9 @@ test.describe("Release gate celého workflow", () => {
 
     const movedState = await loadTimetable(request, workflow.versionId);
     expect(
-      coordinates(movedState.lessons.find((lesson) => lesson.id === moving!.id)!),
+      coordinates(
+        movedState.lessons.find((lesson) => lesson.id === moving!.id)!,
+      ),
     ).toEqual({
       day: target.day,
       period: target.period,
@@ -519,7 +527,9 @@ test.describe("Release gate celého workflow", () => {
       starts.map((item) => waitForGenerationRun(request, item.generationRunId)),
     );
     expect(
-      terminalRuns.some((run) => run.status === "QUEUED" || run.status === "RUNNING"),
+      terminalRuns.some(
+        (run) => run.status === "QUEUED" || run.status === "RUNNING",
+      ),
     ).toBe(false);
 
     for (const run of terminalRuns.filter((item) =>
@@ -535,7 +545,10 @@ test.describe("Release gate celého workflow", () => {
     request,
   }) => {
     const runtime = watchRuntime(page);
-    const workflow = await prepareGeneratedWorkflow(request, "Browser stabilita");
+    const workflow = await prepareGeneratedWorkflow(
+      request,
+      "Browser stabilita",
+    );
     const context = `schoolYearId=${encodeURIComponent(workflow.schoolYear.id)}`;
 
     await page.goto(`/?${context}`);
@@ -545,20 +558,28 @@ test.describe("Release gate celého workflow", () => {
     await expect(page.getByText("Rozvrh lze vytvořit")).toBeVisible();
 
     await page.goto(`/data?${context}`);
-    await expect(page.getByRole("heading", { name: "Školní data" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Školní data" }),
+    ).toBeVisible();
     await expect(page.getByText("2 záznamů", { exact: true })).toBeVisible();
 
     await page.goto(`/generate?${context}`);
     await expect(
       page.getByRole("heading", { name: "Kontrola připravenosti prošla" }),
     ).toBeVisible();
-    await expect(page.getByText(/^(Proveditelný návrh|Optimální návrh)$/)).toBeVisible();
+    await expect(
+      page.getByText(/^(Proveditelný návrh|Optimální návrh)$/),
+    ).toBeVisible();
 
     await page.goto(
       `/timetable?${context}&versionId=${encodeURIComponent(workflow.versionId)}`,
     );
-    await expect(page.getByRole("heading", { name: "Kvalita návrhu" })).toBeVisible();
-    const lessonButton = page.getByRole("button", { name: /M\s+NOV\s+101/ }).first();
+    await expect(
+      page.getByRole("heading", { name: "Kvalita návrhu" }),
+    ).toBeVisible();
+    const lessonButton = page
+      .getByRole("button", { name: /M\s+NOV\s+101/ })
+      .first();
     await lessonButton.focus();
     await page.keyboard.press("Enter");
     await expect(page.getByRole("dialog")).toBeVisible();
