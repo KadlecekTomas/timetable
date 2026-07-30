@@ -61,9 +61,7 @@ test("entire project survives backup, deletion and restore without a server data
   await expect(
     page.getByRole("heading", { name: "Připravenost školního roku" }),
   ).toBeVisible();
-  await expect(page.getByLabel("Školní rok")).toHaveValue(
-    "local-school-year",
-  );
+  await expect(page.getByLabel("Školní rok")).toHaveValue("local-school-year");
 
   await page.getByRole("link", { name: "Nastavení" }).click();
   await expect(
