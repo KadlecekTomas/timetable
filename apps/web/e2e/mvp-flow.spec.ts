@@ -130,20 +130,22 @@ test("Excel import → solver → lock → validated move → score → undo", a
   });
   await page.getByRole("button", { name: "Analyzovat soubor" }).click();
   await expect(
-    page.getByRole("heading", { name: "Náhled je připraven k potvrzení" }),
+    page.getByRole("heading", { name: "Náhled je připraven k uložení" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Potvrdit změny atomicky" }).click();
+  await page.getByRole("button", { name: "Bezpečně uložit změny" }).click();
   await expect(
-    page.getByRole("heading", { name: "Import byl atomicky potvrzen" }),
+    page.getByRole("heading", { name: "Data byla bezpečně uložena" }),
   ).toBeVisible();
 
   await page.goto(`/generate?schoolYearId=${schoolYear.id}`);
   await expect(
-    page.getByRole("heading", { name: "Předletová kontrola prošla" }),
+    page.getByRole("heading", { name: "Kontrola připravenosti prošla" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Vytvořit nový návrh" }).click();
-  await expect(page.getByText(/^(FEASIBLE|OPTIMAL)$/)).toBeVisible({
+  await expect(
+    page.getByText(/^(Proveditelný návrh|Optimální návrh)$/),
+  ).toBeVisible({
     timeout: 90_000,
   });
   await page.getByRole("link", { name: "Otevřít návrh" }).click();
@@ -167,7 +169,9 @@ test("Excel import → solver → lock → validated move → score → undo", a
   await lessonButtons.nth(lockIndex).click();
   await page.getByRole("button", { name: "Zamknout" }).click();
   await expect(
-    page.getByText(`Revision ${initial.version.revision + 1}`, { exact: true }),
+    page.getByText(`Verze úprav ${initial.version.revision + 1}`, {
+      exact: true,
+    }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Zavřít" }).click();
 
@@ -213,7 +217,7 @@ test("Excel import → solver → lock → validated move → score → undo", a
       response.url().endsWith(`/api/timetable-versions/${versionId}/undo`) &&
       response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Undo" }).click();
+  await page.getByRole("button", { name: "Vrátit změnu" }).click();
   const undoResponse = await undoResponsePromise;
   expect(undoResponse.ok()).toBeTruthy();
   const undoResult = (await undoResponse.json()) as {

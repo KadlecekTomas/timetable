@@ -108,12 +108,12 @@ export default function HomePage() {
               <Button asChild variant="outline">
                 <Link href={`/import${context}`}>
                   <Upload aria-hidden="true" className="size-4" />
-                  Importovat Excel
+                  Načíst data z Excelu
                 </Link>
               </Button>
               <Button asChild disabled={!readiness?.ready}>
                 <Link href={`/generate${context}`}>
-                  Spustit generování
+                  Vytvořit rozvrh
                   <ArrowRight aria-hidden="true" className="size-4" />
                 </Link>
               </Button>
@@ -232,14 +232,14 @@ export default function HomePage() {
                 <div>
                   <h2 className="font-semibold text-text-primary">
                     {readiness?.ready
-                      ? "Generování lze spustit"
+                      ? "Rozvrh lze vytvořit"
                       : `${readiness?.blockers.length ?? 0} blokujících problémů`}
                   </h2>
                   <p className="mt-1 text-sm leading-6 text-text-secondary">
                     {readiness?.ready
                       ? "Vstupní data prošla serverovou kontrolou."
                       : (readiness?.blockers[0]?.message ??
-                        "Načítám readiness kontrolu…")}
+                        "Načítám kontrolu připravenosti…")}
                   </p>
                 </div>
               </div>

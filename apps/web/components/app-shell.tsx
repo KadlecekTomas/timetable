@@ -19,8 +19,8 @@ const navigation = [
   { label: "Přehled", icon: LayoutDashboard, href: "/" },
   { label: "Školní data", icon: Database, href: "/data" },
   { label: "Výukové vazby", icon: BookOpen, href: "/data?section=assignments" },
-  { label: "Import", icon: Upload, href: "/import" },
-  { label: "Generátor", icon: ClipboardCheck, href: "/generate" },
+  { label: "Načtení dat", icon: Upload, href: "/import" },
+  { label: "Tvorba rozvrhu", icon: ClipboardCheck, href: "/generate" },
   { label: "Rozvrh", icon: CalendarDays, href: "/timetable" },
 ];
 
@@ -43,13 +43,15 @@ export function AppShell({ children }: AppShellProps) {
       <aside className="border-b border-border bg-surface lg:sticky lg:top-0 lg:min-h-screen lg:self-start lg:border-b-0 lg:border-r">
         <div className="flex h-16 items-center border-b border-border px-5">
           <div className="flex size-8 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-            T
+            R
           </div>
           <div className="ml-3 min-w-0">
             <p className="truncate text-sm font-semibold text-text-primary">
-              Timetable
+              Rozvrhář
             </p>
-            <p className="truncate text-xs text-text-muted">Školní rozvrhy</p>
+            <p className="truncate text-xs text-text-muted">
+              Tvorba školních rozvrhů
+            </p>
           </div>
         </div>
 
@@ -103,7 +105,7 @@ export function AppShell({ children }: AppShellProps) {
 
       <div className="min-w-0">
         <div className="flex h-16 items-center justify-between border-b border-border bg-surface px-6">
-          <p className="text-sm text-text-muted">MVP pracovní prostředí</p>
+          <p className="text-sm text-text-muted">Pracovní prostředí</p>
           <button
             type="button"
             className="rounded-md px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"

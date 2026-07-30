@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { ReadinessReport } from "@/lib/domain/contracts";
+import { generationStatusLabels } from "@/lib/ui-labels";
 
 interface RunView {
   id: string;
@@ -99,7 +100,8 @@ export default function GeneratePage() {
         if (payload.error?.details?.readiness)
           setReadiness(payload.error.details.readiness);
         throw new Error(
-          payload.error?.message ?? "Generování se nepodařilo zařadit.",
+          payload.error?.message ??
+            "Úlohu se nepodařilo zařadit ke zpracování.",
         );
       }
       await load();
@@ -107,7 +109,7 @@ export default function GeneratePage() {
       setError(
         cause instanceof Error
           ? cause.message
-          : "Generování se nepodařilo zařadit.",
+          : "Úlohu se nepodařilo zařadit ke zpracování.",
       );
     } finally {
       setBusy(false);
@@ -122,7 +124,7 @@ export default function GeneratePage() {
       const payload = (await response.json()) as {
         error?: { message?: string };
       };
-      setError(payload.error?.message ?? "Běh nelze zrušit.");
+      setError(payload.error?.message ?? "Výpočet nelze zrušit.");
     }
     await load();
   }
@@ -139,8 +141,8 @@ export default function GeneratePage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Fáze 5–6"
-        title="Generátor rozvrhu"
-        description="Job se uloží do databázové fronty. Worker zobrazí skutečnou fázi běhu; aplikace nevymýšlí procenta, která solver nezná."
+        title="Tvorba rozvrhu"
+        description="Úloha se uloží do fronty zpracování. Aplikace zobrazuje skutečnou fázi výpočtu a nevymýšlí procenta, která plánovací modul nezná."
         actions={
           <Button variant="outline" onClick={() => void load()}>
             <RefreshCw className="size-4" aria-hidden="true" />
@@ -172,14 +174,14 @@ export default function GeneratePage() {
             <div>
               <h2 className="font-semibold text-text-primary">
                 {readiness?.ready
-                  ? "Předletová kontrola prošla"
-                  : "Předletová kontrola blokuje běh"}
+                  ? "Kontrola připravenosti prošla"
+                  : "Kontrola připravenosti blokuje tvorbu"}
               </h2>
               <p className="mt-1 text-sm text-text-secondary">
                 {readiness?.ready
                   ? `${readiness.summary.assignments} vazeb · ${readiness.summary.weekly_periods} hodin týdně`
                   : (readiness?.blockers[0]?.message ??
-                    "Načítám readiness kontrolu…")}
+                    "Načítám kontrolu připravenosti…")}
               </p>
             </div>
           </div>
@@ -197,7 +199,7 @@ export default function GeneratePage() {
             htmlFor="time-limit"
             className="text-sm font-medium text-text-primary"
           >
-            Časový limit solveru
+            Časový limit výpočtu
           </label>
           <select
             id="time-limit"
@@ -225,9 +227,11 @@ export default function GeneratePage() {
 
       <section className="overflow-hidden rounded-xl border border-border bg-surface">
         <div className="border-b border-border px-5 py-4">
-          <h2 className="font-semibold text-text-primary">Běhy generování</h2>
+          <h2 className="font-semibold text-text-primary">
+            Průběh tvorby rozvrhu
+          </h2>
           <p className="mt-1 text-xs text-text-muted">
-            Immutable vstupy, lifecycle a kandidátní verze.
+            Neměnné vstupy, průběh zpracování a výsledná verze.
           </p>
         </div>
         {runs.length ? (
@@ -250,7 +254,7 @@ export default function GeneratePage() {
                         {run.id}
                       </p>
                       <StatusBadge tone={runTone(run.status)}>
-                        {run.status}
+                        {generationStatusLabels[run.status] ?? run.status}
                       </StatusBadge>
                       {run.qualityScore != null ? (
                         <StatusBadge tone="success">
@@ -290,7 +294,7 @@ export default function GeneratePage() {
           </div>
         ) : (
           <div className="p-8 text-center text-sm text-text-muted">
-            Zatím nebyl spuštěn žádný běh.
+            Zatím nebyla spuštěna žádná tvorba rozvrhu.
           </div>
         )}
       </section>

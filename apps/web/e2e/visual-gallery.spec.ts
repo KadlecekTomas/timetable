@@ -155,17 +155,17 @@ test("creates a visual gallery of the integrated application", async ({
   });
   await page.getByRole("button", { name: "Analyzovat soubor" }).click();
   await expect(
-    page.getByRole("heading", { name: "Náhled je připraven k potvrzení" }),
+    page.getByRole("heading", { name: "Náhled je připraven k uložení" }),
   ).toBeVisible();
   await capture(page, "01-import-preview.png");
 
-  await page.getByRole("button", { name: "Potvrdit změny atomicky" }).click();
+  await page.getByRole("button", { name: "Bezpečně uložit změny" }).click();
   await expect(
-    page.getByRole("heading", { name: "Import byl atomicky potvrzen" }),
+    page.getByRole("heading", { name: "Data byla bezpečně uložena" }),
   ).toBeVisible();
 
   await page.goto(`/?schoolYearId=${schoolYear.id}`);
-  await expect(page.getByText("Generování lze spustit")).toBeVisible();
+  await expect(page.getByText("Rozvrh lze vytvořit")).toBeVisible();
   await capture(page, "02-dashboard-ready.png");
 
   await page.goto(`/data?schoolYearId=${schoolYear.id}`);
@@ -177,12 +177,14 @@ test("creates a visual gallery of the integrated application", async ({
 
   await page.goto(`/generate?schoolYearId=${schoolYear.id}`);
   await expect(
-    page.getByRole("heading", { name: "Předletová kontrola prošla" }),
+    page.getByRole("heading", { name: "Kontrola připravenosti prošla" }),
   ).toBeVisible();
   await capture(page, "04-generator-ready.png");
 
   await page.getByRole("button", { name: "Vytvořit nový návrh" }).click();
-  await expect(page.getByText(/^(FEASIBLE|OPTIMAL)$/)).toBeVisible({
+  await expect(
+    page.getByText(/^(Proveditelný návrh|Optimální návrh)$/),
+  ).toBeVisible({
     timeout: 90_000,
   });
   await capture(page, "05-generator-complete.png");
@@ -213,7 +215,7 @@ test("creates a visual gallery of the integrated application", async ({
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/?schoolYearId=${schoolYear.id}`);
-  await expect(page.getByText("Generování lze spustit")).toBeVisible();
+  await expect(page.getByText("Rozvrh lze vytvořit")).toBeVisible();
   await capture(page, "09-mobile-dashboard.png");
 
   const screenshots = (await readdir(screenshotDirectory)).filter((file) =>
