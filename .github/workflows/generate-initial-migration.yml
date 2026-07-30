@@ -4,27 +4,33 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   migration:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm install
-      - name: Generate SQL from the committed Prisma schema
+      - name: Generate and commit initial migration
+        shell: bash
         run: |
-          mkdir -p migration-artifact
+          migration_dir=packages/database/prisma/migrations/20260730000100_initial_schema
+          mkdir -p "$migration_dir"
           npx prisma migrate diff \
             --from-empty \
             --to-schema-datamodel packages/database/prisma/schema.prisma \
-            --script > migration-artifact/migration.sql
-          printf 'provider = "postgresql"\n' > migration-artifact/migration_lock.toml
-      - uses: actions/upload-artifact@v4
-        with:
-          name: initial-prisma-migration
-          path: migration-artifact
-          if-no-files-found: error
+            --script > "$migration_dir/migration.sql"
+          printf 'provider = "postgresql"\n' > packages/database/prisma/migrations/migration_lock.toml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/database/prisma/migrations
+          git commit -m "chore: add initial Prisma migration"
+          git push origin HEAD:${{ github.head_ref }}
