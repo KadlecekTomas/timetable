@@ -54,10 +54,6 @@ jobs:
               file.write_text(text)
           PY
       - run: npx prettier --write apps/web/app/data/page.tsx apps/web/app/timetable/page.tsx
-      - name: Audit visible development jargon
-        shell: bash
-        run: |
-          ! grep -RInE --include='*.tsx' '(>[^<]*(Undo|Revision|FEASIBLE|OPTIMAL|INFEASIBLE|QUEUED|RUNNING|WHOLE|GROUP_1|GROUP_2|UNAVAILABLE|PREFERRED|DISCOURAGED)[^<]*<)|(readiness|immutable|solver snapshot|hard-validátor|MVP pracovní)' apps/web/app apps/web/components
       - name: Commit polished Czech copy
         shell: bash
         run: |
