@@ -1,0 +1,52 @@
+name: Fix local ArrayBuffers
+
+on:
+  push:
+    branches: [feat/local-first-indexeddb]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/local-first-indexeddb
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Normalize buffers
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path('apps/web/app/import/page.tsx')
+          text = page.read_text()
+          old = '''    const bytes = await createImportTemplate();\n    const blob = new Blob([bytes], {'''
+          new = '''    const bytes = await createImportTemplate();\n    const templateBytes = new Uint8Array(bytes.byteLength);\n    templateBytes.set(bytes);\n    const blob = new Blob([templateBytes.buffer], {'''
+          if old not in text:
+              raise SystemExit('Import template buffer pattern missing')
+          page.write_text(text.replace(old, new, 1))
+
+          api = Path('apps/web/lib/local/api.ts')
+          text = api.read_text()
+          old = '''  const digest = await crypto.subtle.digest("SHA-256", bytes);'''
+          new = '''  const digestBytes = new Uint8Array(bytes.byteLength);\n  digestBytes.set(bytes);\n  const digest = await crypto.subtle.digest("SHA-256", digestBytes.buffer);'''
+          if old not in text:
+              raise SystemExit('Crypto buffer pattern missing')
+          api.write_text(text.replace(old, new, 1))
+          PY
+      - run: npx prettier --write apps/web/app/import/page.tsx apps/web/lib/local/api.ts
+      - name: Remove this workflow and commit
+        run: |
+          rm .github/workflows/fix-local-arraybuffers.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: normalize browser ArrayBuffers"
+          git push origin HEAD:feat/local-first-indexeddb
