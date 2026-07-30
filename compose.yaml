@@ -57,11 +57,9 @@ services:
       test:
         [
           "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://localhost:3000/api/health",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/api/health').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1))",
         ]
       interval: 10s
       timeout: 5s
