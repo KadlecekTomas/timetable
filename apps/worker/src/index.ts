@@ -53,7 +53,10 @@ async function claimJob(): Promise<ClaimedJob | null> {
   });
   if (response.status === 204) return null;
   if (!response.ok) {
-    throw new Error(`Claim failed with HTTP ${response.status}`);
+    const body = await readJson(response);
+    throw new Error(
+      `Claim failed with HTTP ${response.status}: ${JSON.stringify(body).slice(0, 800)}`,
+    );
   }
   return (await response.json()) as ClaimedJob;
 }
@@ -81,8 +84,11 @@ async function executeJob(job: ClaimedJob) {
       signal: AbortSignal.timeout(30_000),
     },
   );
+  const completionBody = await readJson(completionResponse);
   if (!completionResponse.ok) {
-    throw new Error(`Completion failed with HTTP ${completionResponse.status}`);
+    throw new Error(
+      `Completion failed with HTTP ${completionResponse.status}: ${JSON.stringify(completionBody).slice(0, 800)}`,
+    );
   }
 }
 
