@@ -1,0 +1,145 @@
+name: Wire local-first UI
+
+on:
+  push:
+    branches: [feat/local-first-indexeddb]
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/local-first-indexeddb
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Replace server fetches with IndexedDB adapter
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str, count: int | None = None) -> None:
+              file = Path(path)
+              text = file.read_text()
+              found = text.count(old)
+              if found == 0:
+                  raise SystemExit(f"Missing text in {path}: {old!r}")
+              if count is not None and found != count:
+                  raise SystemExit(f"Unexpected count in {path}: {old!r}: {found} != {count}")
+              file.write_text(text.replace(old, new))
+
+          pages = [
+              "apps/web/app/page.tsx",
+              "apps/web/app/data/page.tsx",
+              "apps/web/app/import/page.tsx",
+              "apps/web/app/generate/page.tsx",
+              "apps/web/app/timetable/page.tsx",
+          ]
+          for page in pages:
+              replace(
+                  page,
+                  'import { PageHeader } from "@/components/page-header";',
+                  'import { PageHeader } from "@/components/page-header";\nimport { localApiFetch } from "@/lib/local/api";',
+                  1,
+              )
+              file = Path(page)
+              file.write_text(file.read_text().replace("fetch(", "localApiFetch("))
+
+          replace(
+              "apps/web/components/app-shell.tsx",
+              'import { cn } from "@/lib/utils";',
+              'import { LOCAL_SCHOOL_YEAR_ID } from "@/lib/local/api";\nimport { cn } from "@/lib/utils";',
+              1,
+          )
+          replace(
+              "apps/web/components/app-shell.tsx",
+              'const schoolYearId = searchParams.get("schoolYearId");',
+              'const schoolYearId =\n    searchParams.get("schoolYearId") ?? LOCAL_SCHOOL_YEAR_ID;',
+              1,
+          )
+          replace(
+              "apps/web/components/app-shell.tsx",
+              '{schoolYearId ? "Vybraný školní rok" : "Ukázkový pracovní prostor"}',
+              'Lokální projekt jedné školy',
+              1,
+          )
+          replace(
+              "apps/web/components/app-shell.tsx",
+              '{schoolYearId ?? "Připojte školní rok přes Přehled"}',
+              'Uloženo pouze v tomto prohlížeči',
+              1,
+          )
+
+          replace(
+              "apps/web/app/page.tsx",
+              'Vstupní data prošla serverovou kontrolou.',
+              'Vstupní data prošla lokální kontrolou.',
+              1,
+          )
+          replace(
+              "apps/web/app/page.tsx",
+              'Zatím neexistuje žádný školní rok. Vytvořte jej pomocí programového\n            rozhraní nebo připravovaného formuláře nastavení.',
+              'Lokální projekt se nepodařilo vytvořit. Zkontrolujte, zda prohlížeč\n            povoluje úložiště webu.',
+              1,
+          )
+
+          replace(
+              "apps/web/app/generate/page.tsx",
+              'description="Úloha se uloží do fronty zpracování. Aplikace zobrazuje skutečnou fázi výpočtu a nevymýšlí procenta, která plánovací modul nezná."',
+              'description="Zadání se odešle přímo plánovacímu modulu. Výsledek se po dokončení automaticky uloží do lokálního projektu v tomto prohlížeči."',
+              1,
+          )
+          replace(
+              "apps/web/app/generate/page.tsx",
+              '{busy ? "Zařazuji…" : "Vytvořit nový návrh"}',
+              '{busy ? "Počítám rozvrh…" : "Vytvořit nový návrh"}',
+              1,
+          )
+          replace(
+              "apps/web/app/generate/page.tsx",
+              'Neměnné vstupy, průběh zpracování a výsledná verze.',
+              'Lokálně uložené výpočty a výsledné verze.',
+              1,
+          )
+
+          replace(
+              "apps/web/app/timetable/page.tsx",
+              'description="Přesun ověřuje stejná serverová kontrola pevných pravidel jako automatická tvorba rozvrhu. Zamčené bloky nelze přesunout."',
+              'description="Přesun ověřuje stejná lokální kontrola pevných pravidel jako automatická tvorba rozvrhu. Zamčené bloky nelze přesunout."',
+              1,
+          )
+
+          import_page = Path("apps/web/app/import/page.tsx")
+          text = import_page.read_text()
+          text = text.replace(
+              'import { importSeverityLabels, importSummaryLabels } from "@/lib/ui-labels";',
+              'import { createImportTemplate } from "@/lib/import/workbook";\nimport { importSeverityLabels, importSummaryLabels } from "@/lib/ui-labels";',
+              1,
+          )
+          marker = '  async function analyze(event: FormEvent<HTMLFormElement>) {'
+          if marker not in text:
+              raise SystemExit("Import analyze marker missing")
+          download = '''  async function downloadTemplate() {\n    const bytes = await createImportTemplate();\n    const blob = new Blob([bytes], {\n      type: \"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\",\n    });\n    const url = URL.createObjectURL(blob);\n    const anchor = document.createElement(\"a\");\n    anchor.href = url;\n    anchor.download = \"rozvrhar-sablona-1.0.0.xlsx\";\n    anchor.click();\n    URL.revokeObjectURL(url);\n  }\n\n'''
+          text = text.replace(marker, download + marker, 1)
+          old_action = '''          <Button asChild variant=\"outline\">\n            <a href={`/api/school-years/${schoolYearId}/import-template`}>\n              <Download className=\"size-4\" aria-hidden=\"true\" />\n              Stáhnout šablonu 1.0.0\n            </a>\n          </Button>'''
+          new_action = '''          <Button\n            type=\"button\"\n            variant=\"outline\"\n            onClick={() => void downloadTemplate()}\n          >\n            <Download className=\"size-4\" aria-hidden=\"true\" />\n            Stáhnout šablonu 1.0.0\n          </Button>'''
+          if old_action not in text:
+              raise SystemExit("Import template action missing")
+          import_page.write_text(text.replace(old_action, new_action, 1))
+          PY
+      - run: npx prettier --write apps/web/app apps/web/components/app-shell.tsx
+      - name: Commit local-first UI wiring
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/app apps/web/components/app-shell.tsx
+          git commit -m "feat: route application UI through IndexedDB"
+          git push origin HEAD:feat/local-first-indexeddb
