@@ -105,11 +105,7 @@ test("Excel import → solver → lock → validated move → score → undo", a
     "6A",
   ]);
   writeRow(workbook.getWorksheet("Třídy")!, ["6A", 6, "6.A"]);
-  writeRow(workbook.getWorksheet("Předměty")!, [
-    "M",
-    "Matematika",
-    "",
-  ]);
+  writeRow(workbook.getWorksheet("Předměty")!, ["M", "Matematika", ""]);
   writeRow(workbook.getWorksheet("Učebny")!, [
     "101",
     "Učebna 101",
@@ -187,9 +183,10 @@ test("Excel import → solver → lock → validated move → score → undo", a
   await expect(lessonButtons.nth(lockIndex).getByLabel("Zamčeno")).toBeVisible();
 
   const afterLock = await loadTimetable(request, versionId!);
-  expect(afterLock.lessons.find((lesson) => lesson.id === lockLesson.id)?.locked).toBe(
-    true,
+  const lockedAfterSave = afterLock.lessons.find(
+    (lesson) => lesson.id === lockLesson.id,
   );
+  expect(lockedAfterSave?.locked).toBe(true);
   const target = findLateFreeSlot(afterLock, moveLesson);
 
   await lessonButtons.nth(moveIndex).click();
@@ -212,7 +209,9 @@ test("Excel import → solver → lock → validated move → score → undo", a
   await expect(page.getByRole("dialog")).toBeHidden();
 
   const afterMove = await loadTimetable(request, versionId!);
-  const moved = afterMove.lessons.find((lesson) => lesson.id === moveLesson.id)!;
+  const moved = afterMove.lessons.find(
+    (lesson) => lesson.id === moveLesson.id,
+  )!;
   expect({ day: moved.day, period: moved.period }).toEqual(target);
   expect(afterMove.version.qualityScore).toBe(moveResult.qualityScore);
 
@@ -231,13 +230,16 @@ test("Excel import → solver → lock → validated move → score → undo", a
   expect(undoResult.revision).toBe(initial.version.revision + 3);
 
   const afterUndo = await loadTimetable(request, versionId!);
-  const restored = afterUndo.lessons.find((lesson) => lesson.id === moveLesson.id)!;
+  const restored = afterUndo.lessons.find(
+    (lesson) => lesson.id === moveLesson.id,
+  )!;
   expect({ day: restored.day, period: restored.period }).toEqual({
     day: moveLesson.day,
     period: moveLesson.period,
   });
   expect(afterUndo.version.qualityScore).toBe(undoResult.qualityScore);
-  expect(afterUndo.lessons.find((lesson) => lesson.id === lockLesson.id)?.locked).toBe(
-    true,
+  const lockedAfterUndo = afterUndo.lessons.find(
+    (lesson) => lesson.id === lockLesson.id,
   );
+  expect(lockedAfterUndo?.locked).toBe(true);
 });
