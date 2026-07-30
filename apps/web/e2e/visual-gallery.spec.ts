@@ -1,7 +1,7 @@
 import { mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import ExcelJS, { type Worksheet } from "exceljs";
 
 const screenshotDirectory = path.resolve("screenshots");
@@ -17,7 +17,7 @@ function writeRows(
   });
 }
 
-async function capture(page: Parameters<typeof test>[0] extends never ? never : any, name: string) {
+async function capture(page: Page, name: string) {
   await page.addStyleTag({
     content: `
       *, *::before, *::after {
@@ -192,12 +192,16 @@ test("creates a visual gallery of the integrated application", async ({
   await expect(
     page.getByRole("heading", { name: "Kvalita návrhu" }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: /NOV|SVO|KRA/ }).first()).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /NOV|SVO|KRA/ }).first(),
+  ).toBeVisible();
   await capture(page, "06-timetable-class-view.png");
 
   await page.getByRole("button", { name: "Učitelé" }).click();
   await expect(page.getByLabel("Učitel")).toBeVisible();
-  await expect(page.getByRole("button", { name: /6A|7A|8A/ }).first()).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /6A|7A|8A/ }).first(),
+  ).toBeVisible();
   await capture(page, "07-timetable-teacher-view.png");
 
   await page.getByRole("button", { name: /6A|7A|8A/ }).first().click();
