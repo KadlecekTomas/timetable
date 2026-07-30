@@ -86,14 +86,7 @@ test("Excel import → solver → lock → validated move → score → undo", a
 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load((await templateResponse.body()) as never);
-  writeRow(workbook.getWorksheet("Nastavení")!, [
-    "2026/2027",
-    8,
-    8,
-    8,
-    8,
-    7,
-  ]);
+  writeRow(workbook.getWorksheet("Nastavení")!, ["2026/2027", 8, 8, 8, 8, 7]);
   writeRow(workbook.getWorksheet("Učitelé")!, [
     "NOV",
     "Jan",
@@ -140,9 +133,7 @@ test("Excel import → solver → lock → validated move → score → undo", a
     page.getByRole("heading", { name: "Náhled je připraven k potvrzení" }),
   ).toBeVisible();
 
-  await page
-    .getByRole("button", { name: "Potvrdit změny atomicky" })
-    .click();
+  await page.getByRole("button", { name: "Potvrdit změny atomicky" }).click();
   await expect(
     page.getByRole("heading", { name: "Import byl atomicky potvrzen" }),
   ).toBeVisible();
@@ -180,7 +171,9 @@ test("Excel import → solver → lock → validated move → score → undo", a
     page.getByText(`Revision ${initial.version.revision + 1}`, { exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Zavřít" }).click();
-  await expect(lessonButtons.nth(lockIndex).getByLabel("Zamčeno")).toBeVisible();
+  await expect(
+    lessonButtons.nth(lockIndex).getByLabel("Zamčeno"),
+  ).toBeVisible();
 
   const afterLock = await loadTimetable(request, versionId!);
   const lockedAfterSave = afterLock.lessons.find(
