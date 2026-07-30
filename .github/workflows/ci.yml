@@ -6,183 +6,33 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   web:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://timetable:timetable@localhost:5432/timetable?schema=public
+      SOLVER_URL: http://localhost:8000
+      WORKER_TOKEN: ci-worker-token
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Apply verified compatibility fixes
-        if: github.event_name == 'pull_request'
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          replacements = {
-              "apps/solver/app/main.py": [
-                  (".not_()", ".Not()"),
-              ],
-              "apps/web/lib/import/workbook.ts": [
-                  ("        cell.row,", "        Number(cell.row),"),
-                  ("    await workbook.xlsx.load(buffer);", "    await workbook.xlsx.load(buffer as never);"),
-              ],
-              "apps/web/tests/import.test.ts": [
-                  ("  await workbook.xlsx.load(await createImportTemplate());", "  await workbook.xlsx.load((await createImportTemplate()) as never);"),
-              ],
-              "apps/web/app/api/school-years/[id]/import-template/route.ts": [
-                  ("  return new Response(buffer, {", "  return new Response(new Uint8Array(buffer), {"),
-              ],
-          }
-
-          for filename, pairs in replacements.items():
-              path = Path(filename)
-              content = path.read_text()
-              for old, new in pairs:
-                  content = content.replace(old, new)
-              path.write_text(content)
-
-          solver = Path("apps/solver/app/main.py")
-          content = solver.read_text()
-          start = content.index("def _add_gap_objective(")
-          end = content.index("\n\n@app.post", start)
-          replacement = '''def _add_gap_objective(
-              model: cp_model.CpModel,
-              objective_terms: list[cp_model.LinearExpr],
-              occupancy_sources: dict[tuple[str, int, int], list[cp_model.IntVar]],
-              entity_ids: set[str],
-              periods_per_day: list[int],
-              weight: int,
-              prefix: str,
-          ) -> None:
-              for entity_id in sorted(entity_ids):
-                  for day, periods in enumerate(periods_per_day):
-                      occupancy: list[cp_model.IntVar] = []
-                      for period in range(periods):
-                          occupied = model.new_bool_var(
-                              f"{prefix}_occupied_{entity_id}_{day}_{period}"
-                          )
-                          sources = occupancy_sources.get((entity_id, day, period), [])
-                          if sources:
-                              source_sum = sum(sources)
-                              model.add(source_sum >= occupied)
-                              model.add(source_sum <= len(sources) * occupied)
-                          else:
-                              model.add(occupied == 0)
-                          occupancy.append(occupied)
-
-                      for period in range(1, periods - 1):
-                          before = model.new_bool_var(
-                              f"{prefix}_before_{entity_id}_{day}_{period}"
-                          )
-                          after = model.new_bool_var(
-                              f"{prefix}_after_{entity_id}_{day}_{period}"
-                          )
-                          before_sum = sum(occupancy[:period])
-                          after_sum = sum(occupancy[period + 1 :])
-                          model.add(before_sum >= before)
-                          model.add(before_sum <= period * before)
-                          model.add(after_sum >= after)
-                          model.add(after_sum <= (periods - period - 1) * after)
-
-                          gap = model.new_bool_var(
-                              f"{prefix}_gap_{entity_id}_{day}_{period}"
-                          )
-                          model.add(gap <= before)
-                          model.add(gap <= after)
-                          model.add(gap + occupancy[period] <= 1)
-                          model.add(
-                              gap >= before + after - occupancy[period] - 1
-                          )
-                          objective_terms.append(gap * weight)
-          '''
-          solver.write_text(content[:start] + replacement + content[end:])
-
-          workbook = Path("apps/web/lib/import/workbook.ts")
-          content = workbook.read_text()
-          old = '''  for (let rowNumber = 2; rowNumber <= worksheet.actualRowCount; rowNumber += 1) {
-            const row = worksheet.getRow(rowNumber);
-            const values: Record<string, string> = {};
-            for (const [header, column] of headers) {
-              values[header] = cellText(row.getCell(column), issues, worksheet.name);
-            }
-            if (Object.values(values).some((value) => value !== "")) {
-              rows.push({ rowNumber, values });
-            }
-          }
-          '''
-          new = '''  worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-            if (rowNumber === 1) return;
-            const values: Record<string, string> = {};
-            for (const [header, column] of headers) {
-              values[header] = cellText(row.getCell(column), issues, worksheet.name);
-            }
-            if (Object.values(values).some((value) => value !== "")) {
-              rows.push({ rowNumber, values });
-            }
-          });
-          '''
-          content = content.replace(old, new)
-          workbook.write_text(content)
-
-          timetable = Path("apps/web/app/timetable/page.tsx")
-          content = timetable.read_text()
-          content = content.replace(
-              "    let cancelled = false;\n    async function resolveLatest() {\n      const response = await fetch(`/api/school-years/${schoolYearId}/generation-runs`, {",
-              "    const currentSchoolYearId = schoolYearId;\n    let cancelled = false;\n    async function resolveLatest() {\n      const response = await fetch(`/api/school-years/${currentSchoolYearId}/generation-runs`, {",
-          )
-          content = content.replace(
-              "`/timetable?schoolYearId=${encodeURIComponent(schoolYearId)}&versionId=${encodeURIComponent(latest)}`",
-              "`/timetable?schoolYearId=${encodeURIComponent(currentSchoolYearId)}&versionId=${encodeURIComponent(latest)}`",
-          )
-          timetable.write_text(content)
-
-          completion = Path("apps/web/app/api/internal/generation-runs/[runId]/complete/route.ts")
-          content = completion.read_text()
-          marker = "  const snapshot = run.snapshot as unknown as CanonicalSnapshot;"
-          if "const solvedResult = parsed.data.result;" not in content:
-              content = content.replace(marker, "  const solvedResult = parsed.data.result;\n\n" + marker)
-          content = content.replace("parsed.data.result.", "solvedResult.")
-          completion.write_text(content)
-          PY
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm install
       - run: npm run db:generate
-        env:
-          DATABASE_URL: postgresql://timetable:timetable@localhost:5432/timetable?schema=public
-      - run: npm run format
-      - name: Commit normalized sources
-        if: github.event_name == 'pull_request'
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json apps/web apps/worker apps/solver packages/database compose.yaml .github/workflows/ci.yml
-          if ! git diff --cached --quiet; then
-            git commit -m "fix: normalize integrated MVP verification sources"
-            git push origin HEAD:${{ github.head_ref }}
-          fi
+      - run: npm run db:validate
       - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
-        env:
-          DATABASE_URL: postgresql://timetable:timetable@localhost:5432/timetable?schema=public
-          SOLVER_URL: http://localhost:8000
-          WORKER_TOKEN: ci-worker-token
 
   solver:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -196,7 +46,86 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - run: docker compose config
       - run: docker compose build
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: timetable
+          POSTGRES_USER: timetable
+          POSTGRES_PASSWORD: timetable
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U timetable -d timetable"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://timetable:timetable@127.0.0.1:5432/timetable?schema=public
+      SOLVER_URL: http://127.0.0.1:8000
+      WEB_INTERNAL_URL: http://127.0.0.1:3000
+      WORKER_TOKEN: e2e-worker-token
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+      WORKER_POLL_INTERVAL_MS: 250
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: npm install
+      - run: npm run db:generate
+      - run: npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
+      - run: pip install "."
+        working-directory: apps/solver
+      - run: npx playwright install --with-deps chromium
+      - name: Build application processes
+        run: |
+          npm run build --workspace @timetable/database
+          npm run build --workspace @timetable/worker
+          npm run build --workspace @timetable/web
+      - name: Start solver, web and worker
+        shell: bash
+        run: |
+          nohup bash -c 'cd apps/solver && uvicorn app.main:app --host 127.0.0.1 --port 8000' > /tmp/solver.log 2>&1 &
+          nohup npm run start --workspace @timetable/web > /tmp/web.log 2>&1 &
+
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null && \
+               curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          curl --fail --silent http://127.0.0.1:8000/health
+          curl --fail --silent http://127.0.0.1:3000/api/health
+          nohup node apps/worker/dist/index.js > /tmp/worker.log 2>&1 &
+          sleep 1
+      - name: Run integrated browser scenario
+        run: npm run e2e --workspace @timetable/web
+      - name: Collect failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cp /tmp/solver.log artifacts/solver.log 2>/dev/null || true
+          cp /tmp/web.log artifacts/web.log 2>/dev/null || true
+          cp /tmp/worker.log artifacts/worker.log 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-failure
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+            artifacts
+          if-no-files-found: ignore
