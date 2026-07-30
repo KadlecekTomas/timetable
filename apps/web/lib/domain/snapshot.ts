@@ -6,6 +6,20 @@ function sorted<T>(items: T[], key: (item: T) => string): T[] {
   return [...items].sort((left, right) => key(left).localeCompare(key(right)));
 }
 
+function sortJsonObjectKeys(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortJsonObjectKeys);
+  }
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => [key, sortJsonObjectKeys(item)]),
+  );
+}
+
 export function canonicalizeSnapshot(
   snapshot: CanonicalSnapshot,
 ): CanonicalSnapshot {
@@ -40,7 +54,7 @@ export function canonicalizeSnapshot(
 export function serializeCanonicalSnapshot(
   snapshot: CanonicalSnapshot,
 ): string {
-  return JSON.stringify(canonicalizeSnapshot(snapshot));
+  return JSON.stringify(sortJsonObjectKeys(canonicalizeSnapshot(snapshot)));
 }
 
 export function createSnapshotHash(snapshot: CanonicalSnapshot): string {
