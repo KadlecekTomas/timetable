@@ -37,7 +37,6 @@ async function capture(page: Page, name: string) {
 test.use({
   viewport: { width: 1440, height: 1000 },
   colorScheme: "light",
-  reducedMotion: "reduce",
 });
 
 test("creates a visual gallery of the integrated application", async ({
@@ -45,6 +44,7 @@ test("creates a visual gallery of the integrated application", async ({
   request,
 }) => {
   await mkdir(screenshotDirectory, { recursive: true });
+  await page.emulateMedia({ reducedMotion: "reduce" });
 
   const schoolYearResponse = await request.post("/api/school-years", {
     data: {
