@@ -11,6 +11,10 @@ permissions:
 jobs:
   web:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://timetable:timetable@localhost:5432/timetable?schema=public
+      SOLVER_URL: http://localhost:8000
+      WORKER_TOKEN: ci-worker-token
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,22 +22,15 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm run db:generate
-        env:
-          DATABASE_URL: postgresql://timetable:timetable@localhost:5432/timetable?schema=public
+      - run: npm run db:validate
       - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
-        env:
-          DATABASE_URL: postgresql://timetable:timetable@localhost:5432/timetable?schema=public
-          SOLVER_URL: http://localhost:8000
 
   solver:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/solver
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -41,8 +38,9 @@ jobs:
           python-version: "3.11"
       - run: python -m pip install --upgrade pip
       - run: pip install ".[dev]"
-      - run: ruff check .
-      - run: pytest
+        working-directory: apps/solver
+      - run: ruff check apps/solver
+      - run: pytest apps/solver
 
   containers:
     runs-on: ubuntu-latest
@@ -50,3 +48,84 @@ jobs:
       - uses: actions/checkout@v4
       - run: docker compose config
       - run: docker compose build
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: timetable
+          POSTGRES_USER: timetable
+          POSTGRES_PASSWORD: timetable
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U timetable -d timetable"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://timetable:timetable@127.0.0.1:5432/timetable?schema=public
+      SOLVER_URL: http://127.0.0.1:8000
+      WEB_INTERNAL_URL: http://127.0.0.1:3000
+      WORKER_TOKEN: e2e-worker-token
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+      WORKER_POLL_INTERVAL_MS: 250
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: npm install
+      - run: npm run db:generate
+      - run: npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
+      - run: pip install "."
+        working-directory: apps/solver
+      - run: npx playwright install --with-deps chromium
+      - name: Build application processes
+        run: |
+          npm run build --workspace @timetable/database
+          npm run build --workspace @timetable/worker
+          npm run build --workspace @timetable/web
+      - name: Start solver, web and worker
+        shell: bash
+        run: |
+          nohup bash -c 'cd apps/solver && uvicorn app.main:app --host 127.0.0.1 --port 8000' > /tmp/solver.log 2>&1 &
+          nohup npm run start --workspace @timetable/web > /tmp/web.log 2>&1 &
+
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null && \
+               curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          curl --fail --silent http://127.0.0.1:8000/health
+          curl --fail --silent http://127.0.0.1:3000/api/health
+          nohup node apps/worker/dist/index.js > /tmp/worker.log 2>&1 &
+          sleep 1
+      - name: Run integrated browser scenario
+        run: npm run e2e --workspace @timetable/web
+      - name: Collect failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cp /tmp/solver.log artifacts/solver.log 2>/dev/null || true
+          cp /tmp/web.log artifacts/web.log 2>/dev/null || true
+          cp /tmp/worker.log artifacts/worker.log 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-failure
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+            artifacts
+          if-no-files-found: ignore

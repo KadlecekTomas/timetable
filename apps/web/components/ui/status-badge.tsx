@@ -26,10 +26,18 @@ type StatusBadgeProps = HTMLAttributes<HTMLSpanElement> &
     dot?: boolean;
   };
 
-export function StatusBadge({ className, tone, dot = true, children, ...props }: StatusBadgeProps) {
+export function StatusBadge({
+  className,
+  tone,
+  dot = true,
+  children,
+  ...props
+}: StatusBadgeProps) {
   return (
     <span className={cn(statusBadgeVariants({ tone }), className)} {...props}>
-      {dot ? <span aria-hidden="true" className="size-1.5 rounded-full bg-current" /> : null}
+      {dot ? (
+        <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
+      ) : null}
       {children}
     </span>
   );

@@ -10,7 +10,11 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-timetable} -d ${POSTGRES_DB:-timetable}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-timetable} -d ${POSTGRES_DB:-timetable}",
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -22,7 +26,13 @@ services:
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -34,6 +44,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://timetable:timetable@postgres:5432/timetable?schema=public}
       SOLVER_URL: ${SOLVER_URL:-http://solver:8000}
+      WORKER_TOKEN: ${WORKER_TOKEN:-local-development-worker-token-change-me}
       NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Timetable}
     ports:
       - "3000:3000"
@@ -43,10 +54,34 @@ services:
       solver:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3000/api/health",
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    environment:
+      WEB_INTERNAL_URL: ${WEB_INTERNAL_URL:-http://web:3000}
+      SOLVER_URL: ${SOLVER_URL:-http://solver:8000}
+      WORKER_TOKEN: ${WORKER_TOKEN:-local-development-worker-token-change-me}
+      WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-1500}
+    depends_on:
+      web:
+        condition: service_healthy
+      solver:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   postgres-data:
