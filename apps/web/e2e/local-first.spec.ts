@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import ExcelJS, { type Worksheet } from "exceljs";
 
 import { createImportTemplate } from "../lib/import/workbook";
@@ -41,20 +41,6 @@ async function createSchoolWorkbook(): Promise<Buffer> {
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
-async function deleteLocalDatabase(page: Page) {
-  await page.goto("/");
-  await page.evaluate(async () => {
-    await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.deleteDatabase("rozvrhar-local");
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-      request.onblocked = () =>
-        reject(new Error("IndexedDB delete was blocked"));
-    });
-  });
-  await page.reload();
-}
-
 test("entire project survives backup, deletion and restore without a server database", async ({
   page,
 }) => {
@@ -71,7 +57,7 @@ test("entire project survives backup, deletion and restore without a server data
     }
   });
 
-  await deleteLocalDatabase(page);
+  await page.goto("/");
   await expect(
     page.getByRole("heading", { name: "Připravenost školního roku" }),
   ).toBeVisible();
