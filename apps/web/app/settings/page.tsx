@@ -230,7 +230,9 @@ export default function SettingsPage() {
 
         <article className="rounded-xl border border-border bg-surface p-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="font-semibold text-text-primary">Poslední uložení</h2>
+            <h2 className="font-semibold text-text-primary">
+              Poslední uložení
+            </h2>
             <StatusBadge tone="success">Automatické</StatusBadge>
           </div>
           <p className="mt-4 text-sm font-medium text-text-primary">
@@ -323,8 +325,8 @@ export default function SettingsPage() {
           </h2>
           <p className="mt-2 text-sm leading-6 text-text-secondary">
             Záloha obsahuje vstupní data, importy, vytvořené rozvrhy, zámky i
-            historii vrácení změn. Soubor má kontrolní součet a poškozenou zálohu
-            aplikace odmítne.
+            historii vrácení změn. Soubor má kontrolní součet a poškozenou
+            zálohu aplikace odmítne.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Button
@@ -360,8 +362,8 @@ export default function SettingsPage() {
         <article className="rounded-xl border border-danger-border bg-danger-subtle p-6">
           <h2 className="font-semibold text-text-primary">Nebezpečná oblast</h2>
           <p className="mt-2 text-sm leading-6 text-text-secondary">
-            Vymazání odstraní celý projekt pouze z tohoto prohlížeče. Bez stažené
-            zálohy není možné data obnovit.
+            Vymazání odstraní celý projekt pouze z tohoto prohlížeče. Bez
+            stažené zálohy není možné data obnovit.
           </p>
           <Button
             type="button"

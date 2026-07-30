@@ -1,4 +1,8 @@
-import { DAY_CODES, type CanonicalSnapshot, type ScheduledLesson } from "@/lib/domain/contracts";
+import {
+  DAY_CODES,
+  type CanonicalSnapshot,
+  type ScheduledLesson,
+} from "@/lib/domain/contracts";
 import { evaluateReadiness } from "@/lib/domain/readiness";
 import { scoreSchedule } from "@/lib/domain/scoring";
 import { validateMove, validateSchedule } from "@/lib/domain/validation";
@@ -358,7 +362,9 @@ function errorResponse(
   return jsonResponse({ error: { code, message, details } }, status);
 }
 
-async function sha256Hex(value: ArrayBuffer | Uint8Array | string): Promise<string> {
+async function sha256Hex(
+  value: ArrayBuffer | Uint8Array | string,
+): Promise<string> {
   const bytes =
     typeof value === "string"
       ? new TextEncoder().encode(value)
@@ -474,7 +480,10 @@ function assignmentView(project: LocalProject, assignment: LocalAssignment) {
   };
 }
 
-function resourceItems(project: LocalProject, resource: ResourceName): unknown[] {
+function resourceItems(
+  project: LocalProject,
+  resource: ResourceName,
+): unknown[] {
   if (resource === "teachers") return project.teachers;
   if (resource === "classes") return project.classes;
   if (resource === "subjects") return project.subjects;
@@ -500,7 +509,10 @@ function stringField(body: Record<string, unknown>, key: string): string {
   return typeof body[key] === "string" ? body[key].trim() : "";
 }
 
-function nullableNumber(body: Record<string, unknown>, key: string): number | null {
+function nullableNumber(
+  body: Record<string, unknown>,
+  key: string,
+): number | null {
   const value = body[key];
   if (value == null || value === "") return null;
   const number = Number(value);
@@ -528,7 +540,8 @@ function duplicateCode(
   code: string,
 ): boolean {
   return items.some(
-    (item) => item.code.toLocaleLowerCase("cs-CZ") === code.toLocaleLowerCase("cs-CZ"),
+    (item) =>
+      item.code.toLocaleLowerCase("cs-CZ") === code.toLocaleLowerCase("cs-CZ"),
   );
 }
 
@@ -544,7 +557,11 @@ async function createResource(
     if (resource === "teachers") {
       const code = stringField(body, "code");
       if (!code || duplicateCode(project.teachers, code)) {
-        response = errorResponse(422, "TEACHER_INVALID", "Kód učitele chybí nebo již existuje.");
+        response = errorResponse(
+          422,
+          "TEACHER_INVALID",
+          "Kód učitele chybí nebo již existuje.",
+        );
         return;
       }
       project.teachers.push({
@@ -559,7 +576,11 @@ async function createResource(
     } else if (resource === "classes") {
       const code = stringField(body, "code");
       if (!code || duplicateCode(project.classes, code)) {
-        response = errorResponse(422, "CLASS_INVALID", "Kód třídy chybí nebo již existuje.");
+        response = errorResponse(
+          422,
+          "CLASS_INVALID",
+          "Kód třídy chybí nebo již existuje.",
+        );
         return;
       }
       project.classes.push({
@@ -571,7 +592,11 @@ async function createResource(
     } else if (resource === "subjects") {
       const code = stringField(body, "code");
       if (!code || duplicateCode(project.subjects, code)) {
-        response = errorResponse(422, "SUBJECT_INVALID", "Kód předmětu chybí nebo již existuje.");
+        response = errorResponse(
+          422,
+          "SUBJECT_INVALID",
+          "Kód předmětu chybí nebo již existuje.",
+        );
         return;
       }
       project.subjects.push({
@@ -584,7 +609,11 @@ async function createResource(
     } else if (resource === "room-types") {
       const code = stringField(body, "code");
       if (!code || duplicateCode(project.roomTypes, code)) {
-        response = errorResponse(422, "ROOM_TYPE_INVALID", "Kód typu učebny chybí nebo již existuje.");
+        response = errorResponse(
+          422,
+          "ROOM_TYPE_INVALID",
+          "Kód typu učebny chybí nebo již existuje.",
+        );
         return;
       }
       project.roomTypes.push({
@@ -595,7 +624,11 @@ async function createResource(
     } else if (resource === "rooms") {
       const code = stringField(body, "code");
       if (!code || duplicateCode(project.rooms, code)) {
-        response = errorResponse(422, "ROOM_INVALID", "Kód učebny chybí nebo již existuje.");
+        response = errorResponse(
+          422,
+          "ROOM_INVALID",
+          "Kód učebny chybí nebo již existuje.",
+        );
         return;
       }
       project.rooms.push({
@@ -615,7 +648,11 @@ async function createResource(
             assignmentCode.toLocaleLowerCase("cs-CZ"),
         )
       ) {
-        response = errorResponse(422, "ASSIGNMENT_INVALID", "Kód výukové vazby chybí nebo již existuje.");
+        response = errorResponse(
+          422,
+          "ASSIGNMENT_INVALID",
+          "Kód výukové vazby chybí nebo již existuje.",
+        );
         return;
       }
       const teacherId = stringField(body, "teacherId");
@@ -626,7 +663,11 @@ async function createResource(
         !project.classes.some((item) => item.id === classId) ||
         !project.subjects.some((item) => item.id === subjectId)
       ) {
-        response = errorResponse(422, "ASSIGNMENT_REFERENCE_INVALID", "Výuková vazba odkazuje na neexistující položku.");
+        response = errorResponse(
+          422,
+          "ASSIGNMENT_REFERENCE_INVALID",
+          "Výuková vazba odkazuje na neexistující položku.",
+        );
         return;
       }
       project.assignments.push({
@@ -637,7 +678,10 @@ async function createResource(
         teacherId,
         group: stringField(body, "group") as LocalAssignment["group"],
         weeklyPeriods: Number(body.weeklyPeriods),
-        lessonShape: stringField(body, "lessonShape") as LocalAssignment["lessonShape"],
+        lessonShape: stringField(
+          body,
+          "lessonShape",
+        ) as LocalAssignment["lessonShape"],
         doublePeriodsCount: Number(body.doublePeriodsCount ?? 0),
         requiredRoomId: stringField(body, "requiredRoomId") || null,
         requiredRoomTypeId: null,
@@ -645,7 +689,10 @@ async function createResource(
         minDayGap: nullableNumber(body, "minDayGap"),
       });
     } else {
-      const entityType = stringField(body, "entityType") as LocalAvailability["entityType"];
+      const entityType = stringField(
+        body,
+        "entityType",
+      ) as LocalAvailability["entityType"];
       const entityId = stringField(body, "entityId");
       const exists =
         entityType === "TEACHER"
@@ -654,7 +701,11 @@ async function createResource(
             ? project.classes.some((item) => item.id === entityId)
             : project.rooms.some((item) => item.id === entityId);
       if (!exists) {
-        response = errorResponse(422, "AVAILABILITY_REFERENCE_INVALID", "Pravidlo odkazuje na neexistující položku.");
+        response = errorResponse(
+          422,
+          "AVAILABILITY_REFERENCE_INVALID",
+          "Pravidlo odkazuje na neexistující položku.",
+        );
         return;
       }
       project.availability.push({
@@ -672,7 +723,10 @@ async function createResource(
     project.version += 1;
     response = jsonResponse({ schoolYearVersion: project.version }, 201);
   });
-  return response ?? errorResponse(500, "LOCAL_WRITE_FAILED", "Položku se nepodařilo uložit.");
+  return (
+    response ??
+    errorResponse(500, "LOCAL_WRITE_FAILED", "Položku se nepodařilo uložit.")
+  );
 }
 
 async function deleteResource(
@@ -689,28 +743,44 @@ async function deleteResource(
       resource === "teachers" &&
       project.assignments.some((item) => item.teacherId === id)
     ) {
-      response = errorResponse(409, "RESOURCE_IN_USE", "Učitel je použitý ve výukové vazbě.");
+      response = errorResponse(
+        409,
+        "RESOURCE_IN_USE",
+        "Učitel je použitý ve výukové vazbě.",
+      );
       return;
     }
     if (
       resource === "classes" &&
       project.assignments.some((item) => item.classId === id)
     ) {
-      response = errorResponse(409, "RESOURCE_IN_USE", "Třída je použitá ve výukové vazbě.");
+      response = errorResponse(
+        409,
+        "RESOURCE_IN_USE",
+        "Třída je použitá ve výukové vazbě.",
+      );
       return;
     }
     if (
       resource === "subjects" &&
       project.assignments.some((item) => item.subjectId === id)
     ) {
-      response = errorResponse(409, "RESOURCE_IN_USE", "Předmět je použitý ve výukové vazbě.");
+      response = errorResponse(
+        409,
+        "RESOURCE_IN_USE",
+        "Předmět je použitý ve výukové vazbě.",
+      );
       return;
     }
     if (
       resource === "rooms" &&
       project.assignments.some((item) => item.requiredRoomId === id)
     ) {
-      response = errorResponse(409, "RESOURCE_IN_USE", "Učebna je použitá ve výukové vazbě.");
+      response = errorResponse(
+        409,
+        "RESOURCE_IN_USE",
+        "Učebna je použitá ve výukové vazbě.",
+      );
       return;
     }
     if (
@@ -718,7 +788,11 @@ async function deleteResource(
       (project.rooms.some((item) => item.roomTypeId === id) ||
         project.subjects.some((item) => item.defaultRoomTypeId === id))
     ) {
-      response = errorResponse(409, "RESOURCE_IN_USE", "Typ učebny je stále používaný.");
+      response = errorResponse(
+        409,
+        "RESOURCE_IN_USE",
+        "Typ učebny je stále používaný.",
+      );
       return;
     }
 
@@ -733,24 +807,38 @@ async function deleteResource(
     } else if (resource === "rooms") {
       project.rooms = project.rooms.filter((item) => item.id !== id);
     } else if (resource === "assignments") {
-      project.assignments = project.assignments.filter((item) => item.id !== id);
+      project.assignments = project.assignments.filter(
+        (item) => item.id !== id,
+      );
       project.fixedLessons = project.fixedLessons.filter(
         (item) => item.assignmentId !== id,
       );
     } else {
-      project.availability = project.availability.filter((item) => item.id !== id);
+      project.availability = project.availability.filter(
+        (item) => item.id !== id,
+      );
     }
     project.version += 1;
     response = jsonResponse({ schoolYearVersion: project.version });
   });
-  return response ?? errorResponse(500, "LOCAL_DELETE_FAILED", "Položku se nepodařilo odstranit.");
+  return (
+    response ??
+    errorResponse(
+      500,
+      "LOCAL_DELETE_FAILED",
+      "Položku se nepodařilo odstranit.",
+    )
+  );
 }
 
 function addSchoolYearMismatch(
   analysis: ImportAnalysis,
   project: LocalProject,
 ): ImportAnalysis {
-  if (!analysis.payload || analysis.payload.settings.school_year === project.label) {
+  if (
+    !analysis.payload ||
+    analysis.payload.settings.school_year === project.label
+  ) {
     return analysis;
   }
   return {
@@ -766,7 +854,8 @@ function addSchoolYearMismatch(
         code: "SCHOOL_YEAR_LABEL_MISMATCH",
         message: `Soubor je určen pro ${analysis.payload.settings.school_year}, aktuální školní rok je ${project.label}.`,
         rawValue: analysis.payload.settings.school_year,
-        suggestion: "Použijte správnou šablonu nebo upravte školní rok v nastavení.",
+        suggestion:
+          "Použijte správnou šablonu nebo upravte školní rok v nastavení.",
       },
       ...analysis.issues,
     ],
@@ -784,15 +873,27 @@ async function analyzeImport(init?: RequestInit): Promise<Response> {
     return errorResponse(400, "IMPORT_FILE_MISSING", "Vyberte soubor .xlsx.");
   }
   if (uploaded.size === 0 || uploaded.size > 10 * 1024 * 1024) {
-    return errorResponse(400, "IMPORT_FILE_SIZE_INVALID", "Soubor musí mít nejvýše 10 MB a nesmí být prázdný.");
+    return errorResponse(
+      400,
+      "IMPORT_FILE_SIZE_INVALID",
+      "Soubor musí mít nejvýše 10 MB a nesmí být prázdný.",
+    );
   }
   if (!uploaded.name.toLocaleLowerCase("cs-CZ").endsWith(".xlsx")) {
-    return errorResponse(400, "IMPORT_FILE_EXTENSION_INVALID", "Podporovaný je pouze formát .xlsx.");
+    return errorResponse(
+      400,
+      "IMPORT_FILE_EXTENSION_INVALID",
+      "Podporovaný je pouze formát .xlsx.",
+    );
   }
   const buffer = await uploaded.arrayBuffer();
   const bytes = new Uint8Array(buffer);
   if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
-    return errorResponse(400, "IMPORT_FILE_CONTENT_INVALID", "Obsah souboru neodpovídá formátu .xlsx.");
+    return errorResponse(
+      400,
+      "IMPORT_FILE_CONTENT_INVALID",
+      "Obsah souboru neodpovídá formátu .xlsx.",
+    );
   }
   const fileHash = await sha256Hex(buffer);
   const existing = project.importBatches.find(
@@ -843,10 +944,15 @@ async function analyzeImport(init?: RequestInit): Promise<Response> {
   );
 }
 
-function applyImportPayload(project: LocalProject, payload: ImportPayload): void {
+function applyImportPayload(
+  project: LocalProject,
+  payload: ImportPayload,
+): void {
   const roomTypeCodes = new Set(
     [
-      ...payload.rooms.flatMap((item) => (item.room_type ? [item.room_type] : [])),
+      ...payload.rooms.flatMap((item) =>
+        item.room_type ? [item.room_type] : [],
+      ),
       ...payload.subjects.flatMap((item) =>
         item.default_room_type ? [item.default_room_type] : [],
       ),
@@ -973,11 +1079,18 @@ async function applyImport(batchId: string): Promise<Response> {
   await mutateProject((project) => {
     const batch = project.importBatches.find((item) => item.id === batchId);
     if (!batch) {
-      response = errorResponse(404, "IMPORT_BATCH_NOT_FOUND", "Import nebyl nalezen.");
+      response = errorResponse(
+        404,
+        "IMPORT_BATCH_NOT_FOUND",
+        "Import nebyl nalezen.",
+      );
       return;
     }
     if (batch.status === "APPLIED") {
-      response = jsonResponse({ status: "APPLIED", appliedAt: batch.appliedAt });
+      response = jsonResponse({
+        status: "APPLIED",
+        appliedAt: batch.appliedAt,
+      });
       return;
     }
     if (
@@ -985,11 +1098,19 @@ async function applyImport(batchId: string): Promise<Response> {
       !batch.payload ||
       batch.issues.some((item) => item.severity === "ERROR")
     ) {
-      response = errorResponse(422, "IMPORT_BATCH_NOT_READY", "Import obsahuje blokující chyby a nelze jej uložit.");
+      response = errorResponse(
+        422,
+        "IMPORT_BATCH_NOT_READY",
+        "Import obsahuje blokující chyby a nelze jej uložit.",
+      );
       return;
     }
     if (batch.expectedProjectVersion !== project.version) {
-      response = errorResponse(409, "SCHOOL_YEAR_VERSION_CONFLICT", "Data se od analýzy změnila. Soubor analyzujte znovu.");
+      response = errorResponse(
+        409,
+        "SCHOOL_YEAR_VERSION_CONFLICT",
+        "Data se od analýzy změnila. Soubor analyzujte znovu.",
+      );
       return;
     }
     applyImportPayload(project, batch.payload);
@@ -1002,7 +1123,10 @@ async function applyImport(batchId: string): Promise<Response> {
       schoolYearVersion: project.version,
     });
   });
-  return response ?? errorResponse(500, "IMPORT_APPLY_FAILED", "Import se nepodařilo uložit.");
+  return (
+    response ??
+    errorResponse(500, "IMPORT_APPLY_FAILED", "Import se nepodařilo uložit.")
+  );
 }
 
 function solverEndpoint(): string {
@@ -1014,14 +1138,27 @@ async function createGenerationRun(
   body: Record<string, unknown>,
 ): Promise<Response> {
   const timeLimitSeconds = Number(body.timeLimitSeconds ?? 60);
-  if (!Number.isInteger(timeLimitSeconds) || timeLimitSeconds < 1 || timeLimitSeconds > 300) {
-    return errorResponse(422, "GENERATION_REQUEST_INVALID", "Časový limit musí být mezi 1 a 300 sekundami.");
+  if (
+    !Number.isInteger(timeLimitSeconds) ||
+    timeLimitSeconds < 1 ||
+    timeLimitSeconds > 300
+  ) {
+    return errorResponse(
+      422,
+      "GENERATION_REQUEST_INVALID",
+      "Časový limit musí být mezi 1 a 300 sekundami.",
+    );
   }
   const project = await getLocalProject();
   const snapshot = projectSnapshot(project, timeLimitSeconds);
   const readiness = evaluateReadiness(snapshot);
   if (!readiness.ready) {
-    return errorResponse(422, "SCHOOL_YEAR_NOT_READY", "Vstupní data nejsou připravená pro tvorbu rozvrhu.", { readiness });
+    return errorResponse(
+      422,
+      "SCHOOL_YEAR_NOT_READY",
+      "Vstupní data nejsou připravená pro tvorbu rozvrhu.",
+      { readiness },
+    );
   }
 
   const runId = crypto.randomUUID();
@@ -1060,7 +1197,10 @@ async function createGenerationRun(
         run.explanation = solverPayload.detail ?? solverPayload;
         run.finishedAt = now();
       });
-      return jsonResponse({ generationRunId: runId, status: "QUEUED", inputSnapshotHash }, 202);
+      return jsonResponse(
+        { generationRunId: runId, status: "QUEUED", inputSnapshotHash },
+        202,
+      );
     }
 
     const hardIssues = validateSchedule(snapshot, solverPayload.lessons);
@@ -1073,7 +1213,10 @@ async function createGenerationRun(
         run.explanation = { hardIssues, score };
         run.finishedAt = now();
       });
-      return jsonResponse({ generationRunId: runId, status: "QUEUED", inputSnapshotHash }, 202);
+      return jsonResponse(
+        { generationRunId: runId, status: "QUEUED", inputSnapshotHash },
+        202,
+      );
     }
 
     await mutateProject((next) => {
@@ -1081,7 +1224,10 @@ async function createGenerationRun(
       if (!run) return;
       const versionId = crypto.randomUUID();
       const versionNumber =
-        Math.max(0, ...next.timetableVersions.map((item) => item.versionNumber)) + 1;
+        Math.max(
+          0,
+          ...next.timetableVersions.map((item) => item.versionNumber),
+        ) + 1;
       const timestamp = now();
       const lessons = solverPayload.lessons.map((lesson) => ({
         ...lesson,
@@ -1122,7 +1268,8 @@ async function createGenerationRun(
       if (!run) return;
       run.status = "FAILED";
       run.explanation = {
-        message: error instanceof Error ? error.message : "Neznámá chyba výpočtu.",
+        message:
+          error instanceof Error ? error.message : "Neznámá chyba výpočtu.",
       };
       run.finishedAt = now();
     });
@@ -1136,12 +1283,18 @@ async function createGenerationRun(
 
 function generationRunView(project: LocalProject, run: LocalGenerationRun) {
   const version = run.candidateVersionId
-    ? project.timetableVersions.find((item) => item.id === run.candidateVersionId)
+    ? project.timetableVersions.find(
+        (item) => item.id === run.candidateVersionId,
+      )
     : null;
   return {
     ...run,
     candidateVersion: version
-      ? { id: version.id, name: version.name, qualityScore: version.qualityScore }
+      ? {
+          id: version.id,
+          name: version.name,
+          qualityScore: version.qualityScore,
+        }
       : null,
   };
 }
@@ -1154,7 +1307,11 @@ function timetableView(
 ) {
   const entities =
     view === "class"
-      ? project.classes.map((item) => ({ id: item.id, code: item.code, name: item.name }))
+      ? project.classes.map((item) => ({
+          id: item.id,
+          code: item.code,
+          name: item.name,
+        }))
       : project.teachers.map((item) => ({
           id: item.id,
           code: item.code,
@@ -1173,9 +1330,15 @@ function timetableView(
     })
     .map((lesson) => {
       const assignment = assignmentById.get(lesson.assignment_id);
-      const teacher = project.teachers.find((item) => item.id === assignment?.teacherId);
-      const schoolClass = project.classes.find((item) => item.id === assignment?.classId);
-      const subject = project.subjects.find((item) => item.id === assignment?.subjectId);
+      const teacher = project.teachers.find(
+        (item) => item.id === assignment?.teacherId,
+      );
+      const schoolClass = project.classes.find(
+        (item) => item.id === assignment?.classId,
+      );
+      const subject = project.subjects.find(
+        (item) => item.id === assignment?.subjectId,
+      );
       const room = project.rooms.find((item) => item.id === lesson.room_id);
       return {
         ...lesson,
@@ -1187,7 +1350,11 @@ function timetableView(
             }
           : undefined,
         schoolClass: schoolClass
-          ? { id: schoolClass.id, code: schoolClass.code, name: schoolClass.name }
+          ? {
+              id: schoolClass.id,
+              code: schoolClass.code,
+              name: schoolClass.name,
+            }
           : undefined,
         subject: subject
           ? {
@@ -1197,9 +1364,7 @@ function timetableView(
               colorToken: subject.colorToken,
             }
           : undefined,
-        room: room
-          ? { id: room.id, code: room.code, name: room.name }
-          : null,
+        room: room ? { id: room.id, code: room.code, name: room.name } : null,
       };
     });
   return {
@@ -1229,31 +1394,42 @@ function versionConflict(
 ): Response | null {
   const expected = Number(expectedRevision);
   if (!Number.isInteger(expected) || expected !== version.revision) {
-    return errorResponse(409, "TIMETABLE_VERSION_CONFLICT", "Rozvrh byl mezitím změněn. Obnovte stránku.", {
-      expectedRevision: expected,
-      actualRevision: version.revision,
-    });
+    return errorResponse(
+      409,
+      "TIMETABLE_VERSION_CONFLICT",
+      "Rozvrh byl mezitím změněn. Obnovte stránku.",
+      {
+        expectedRevision: expected,
+        actualRevision: version.revision,
+      },
+    );
   }
   return null;
 }
 
 async function mutateVersion(
   versionId: string,
-  mutation: (
-    project: LocalProject,
-    version: LocalTimetableVersion,
-  ) => Response,
+  mutation: (project: LocalProject, version: LocalTimetableVersion) => Response,
 ): Promise<Response> {
   let response: Response | null = null;
   await mutateProject((project) => {
-    const version = project.timetableVersions.find((item) => item.id === versionId);
+    const version = project.timetableVersions.find(
+      (item) => item.id === versionId,
+    );
     if (!version) {
-      response = errorResponse(404, "TIMETABLE_VERSION_NOT_FOUND", "Verze rozvrhu nebyla nalezena.");
+      response = errorResponse(
+        404,
+        "TIMETABLE_VERSION_NOT_FOUND",
+        "Verze rozvrhu nebyla nalezena.",
+      );
       return;
     }
     response = mutation(project, version);
   });
-  return response ?? errorResponse(500, "TIMETABLE_WRITE_FAILED", "Rozvrh se nepodařilo změnit.");
+  return (
+    response ??
+    errorResponse(500, "TIMETABLE_WRITE_FAILED", "Rozvrh se nepodařilo změnit.")
+  );
 }
 
 export async function exportLocalBackup(): Promise<Blob> {
@@ -1287,7 +1463,9 @@ export async function importLocalBackup(file: File): Promise<LocalProject> {
   }
   const checksum = await sha256Hex(JSON.stringify(parsed.project));
   if (checksum !== parsed.checksum) {
-    throw new Error("Kontrolní součet zálohy nesouhlasí. Soubor může být poškozený.");
+    throw new Error(
+      "Kontrolní součet zálohy nesouhlasí. Soubor může být poškozený.",
+    );
   }
   const project = structuredClone(parsed.project);
   project.updatedAt = now();
@@ -1317,7 +1495,9 @@ export async function updateLocalProjectSettings(input: {
         (periods) => !Number.isInteger(periods) || periods < 1 || periods > 16,
       )
     ) {
-      throw new Error("Počet hodin musí být pro každý pracovní den mezi 1 a 16.");
+      throw new Error(
+        "Počet hodin musí být pro každý pracovní den mezi 1 a 16.",
+      );
     }
     project.schoolName = input.schoolName.trim();
     project.label = input.label;
@@ -1345,7 +1525,10 @@ export async function localApiFetch(
   if (path === "/api/school-years" && method === "GET") {
     return jsonResponse({ items: [schoolYearView(project)] });
   }
-  if (path === `/api/school-years/${LOCAL_SCHOOL_YEAR_ID}` && method === "GET") {
+  if (
+    path === `/api/school-years/${LOCAL_SCHOOL_YEAR_ID}` &&
+    method === "GET"
+  ) {
     return jsonResponse(schoolYearView(project));
   }
   if (
@@ -1356,7 +1539,9 @@ export async function localApiFetch(
   }
 
   const resourceMatch = path.match(
-    new RegExp(`^/api/school-years/${LOCAL_SCHOOL_YEAR_ID}/(teachers|classes|subjects|room-types|rooms|assignments|availability)(?:/([^/]+))?$`),
+    new RegExp(
+      `^/api/school-years/${LOCAL_SCHOOL_YEAR_ID}/(teachers|classes|subjects|room-types|rooms|assignments|availability)(?:/([^/]+))?$`,
+    ),
   );
   if (resourceMatch) {
     const resource = resourceMatch[1] as ResourceName;
@@ -1379,7 +1564,9 @@ export async function localApiFetch(
     return analyzeImport(init);
   }
   const importApplyMatch = path.match(
-    new RegExp(`^/api/school-years/${LOCAL_SCHOOL_YEAR_ID}/imports/([^/]+)/apply$`),
+    new RegExp(
+      `^/api/school-years/${LOCAL_SCHOOL_YEAR_ID}/imports/([^/]+)/apply$`,
+    ),
   );
   if (importApplyMatch && method === "POST") {
     return applyImport(decodeURIComponent(importApplyMatch[1]!));
@@ -1390,7 +1577,9 @@ export async function localApiFetch(
     method === "GET"
   ) {
     return jsonResponse({
-      items: project.generationRuns.map((run) => generationRunView(project, run)),
+      items: project.generationRuns.map((run) =>
+        generationRunView(project, run),
+      ),
     });
   }
   if (
@@ -1405,12 +1594,20 @@ export async function localApiFetch(
     const runId = decodeURIComponent(runMatch[1]!);
     const run = project.generationRuns.find((item) => item.id === runId);
     if (!run) {
-      return errorResponse(404, "GENERATION_RUN_NOT_FOUND", "Výpočet nebyl nalezen.");
+      return errorResponse(
+        404,
+        "GENERATION_RUN_NOT_FOUND",
+        "Výpočet nebyl nalezen.",
+      );
     }
     if (method === "GET") return jsonResponse(generationRunView(project, run));
     if (method === "DELETE") {
       if (!["QUEUED", "RUNNING"].includes(run.status)) {
-        return errorResponse(409, "GENERATION_RUN_NOT_CANCELLABLE", "Dokončený výpočet již nelze zrušit.");
+        return errorResponse(
+          409,
+          "GENERATION_RUN_NOT_CANCELLABLE",
+          "Dokončený výpočet již nelze zrušit.",
+        );
       }
       return mutateProject((next) => {
         const target = next.generationRuns.find((item) => item.id === runId)!;
@@ -1424,19 +1621,24 @@ export async function localApiFetch(
   const timetableMatch = path.match(/^\/api\/timetable-versions\/([^/]+)$/);
   if (timetableMatch && method === "GET") {
     const versionId = decodeURIComponent(timetableMatch[1]!);
-    const version = project.timetableVersions.find((item) => item.id === versionId);
+    const version = project.timetableVersions.find(
+      (item) => item.id === versionId,
+    );
     if (!version) {
-      return errorResponse(404, "TIMETABLE_VERSION_NOT_FOUND", "Verze rozvrhu nebyla nalezena.");
+      return errorResponse(
+        404,
+        "TIMETABLE_VERSION_NOT_FOUND",
+        "Verze rozvrhu nebyla nalezena.",
+      );
     }
-    const view = url.searchParams.get("view") === "teacher" ? "teacher" : "class";
+    const view =
+      url.searchParams.get("view") === "teacher" ? "teacher" : "class";
     return jsonResponse(
       timetableView(project, version, view, url.searchParams.get("entityId")),
     );
   }
 
-  const lockMatch = path.match(
-    /^\/api\/timetable-versions\/([^/]+)\/locks$/,
-  );
+  const lockMatch = path.match(/^\/api\/timetable-versions\/([^/]+)\/locks$/);
   if (lockMatch && ["POST", "DELETE"].includes(method)) {
     const versionId = decodeURIComponent(lockMatch[1]!);
     const body = readJsonBody(init);
@@ -1444,7 +1646,9 @@ export async function localApiFetch(
       const conflict = versionConflict(version, body.expectedRevision);
       if (conflict) return conflict;
       const ids = Array.isArray(body.lessonIds)
-        ? body.lessonIds.filter((item): item is string => typeof item === "string")
+        ? body.lessonIds.filter(
+            (item): item is string => typeof item === "string",
+          )
         : [];
       version.lessons = version.lessons.map((lesson) =>
         lesson.id && ids.includes(lesson.id)
@@ -1462,9 +1666,15 @@ export async function localApiFetch(
   );
   if (moveValidateMatch && method === "POST") {
     const versionId = decodeURIComponent(moveValidateMatch[1]!);
-    const version = project.timetableVersions.find((item) => item.id === versionId);
+    const version = project.timetableVersions.find(
+      (item) => item.id === versionId,
+    );
     if (!version) {
-      return errorResponse(404, "TIMETABLE_VERSION_NOT_FOUND", "Verze rozvrhu nebyla nalezena.");
+      return errorResponse(
+        404,
+        "TIMETABLE_VERSION_NOT_FOUND",
+        "Verze rozvrhu nebyla nalezena.",
+      );
     }
     const body = readJsonBody(init);
     const conflict = versionConflict(version, body.expectedRevision);
@@ -1479,9 +1689,7 @@ export async function localApiFetch(
     return jsonResponse(result);
   }
 
-  const moveMatch = path.match(
-    /^\/api\/timetable-versions\/([^/]+)\/moves$/,
-  );
+  const moveMatch = path.match(/^\/api\/timetable-versions\/([^/]+)\/moves$/);
   if (moveMatch && method === "POST") {
     const versionId = decodeURIComponent(moveMatch[1]!);
     const body = readJsonBody(init);
@@ -1497,9 +1705,14 @@ export async function localApiFetch(
         expected_version: version.revision,
       });
       if (!result.valid) {
-        return errorResponse(422, "TIMETABLE_MOVE_CONFLICT", "Přesun porušuje pevná pravidla.", {
-          issues: result.issues,
-        });
+        return errorResponse(
+          422,
+          "TIMETABLE_MOVE_CONFLICT",
+          "Přesun porušuje pevná pravidla.",
+          {
+            issues: result.issues,
+          },
+        );
       }
       version.undoStack.push(structuredClone(version.lessons));
       version.undoStack = version.undoStack.slice(-30);
@@ -1521,9 +1734,7 @@ export async function localApiFetch(
     });
   }
 
-  const undoMatch = path.match(
-    /^\/api\/timetable-versions\/([^/]+)\/undo$/,
-  );
+  const undoMatch = path.match(/^\/api\/timetable-versions\/([^/]+)\/undo$/);
   if (undoMatch && method === "POST") {
     const versionId = decodeURIComponent(undoMatch[1]!);
     const body = readJsonBody(init);
@@ -1532,7 +1743,11 @@ export async function localApiFetch(
       if (conflict) return conflict;
       const previous = version.undoStack.pop();
       if (!previous) {
-        return errorResponse(409, "TIMETABLE_UNDO_EMPTY", "Není dostupná žádná změna k vrácení.");
+        return errorResponse(
+          409,
+          "TIMETABLE_UNDO_EMPTY",
+          "Není dostupná žádná změna k vrácení.",
+        );
       }
       version.lessons = previous;
       const score = scoreSchedule(version.snapshot, version.lessons);
@@ -1561,5 +1776,9 @@ export async function localApiFetch(
     });
   }
 
-  return errorResponse(404, "LOCAL_ROUTE_NOT_FOUND", `Lokální operace ${method} ${path} není podporovaná.`);
+  return errorResponse(
+    404,
+    "LOCAL_ROUTE_NOT_FOUND",
+    `Lokální operace ${method} ${path} není podporovaná.`,
+  );
 }

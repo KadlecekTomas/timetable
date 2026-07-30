@@ -5,10 +5,7 @@ import ExcelJS, { type Worksheet } from "exceljs";
 
 import { createImportTemplate } from "../lib/import/workbook";
 
-function writeRows(
-  worksheet: Worksheet,
-  rows: Array<Array<string | number>>,
-) {
+function writeRows(worksheet: Worksheet, rows: Array<Array<string | number>>) {
   rows.forEach((values, rowIndex) => {
     values.forEach((value, columnIndex) => {
       worksheet.getCell(rowIndex + 2, columnIndex + 1).value = value;
@@ -37,34 +34,8 @@ async function createSchoolWorkbook(): Promise<Buffer> {
     ["102", "Jazyková učebna", "GENERAL", 30],
   ]);
   writeRows(workbook.getWorksheet("Výukové_vazby")!, [
-    [
-      "6A-M-NOV",
-      "6A",
-      "M",
-      "NOV",
-      "WHOLE",
-      2,
-      "SINGLE",
-      0,
-      "101",
-      "",
-      1,
-      1,
-    ],
-    [
-      "6A-CJ-SVO",
-      "6A",
-      "CJ",
-      "SVO",
-      "WHOLE",
-      2,
-      "SINGLE",
-      0,
-      "102",
-      "",
-      1,
-      1,
-    ],
+    ["6A-M-NOV", "6A", "M", "NOV", "WHOLE", 2, "SINGLE", 0, "101", "", 1, 1],
+    ["6A-CJ-SVO", "6A", "CJ", "SVO", "WHOLE", 2, "SINGLE", 0, "102", "", 1, 1],
   ]);
 
   return Buffer.from(await workbook.xlsx.writeBuffer());
@@ -77,7 +48,8 @@ async function deleteLocalDatabase(page: Page) {
       const request = indexedDB.deleteDatabase("rozvrhar-local");
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
-      request.onblocked = () => reject(new Error("IndexedDB delete was blocked"));
+      request.onblocked = () =>
+        reject(new Error("IndexedDB delete was blocked"));
     });
   });
   await page.reload();
@@ -134,7 +106,9 @@ test("entire project survives backup, deletion and restore without a server data
 
   await page.getByRole("link", { name: "Přehled" }).click();
   await expect(page.getByText("Rozvrh lze vytvořit")).toBeVisible();
-  await expect(page.getByText("2 záznamů", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("2 záznamů", { exact: true }).first(),
+  ).toBeVisible();
 
   await page.getByRole("link", { name: "Tvorba rozvrhu" }).click();
   await expect(
@@ -145,8 +119,12 @@ test("entire project survives backup, deletion and restore without a server data
     page.getByText(/^(Proveditelný návrh|Optimální návrh)$/),
   ).toBeVisible({ timeout: 90_000 });
   await page.getByRole("link", { name: "Otevřít návrh" }).click();
-  await expect(page.getByRole("heading", { name: "Kvalita návrhu" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /M\s+NOV\s+101/ }).first()).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Kvalita návrhu" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /M\s+NOV\s+101/ }).first(),
+  ).toBeVisible();
 
   await page.getByRole("link", { name: "Nastavení" }).click();
   const downloadPromise = page.waitForEvent("download");
@@ -178,7 +156,9 @@ test("entire project survives backup, deletion and restore without a server data
   ).toBeVisible();
 
   await page.getByRole("link", { name: "Přehled" }).click();
-  await expect(page.getByText("0 záznamů", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("0 záznamů", { exact: true }).first(),
+  ).toBeVisible();
   await expect(page.getByText(/blokujících problémů/)).toBeVisible();
 
   await page.getByRole("link", { name: "Nastavení" }).click();
@@ -192,8 +172,12 @@ test("entire project survives backup, deletion and restore without a server data
   ).toBeVisible();
 
   await page.getByRole("link", { name: "Rozvrh" }).click();
-  await expect(page.getByRole("heading", { name: "Kvalita návrhu" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /M\s+NOV\s+101/ }).first()).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Kvalita návrhu" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /M\s+NOV\s+101/ }).first(),
+  ).toBeVisible();
 
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
