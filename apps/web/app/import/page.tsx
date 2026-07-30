@@ -13,6 +13,7 @@ import { FormEvent, useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { importSeverityLabels, importSummaryLabels } from "@/lib/ui-labels";
 
 interface ImportIssueView {
   id?: string;
@@ -64,12 +65,12 @@ export default function ImportPage() {
         error?: { message?: string };
       };
       if (!response.ok)
-        throw new Error(payload.error?.message ?? "Analýza importu selhala.");
+        throw new Error(payload.error?.message ?? "Analýza souboru selhala.");
       setResult(payload);
       setFileName(file.name);
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : "Analýza importu selhala.",
+        cause instanceof Error ? cause.message : "Analýza souboru selhala.",
       );
     } finally {
       setBusy(false);
@@ -90,13 +91,17 @@ export default function ImportPage() {
         error?: { message?: string };
       };
       if (!response.ok)
-        throw new Error(payload.error?.message ?? "Potvrzení importu selhalo.");
+        throw new Error(
+          payload.error?.message ?? "Uložení načtených dat selhalo.",
+        );
       setResult((current) =>
         current ? { ...current, status: "APPLIED" } : current,
       );
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : "Potvrzení importu selhalo.",
+        cause instanceof Error
+          ? cause.message
+          : "Uložení načtených dat selhalo.",
       );
     } finally {
       setBusy(false);
@@ -108,7 +113,7 @@ export default function ImportPage() {
       <div className="rounded-xl border border-warning-border bg-warning-subtle p-6">
         <h1 className="text-lg font-semibold">Nejprve vyberte školní rok</h1>
         <p className="mt-2 text-sm text-text-secondary">
-          Import vždy patří ke konkrétnímu školnímu roku.
+          Načtená data vždy patří ke konkrétnímu školnímu roku.
         </p>
       </div>
     );
@@ -123,8 +128,8 @@ export default function ImportPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Fáze 4"
-        title="Excel import"
-        description="Soubor se nejprve analyzuje bez zápisu. Potvrzení je dostupné pouze pro náhled bez blokujících chyb."
+        title="Načtení dat z Excelu"
+        description="Soubor se nejprve zkontroluje bez zápisu. Uložení je dostupné pouze pro náhled bez blokujících chyb."
         actions={
           <Button asChild variant="outline">
             <a href={`/api/school-years/${schoolYearId}/import-template`}>
@@ -148,7 +153,7 @@ export default function ImportPage() {
             aria-hidden="true"
           />
           <span className="mt-4 font-medium text-text-primary">
-            {fileName || "Vyberte vyplněný Excel"}
+            {fileName || "Vyberte vyplněný soubor Excel"}
           </span>
           <span className="mt-1 text-sm text-text-muted">
             Pouze .xlsx, nejvýše 10 MB, bez vzorců a maker
@@ -204,13 +209,13 @@ export default function ImportPage() {
                 <div>
                   <h2 className="font-semibold text-text-primary">
                     {result.status === "APPLIED"
-                      ? "Import byl atomicky potvrzen"
+                      ? "Data byla bezpečně uložena"
                       : result.status === "READY"
-                        ? "Náhled je připraven k potvrzení"
-                        : "Import obsahuje blokující chyby"}
+                        ? "Náhled je připraven k uložení"
+                        : "Soubor obsahuje blokující chyby"}
                   </h2>
                   <p className="mt-1 text-sm text-text-secondary">
-                    Batch {result.importBatchId} ·{" "}
+                    Dávka {result.importBatchId} ·{" "}
                     {result.reused ? "znovu použitý náhled" : "nová analýza"}
                   </p>
                 </div>
@@ -233,7 +238,9 @@ export default function ImportPage() {
                   key={key}
                   className="rounded-lg border border-border bg-surface p-4"
                 >
-                  <p className="text-xs text-text-muted">{key}</p>
+                  <p className="text-xs text-text-muted">
+                    {importSummaryLabels[key] ?? key}
+                  </p>
                   <p className="mt-1 text-xl font-semibold text-text-primary">
                     {value}
                   </p>
@@ -268,7 +275,8 @@ export default function ImportPage() {
                               issue.severity === "ERROR" ? "danger" : "warning"
                             }
                           >
-                            {issue.severity}
+                            {importSeverityLabels[issue.severity] ??
+                              issue.severity}
                           </StatusBadge>
                         </td>
                         <td className="px-4 py-3 font-medium">{issue.sheet}</td>
@@ -298,7 +306,7 @@ export default function ImportPage() {
             <div className="flex justify-end">
               <Button onClick={() => void apply()} disabled={busy}>
                 <CheckCircle2 className="size-4" aria-hidden="true" />
-                {busy ? "Potvrzuji…" : "Potvrdit změny atomicky"}
+                {busy ? "Ukládám…" : "Bezpečně uložit změny"}
               </Button>
             </div>
           ) : null}

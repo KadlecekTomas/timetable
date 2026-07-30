@@ -120,8 +120,16 @@ jobs:
           curl --fail --silent http://127.0.0.1:3000/api/health
           nohup node apps/worker/dist/index.js > /tmp/worker.log 2>&1 &
           sleep 1
-      - name: Run integrated browser scenario
+      - name: Run integrated browser scenarios
         run: npm run e2e --workspace @timetable/web
+      - name: Upload visual screenshot gallery
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-screenshots
+          path: apps/web/screenshots
+          if-no-files-found: error
+          retention-days: 14
       - name: Collect failure diagnostics
         if: failure()
         shell: bash

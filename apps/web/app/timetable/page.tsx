@@ -16,6 +16,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { teachingGroupLabels } from "@/lib/ui-labels";
 
 const dayNames = [
   "Pondělí",
@@ -220,7 +221,7 @@ export default function TimetablePage() {
     if (!previewResponse.ok || !preview.valid) {
       setMoveIssues(issues.map((item) => item.message));
       if (!issues.length)
-        setError(preview.error?.message ?? "Přesun není validní.");
+        setError(preview.error?.message ?? "Přesun není platný.");
       setBusy(false);
       return;
     }
@@ -254,7 +255,8 @@ export default function TimetablePage() {
       body: JSON.stringify({ expectedRevision: payload.version.revision }),
     });
     const data = (await response.json()) as { error?: { message?: string } };
-    if (!response.ok) setError(data.error?.message ?? "Undo nelze provést.");
+    if (!response.ok)
+      setError(data.error?.message ?? "Poslední změnu nelze vrátit.");
     await load();
     setBusy(false);
   }
@@ -281,10 +283,10 @@ export default function TimetablePage() {
       <div className="rounded-xl border border-border bg-surface p-8 text-center">
         <Sparkles className="mx-auto size-10 text-primary" aria-hidden="true" />
         <h1 className="mt-4 text-lg font-semibold">
-          Zatím není dostupný kandidátní rozvrh
+          Zatím není dostupný návrh rozvrhu
         </h1>
         <p className="mt-2 text-sm text-text-secondary">
-          Nejprve dokončete generování návrhu.
+          Nejprve dokončete vytvoření návrhu.
         </p>
       </div>
     );
@@ -294,8 +296,8 @@ export default function TimetablePage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Fáze 7"
-        title={payload?.version.name ?? "Editor rozvrhu"}
-        description="Dialogový přesun používá stejný serverový hard-validátor jako solver. Zamčené bloky nelze přesunout."
+        title={payload?.version.name ?? "Úprava rozvrhu"}
+        description="Přesun ověřuje stejná serverová kontrola pevných pravidel jako automatická tvorba rozvrhu. Zamčené bloky nelze přesunout."
         actions={
           <>
             <Button
@@ -304,7 +306,7 @@ export default function TimetablePage() {
               disabled={busy || !payload}
             >
               <RotateCcw className="size-4" aria-hidden="true" />
-              Undo
+              Vrátit změnu
             </Button>
             <Button
               variant="outline"
@@ -378,7 +380,7 @@ export default function TimetablePage() {
             </label>
             {payload ? (
               <StatusBadge tone="neutral">
-                Revision {payload.version.revision}
+                Verze úprav {payload.version.revision}
               </StatusBadge>
             ) : null}
           </div>
@@ -456,7 +458,7 @@ export default function TimetablePage() {
                                 ? lesson.teacher?.code
                                 : lesson.schoolClass?.code}
                               {lesson.group !== "WHOLE"
-                                ? ` · ${lesson.group}`
+                                ? ` · ${teachingGroupLabels[lesson.group] ?? lesson.group}`
                                 : ""}
                             </p>
                             <p className="mt-1 text-xs text-text-muted">
@@ -534,7 +536,7 @@ export default function TimetablePage() {
                 ))}
               {!payload?.version.incidentReport?.length ? (
                 <p className="text-sm text-text-muted">
-                  Žádné evidované penalizace.
+                  Žádné evidované srážky bodů.
                 </p>
               ) : null}
             </div>

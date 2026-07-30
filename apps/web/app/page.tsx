@@ -101,19 +101,19 @@ export default function HomePage() {
       <PageHeader
         eyebrow="Přehled"
         title="Připravenost školního roku"
-        description="Zkontrolujte vstupní data před vytvořením návrhu. Tvrdé chyby musí být vyřešené před spuštěním solveru."
+        description="Zkontrolujte vstupní data před vytvořením návrhu. Tvrdé chyby musí být vyřešené před spuštěním automatické tvorby rozvrhu."
         actions={
           selectedId ? (
             <>
               <Button asChild variant="outline">
                 <Link href={`/import${context}`}>
                   <Upload aria-hidden="true" className="size-4" />
-                  Importovat Excel
+                  Načíst data z Excelu
                 </Link>
               </Button>
               <Button asChild disabled={!readiness?.ready}>
                 <Link href={`/generate${context}`}>
-                  Spustit generování
+                  Vytvořit rozvrh
                   <ArrowRight aria-hidden="true" className="size-4" />
                 </Link>
               </Button>
@@ -155,8 +155,8 @@ export default function HomePage() {
         {error ? <p className="mt-3 text-sm text-danger">{error}</p> : null}
         {!loading && schoolYears.length === 0 ? (
           <p className="mt-3 text-sm text-text-secondary">
-            Zatím neexistuje žádný školní rok. Vytvořte jej přes API nebo
-            připravovaný formulář nastavení.
+            Zatím neexistuje žádný školní rok. Vytvořte jej pomocí programového
+            rozhraní nebo připravovaného formuláře nastavení.
           </p>
         ) : null}
       </section>
@@ -170,8 +170,8 @@ export default function HomePage() {
                   Vstupní data
                 </h2>
                 <p className="mt-1 text-sm text-text-secondary">
-                  Entity, které vstupují do readiness kontroly a immutable
-                  solver snapshotu.
+                  Údaje, které vstupují do kontroly připravenosti a neměnného
+                  zadání pro automatickou tvorbu rozvrhu.
                 </p>
               </div>
               <StatusBadge tone={readiness?.ready ? "success" : "warning"}>
@@ -232,14 +232,14 @@ export default function HomePage() {
                 <div>
                   <h2 className="font-semibold text-text-primary">
                     {readiness?.ready
-                      ? "Generování lze spustit"
+                      ? "Rozvrh lze vytvořit"
                       : `${readiness?.blockers.length ?? 0} blokujících problémů`}
                   </h2>
                   <p className="mt-1 text-sm leading-6 text-text-secondary">
                     {readiness?.ready
                       ? "Vstupní data prošla serverovou kontrolou."
                       : (readiness?.blockers[0]?.message ??
-                        "Načítám readiness kontrolu…")}
+                        "Načítám kontrolu připravenosti…")}
                   </p>
                 </div>
               </div>

@@ -6,8 +6,8 @@ import { AppShell } from "@/components/app-shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Timetable",
-  description: "AI-assisted school timetable generator",
+  title: "Rozvrhář",
+  description: "Tvorba školních rozvrhů s podporou automatického plánování",
 };
 
 export default function RootLayout({

@@ -7,6 +7,12 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import {
+  availabilityKindLabels,
+  entityTypeLabels,
+  lessonShapeLabels,
+  teachingGroupLabels,
+} from "@/lib/ui-labels";
 
 const sections = [
   { id: "teachers", label: "Učitelé" },
@@ -45,7 +51,9 @@ function recordTitle(section: SectionId, record: RecordValue): string {
     return textValue(record, "name") || textValue(record, "code");
   }
   if (section === "assignments") return textValue(record, "assignmentCode");
-  return `${textValue(record, "entityType")} · ${textValue(record, "kind")}`;
+  const entityType = textValue(record, "entityType");
+  const kind = textValue(record, "kind");
+  return `${entityTypeLabels[entityType] ?? entityType} · ${availabilityKindLabels[kind] ?? kind}`;
 }
 
 function recordMeta(section: SectionId, record: RecordValue): string {
@@ -319,7 +327,7 @@ export default function DataPage() {
       <div className="rounded-xl border border-warning-border bg-warning-subtle p-6">
         <h1 className="text-lg font-semibold">Nejprve vyberte školní rok</h1>
         <p className="mt-2 text-sm text-text-secondary">
-          Vraťte se na Přehled a otevřete data s parametrem schoolYearId.
+          Vraťte se na Přehled a vyberte školní rok.
         </p>
       </div>
     );
@@ -330,7 +338,7 @@ export default function DataPage() {
       <PageHeader
         eyebrow="Fáze 3"
         title="Školní data"
-        description="Ruční správa stabilních číselníků a vazeb. Stejná data používá import, readiness kontrola i solver."
+        description="Ruční správa stabilních číselníků a vazeb. Stejná data používá načtení z Excelu, kontrola připravenosti i automatická tvorba rozvrhu."
         actions={
           <Button
             variant="outline"
@@ -504,8 +512,8 @@ function SectionForm({
         {field("firstName", "Jméno")}
         {field("lastName", "Příjmení")}
         {field("targetWeeklyLoad", "Cílový úvazek", "number")}
-        {field("minWeeklyLoad", "Minimum", "number", false)}
-        {field("maxWeeklyLoad", "Maximum", "number", false)}
+        {field("minWeeklyLoad", "Nejnižší úvazek", "number", false)}
+        {field("maxWeeklyLoad", "Nejvyšší úvazek", "number", false)}
       </>
     );
   }
@@ -594,7 +602,7 @@ function SectionForm({
           "Skupina",
           ["WHOLE", "GROUP_1", "GROUP_2"].map((value) => ({
             value,
-            label: value,
+            label: teachingGroupLabels[value] ?? value,
           })),
         )}
         {field("weeklyPeriods", "Hodin týdně", "number")}
@@ -603,7 +611,7 @@ function SectionForm({
           "Tvar bloků",
           ["SINGLE", "DOUBLE", "MIXED"].map((value) => ({
             value,
-            label: value,
+            label: lessonShapeLabels[value] ?? value,
           })),
         )}
         {field("doublePeriodsCount", "Počet dvojhodin", "number")}
@@ -616,7 +624,7 @@ function SectionForm({
           })),
           false,
         )}
-        {field("maxPerDay", "Maximum za den", "number", false)}
+        {field("maxPerDay", "Nejvýše za den", "number", false)}
         {field("minDayGap", "Minimální rozestup dnů", "number", false)}
       </>
     );
@@ -625,7 +633,7 @@ function SectionForm({
     <>
       {select(
         "entityId",
-        "Entita",
+        "Položka",
         entityOptions.map((item) => ({ value: item.id, label: item.label })),
       )}
       {select(
@@ -636,13 +644,13 @@ function SectionForm({
           label,
         })),
       )}
-      {field("period", "Index hodiny (0 = první)", "number")}
+      {field("period", "Pořadí hodiny (0 = první)", "number")}
       {select(
         "kind",
         "Pravidlo",
         ["UNAVAILABLE", "PREFERRED", "DISCOURAGED"].map((value) => ({
           value,
-          label: value,
+          label: availabilityKindLabels[value] ?? value,
         })),
       )}
       {field("weight", "Váha", "number", false)}
