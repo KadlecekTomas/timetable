@@ -4,7 +4,17 @@ import test from "node:test";
 import type { CanonicalSnapshot } from "../lib/domain/contracts";
 import { createSnapshotHash } from "../lib/domain/snapshot";
 
-const emptyEntities = {
+const emptyEntities: Pick<
+  CanonicalSnapshot,
+  | "teachers"
+  | "classes"
+  | "subjects"
+  | "rooms"
+  | "assignments"
+  | "availability"
+  | "fixed_lessons"
+  | "locked_lessons"
+> = {
   teachers: [],
   classes: [],
   subjects: [],
@@ -13,7 +23,7 @@ const emptyEntities = {
   availability: [],
   fixed_lessons: [],
   locked_lessons: [],
-} as const;
+};
 
 test("snapshot hash survives JSONB object-key reordering", () => {
   const original: CanonicalSnapshot = {
