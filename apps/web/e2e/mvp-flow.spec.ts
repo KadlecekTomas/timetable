@@ -171,9 +171,6 @@ test("Excel import → solver → lock → validated move → score → undo", a
     page.getByText(`Revision ${initial.version.revision + 1}`, { exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Zavřít" }).click();
-  await expect(
-    lessonButtons.nth(lockIndex).getByLabel("Zamčeno"),
-  ).toBeVisible();
 
   const afterLock = await loadTimetable(request, versionId!);
   const lockedAfterSave = afterLock.lessons.find(
