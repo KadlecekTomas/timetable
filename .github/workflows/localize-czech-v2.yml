@@ -1,0 +1,141 @@
+name: Localize Czech interface v2
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  localize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Localize user-facing interface
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          missing: list[str] = []
+
+          def replace(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              if old not in text:
+                  missing.append(f"{path}: {old}")
+                  return
+              file.write_text(text.replace(old, new))
+
+          def substitute(path: str, pattern: str, replacement: str, count: int = 1) -> None:
+              file = Path(path)
+              text = file.read_text()
+              updated, matches = re.subn(pattern, replacement, text, count=count, flags=re.MULTILINE)
+              if matches == 0:
+                  missing.append(f"{path}: /{pattern}/")
+                  return
+              file.write_text(updated)
+
+          shell = "apps/web/components/app-shell.tsx"
+          replace(shell, '{ label: "Import", icon: Upload, href: "/import" },', '{ label: "Načtení dat", icon: Upload, href: "/import" },')
+          replace(shell, '{ label: "Generátor", icon: ClipboardCheck, href: "/generate" },', '{ label: "Tvorba rozvrhu", icon: ClipboardCheck, href: "/generate" },')
+          substitute(shell, r'(?m)^(\s*)T$', r'\1R')
+          replace(shell, "Timetable", "Rozvrhář")
+          replace(shell, "Školní rozvrhy", "Tvorba školních rozvrhů")
+          replace(shell, "MVP pracovní prostředí", "Pracovní prostředí")
+
+          layout = "apps/web/app/layout.tsx"
+          replace(layout, 'title: "Timetable",', 'title: "Rozvrhář",')
+          replace(layout, 'description: "AI-assisted school timetable generator",', 'description: "Tvorba školních rozvrhů s podporou automatického plánování",')
+
+          home = "apps/web/app/page.tsx"
+          replace(home, "Importovat Excel", "Načíst data z Excelu")
+          replace(home, "Spustit generování", "Vytvořit rozvrh")
+          replace(home, "Entity, které vstupují do readiness kontroly a immutable\n                   solver snapshotu.", "Údaje, které vstupují do kontroly připravenosti a neměnného\n                   zadání pro tvorbu rozvrhu.")
+          replace(home, "Generování lze spustit", "Rozvrh lze vytvořit")
+          replace(home, "Načítám readiness kontrolu…", "Načítám kontrolu připravenosti…")
+
+          data = "apps/web/app/data/page.tsx"
+          replace(data, 'import { StatusBadge } from "@/components/ui/status-badge";', 'import { StatusBadge } from "@/components/ui/status-badge";\nimport {\n  availabilityKindLabels,\n  entityTypeLabels,\n  lessonShapeLabels,\n  teachingGroupLabels,\n} from "@/lib/ui-labels";')
+          replace(data, '  return `${textValue(record, "entityType")} · ${textValue(record, "kind")}`;', '  const entityType = textValue(record, "entityType");\n  const kind = textValue(record, "kind");\n  return `${entityTypeLabels[entityType] ?? entityType} · ${availabilityKindLabels[kind] ?? kind}`;')
+          replace(data, 'description="Ruční správa stabilních číselníků a vazeb. Stejná data používá import, readiness kontrola i solver."', 'description="Ruční správa stabilních číselníků a vazeb. Stejná data používá načtení z Excelu, kontrola připravenosti i automatická tvorba rozvrhu."')
+          substitute(data, r'\["WHOLE", "GROUP_1", "GROUP_2"\]\.map\(\(value\) => \(\{\s*value,\s*label: value,\s*\}\)\)', '["WHOLE", "GROUP_1", "GROUP_2"].map((value) => ({\n             value,\n             label: teachingGroupLabels[value] ?? value,\n           }))')
+          substitute(data, r'\["SINGLE", "DOUBLE", "MIXED"\]\.map\(\(value\) => \(\{\s*value,\s*label: value,\s*\}\)\)', '["SINGLE", "DOUBLE", "MIXED"].map((value) => ({\n             value,\n             label: lessonShapeLabels[value] ?? value,\n           }))')
+          replace(data, '        "Entita",', '        "Položka",')
+          replace(data, 'field("period", "Index hodiny (0 = první)", "number")', 'field("period", "Pořadí hodiny (0 = první)", "number")')
+          substitute(data, r'\["UNAVAILABLE", "PREFERRED", "DISCOURAGED"\]\.map\(\(value\) => \(\{\s*value,\s*label: value,\s*\}\)\)', '["UNAVAILABLE", "PREFERRED", "DISCOURAGED"].map((value) => ({\n           value,\n           label: availabilityKindLabels[value] ?? value,\n         }))')
+
+          imp = "apps/web/app/import/page.tsx"
+          replace(imp, 'import { StatusBadge } from "@/components/ui/status-badge";', 'import { StatusBadge } from "@/components/ui/status-badge";\nimport { importSeverityLabels, importSummaryLabels } from "@/lib/ui-labels";')
+          replace(imp, "Analýza importu selhala.", "Analýza souboru selhala.")
+          replace(imp, "Potvrzení importu selhalo.", "Uložení načtených dat selhalo.")
+          replace(imp, "Import vždy patří ke konkrétnímu školnímu roku.", "Načtená data vždy patří ke konkrétnímu školnímu roku.")
+          replace(imp, 'title="Excel import"', 'title="Načtení dat z Excelu"')
+          replace(imp, 'description="Soubor se nejprve analyzuje bez zápisu. Potvrzení je dostupné pouze pro náhled bez blokujících chyb."', 'description="Soubor se nejprve zkontroluje bez zápisu. Uložení je dostupné pouze pro náhled bez blokujících chyb."')
+          replace(imp, 'fileName || "Vyberte vyplněný Excel"', 'fileName || "Vyberte vyplněný soubor Excel"')
+          replace(imp, '"Import byl atomicky potvrzen"', '"Data byla bezpečně uložena"')
+          replace(imp, '"Náhled je připraven k potvrzení"', '"Náhled je připraven k uložení"')
+          replace(imp, '"Import obsahuje blokující chyby"', '"Soubor obsahuje blokující chyby"')
+          replace(imp, 'Batch {result.importBatchId}', 'Dávka {result.importBatchId}')
+          replace(imp, '<p className="text-xs text-text-muted">{key}</p>', '<p className="text-xs text-text-muted">\n                     {importSummaryLabels[key] ?? key}\n                   </p>')
+          substitute(imp, r'\{issue\.severity\}(\s*</StatusBadge>)', r'{importSeverityLabels[issue.severity] ?? issue.severity}\1')
+          replace(imp, '{busy ? "Potvrzuji…" : "Potvrdit změny atomicky"}', '{busy ? "Ukládám…" : "Bezpečně uložit změny"}')
+
+          generate = "apps/web/app/generate/page.tsx"
+          replace(generate, 'import type { ReadinessReport } from "@/lib/domain/contracts";', 'import type { ReadinessReport } from "@/lib/domain/contracts";\nimport { generationStatusLabels } from "@/lib/ui-labels";')
+          replace(generate, "Generování se nepodařilo zařadit.", "Úlohu se nepodařilo zařadit ke zpracování.")
+          replace(generate, "Běh nelze zrušit.", "Výpočet nelze zrušit.")
+          replace(generate, 'title="Generátor rozvrhu"', 'title="Tvorba rozvrhu"')
+          replace(generate, 'description="Job se uloží do databázové fronty. Worker zobrazí skutečnou fázi běhu; aplikace nevymýšlí procenta, která solver nezná."', 'description="Úloha se uloží do fronty zpracování. Aplikace zobrazuje skutečnou fázi výpočtu a nevymýšlí procenta, která plánovací modul nezná."')
+          replace(generate, '"Předletová kontrola prošla"', '"Kontrola připravenosti prošla"')
+          replace(generate, '"Předletová kontrola blokuje běh"', '"Kontrola připravenosti blokuje tvorbu"')
+          replace(generate, "Načítám readiness kontrolu…", "Načítám kontrolu připravenosti…")
+          replace(generate, "Časový limit solveru", "Časový limit výpočtu")
+          replace(generate, "Běhy generování", "Průběh tvorby rozvrhu")
+          replace(generate, "Immutable vstupy, lifecycle a kandidátní verze.", "Neměnné vstupy, průběh zpracování a výsledná verze.")
+          substitute(generate, r'\{run\.status\}(\s*</StatusBadge>)', r'{generationStatusLabels[run.status] ?? run.status}\1')
+          replace(generate, "Zatím nebyl spuštěn žádný běh.", "Zatím nebyla spuštěna žádná tvorba rozvrhu.")
+
+          timetable = "apps/web/app/timetable/page.tsx"
+          replace(timetable, 'import { StatusBadge } from "@/components/ui/status-badge";', 'import { StatusBadge } from "@/components/ui/status-badge";\nimport { teachingGroupLabels } from "@/lib/ui-labels";')
+          replace(timetable, 'setError(data.error?.message ?? "Undo nelze provést.");', 'setError(data.error?.message ?? "Poslední změnu nelze vrátit.");')
+          replace(timetable, "Zatím není dostupný kandidátní rozvrh", "Zatím není dostupný návrh rozvrhu")
+          replace(timetable, 'title={payload?.version.name ?? "Editor rozvrhu"}', 'title={payload?.version.name ?? "Úprava rozvrhu"}')
+          replace(timetable, 'description="Dialogový přesun používá stejný serverový hard-validátor jako solver. Zamčené bloky nelze přesunout."', 'description="Přesun ověřuje stejná serverová kontrola pevných pravidel jako automatická tvorba rozvrhu. Zamčené bloky nelze přesunout."')
+          substitute(timetable, r'(?m)^(\s*)Undo$', r'\1Vrátit změnu')
+          replace(timetable, "Revision {payload.version.revision}", "Verze úprav {payload.version.revision}")
+          replace(timetable, '? ` · ${lesson.group}`', '? ` · ${teachingGroupLabels[lesson.group] ?? lesson.group}`')
+
+          for test_file in ["apps/web/e2e/mvp-flow.spec.ts", "apps/web/e2e/visual-gallery.spec.ts"]:
+              replace(test_file, "Náhled je připraven k potvrzení", "Náhled je připraven k uložení")
+              replace(test_file, "Potvrdit změny atomicky", "Bezpečně uložit změny")
+              replace(test_file, "Import byl atomicky potvrzen", "Data byla bezpečně uložena")
+              replace(test_file, "Předletová kontrola prošla", "Kontrola připravenosti prošla")
+              replace(test_file, "/^(FEASIBLE|OPTIMAL)$/", "/^(Proveditelný návrh|Optimální návrh)$/")
+
+          replace("apps/web/e2e/visual-gallery.spec.ts", "Generování lze spustit", "Rozvrh lze vytvořit")
+          replace("apps/web/e2e/mvp-flow.spec.ts", "`Revision ${initial.version.revision + 1}`", "`Verze úprav ${initial.version.revision + 1}`")
+          replace("apps/web/e2e/mvp-flow.spec.ts", '{ name: "Undo" }', '{ name: "Vrátit změnu" }')
+
+          if missing:
+              print("Unmatched replacements to audit:")
+              for item in missing:
+                  print(f"- {item}")
+          PY
+      - run: npx prettier --write apps/web
+      - name: Commit Czech interface
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web
+          git commit -m "feat: localize interface completely to Czech"
+          git push origin HEAD:${{ github.head_ref }}
