@@ -101,7 +101,7 @@ export default function HomePage() {
       <PageHeader
         eyebrow="Přehled"
         title="Připravenost školního roku"
-        description="Zkontrolujte vstupní data před vytvořením návrhu. Tvrdé chyby musí být vyřešené před spuštěním solveru."
+        description="Zkontrolujte vstupní data před vytvořením návrhu. Tvrdé chyby musí být vyřešené před spuštěním automatické tvorby rozvrhu."
         actions={
           selectedId ? (
             <>
@@ -155,8 +155,8 @@ export default function HomePage() {
         {error ? <p className="mt-3 text-sm text-danger">{error}</p> : null}
         {!loading && schoolYears.length === 0 ? (
           <p className="mt-3 text-sm text-text-secondary">
-            Zatím neexistuje žádný školní rok. Vytvořte jej přes API nebo
-            připravovaný formulář nastavení.
+            Zatím neexistuje žádný školní rok. Vytvořte jej pomocí programového
+            rozhraní nebo připravovaného formuláře nastavení.
           </p>
         ) : null}
       </section>
@@ -170,8 +170,8 @@ export default function HomePage() {
                   Vstupní data
                 </h2>
                 <p className="mt-1 text-sm text-text-secondary">
-                  Entity, které vstupují do readiness kontroly a immutable
-                  solver snapshotu.
+                  Údaje, které vstupují do kontroly připravenosti a neměnného
+                  zadání pro automatickou tvorbu rozvrhu.
                 </p>
               </div>
               <StatusBadge tone={readiness?.ready ? "success" : "warning"}>
