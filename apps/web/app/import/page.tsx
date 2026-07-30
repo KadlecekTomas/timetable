@@ -46,7 +46,9 @@ export default function ImportPage() {
 
   async function downloadTemplate() {
     const bytes = await createImportTemplate();
-    const blob = new Blob([bytes], {
+    const templateBytes = new Uint8Array(bytes.byteLength);
+    templateBytes.set(bytes);
+    const blob = new Blob([templateBytes.buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
     const url = URL.createObjectURL(blob);

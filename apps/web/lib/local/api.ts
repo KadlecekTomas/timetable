@@ -371,7 +371,9 @@ async function sha256Hex(
       : value instanceof Uint8Array
         ? value
         : new Uint8Array(value);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const digestBytes = new Uint8Array(bytes.byteLength);
+  digestBytes.set(bytes);
+  const digest = await crypto.subtle.digest("SHA-256", digestBytes.buffer);
   return [...new Uint8Array(digest)]
     .map((item) => item.toString(16).padStart(2, "0"))
     .join("");
