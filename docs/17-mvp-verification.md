@@ -1,131 +1,112 @@
-# Integrovaná verifikace MVP
+# Integrovaná verifikace local-first MVP
 
-Tento dokument popisuje verifikační brány implementace Fází 3–7. Verdikt se vždy vztahuje ke konkrétnímu commitu a neznamená matematickou záruku, že software nemůže obsahovat žádnou další chybu. Znamená, že uvedené chování bylo na daném commitu reprodukovatelně ověřeno automatizovanými testy.
+Tento dokument popisuje povinné brány varianty určené pro jednu školu a jedno vedení. Verdikt se vždy vztahuje ke konkrétnímu commitu a neznamená matematickou záruku nulového počtu budoucích chyb. Znamená, že uvedené chování bylo na přesných bajtech daného commitu reprodukovatelně ověřeno.
 
 ## Ověřovaný rozsah
 
-- školní rok, master data a kontrola připravenosti,
-- verzovaný Excel import s náhledem a atomickým potvrzením,
-- neměnný canonical snapshot,
-- asynchronní běh generování a CP-SAT solver,
-- nezávislý post-solve validátor,
-- deterministické skórování a incident report,
-- verzovaný editor rozvrhu, zamykání, validovaný přesun, undo a přijetí verze,
-- hlavní české obrazovky včetně stránky Nastavení,
-- databázové migrace a runtime Docker Compose stacku.
+- jeden lokální projekt školy uložený v IndexedDB,
+- nastavení školy a školního roku,
+- Excel šablona, validace a atomické potvrzení importu,
+- přímé volání FastAPI/OR-Tools solveru bez databázové fronty,
+- nezávislá kontrola tvrdých omezení a skórování v prohlížeči,
+- lokálně verzované návrhy rozvrhu,
+- zamykání, ruční přesuny, undo a přijetí verze,
+- úplná exportovatelná záloha s SHA-256 kontrolním součtem,
+- vymazání a obnova projektu,
+- runtime webu a solveru bez PostgreSQL a permanentního workeru.
 
 ## Povinné technické brány
 
-Před kladným verdiktem musí projít všechny následující kroky:
+Před kladným verdiktem musí projít:
 
-1. Prisma generate a validace schématu.
-2. Nasazení migrací do prázdného PostgreSQL.
-3. Opakované nasazení stejných migrací a kontrola stavu bez driftu.
-4. Prettier kontrola.
-5. ESLint.
-6. TypeScript typecheck.
-7. Webové a doménové jednotkové testy.
-8. Solver lint a testy.
-9. Produkční build webu, databázového balíčku a workeru.
-10. Docker Compose konfigurace, build, start služeb a health check webu.
-11. Celá Playwright sada se skutečnou databází, solverem a workerem.
-12. Kritická release-gate třikrát za sebou s vypnutými retry.
+1. Prettier kontrola.
+2. ESLint.
+3. TypeScript typecheck.
+4. Webové a doménové jednotkové testy.
+5. Produkční build Next.js bez `DATABASE_URL`.
+6. Solver lint a testy.
+7. Docker Compose konfigurace a build pouze služeb `web` a `solver`.
+8. Start obou kontejnerů a health check webu, solveru a proxy `/solver`.
+9. Databázově nezávislá Playwright cesta.
+10. Kritická local-first cesta třikrát za sebou s vypnutými retry.
 
-## Integrovaná release-gate
+## Databázově nezávislá Playwright cesta
 
-Každý scénář vytváří vlastní školní rok a vlastní data. Testy nejsou závislé na pořadí ani na předchozím obsahu databáze.
+Scénář běží v čistém izolovaném browser contextu a nevyžaduje PostgreSQL ani worker.
 
-### Založení školního roku
+### Vytvoření projektu
 
-- neplatný počet hodin je odmítnut stavem 422,
-- po odmítnutí nevznikne částečný záznam,
-- následný validní požadavek projde,
-- duplicita je odmítnuta stavem 409,
-- health endpoint zůstane dostupný.
+- při první návštěvě vznikne jediný lokální projekt,
+- nastavení názvu školy a školního roku se uloží do IndexedDB,
+- projekt přežije tvrdý reload stránky,
+- navigace používá stabilní lokální identifikátor projektu.
 
 ### Excel import
 
-- import používá skutečný `.xlsx` vytvořený z aplikační šablony,
-- odkaz na neznámého učitele vyvolá validační chybu,
-- neplatný náhled nelze potvrdit,
-- po chybě zůstávají master data prázdná,
-- následný opravený import projde,
-- opakovaná analýza stejných vstupů znovu použije náhled,
-- opakované potvrzení stejné dávky je idempotentní,
-- nový import stejných dat nevytvoří duplicitní entity,
-- verze školního roku se zvyšuje pouze při potvrzené změně.
+- test používá skutečný `.xlsx` vytvořený z aplikační šablony,
+- soubor se nejprve analyzuje bez změny aktivních dat,
+- pouze validní náhled lze potvrdit,
+- potvrzení nahradí související lokální číselníky atomicky,
+- po potvrzení projde kontrola připravenosti.
 
-### Generování rozvrhu
+### Generování
 
-- nepřipravený školní rok nelze zařadit do fronty,
-- neplatný požadavek na běh je odmítnut,
-- validní běh projde přes worker a solver do koncového stavu,
-- vznikne kandidátní verze a skóre,
-- nezávislá kontrola ověří kolize učitelů, tříd a učeben,
-- součet kategorií skóre odpovídá celkovému skóre,
-- dokončený běh nelze zrušit,
-- neexistující běh vrátí 404 bez pádu služby,
-- web a solver zůstanou po scénáři zdravé.
+- web odešle neměnný snapshot přímo solveru,
+- nevzniká databázová fronta ani dlouhodobě běžící worker,
+- solver vrátí kandidátní rozvrh,
+- web znovu ověří kolize učitelů, tříd a učeben,
+- skóre a incidenty se uloží do lokální verze,
+- návrh lze otevřít i po další navigaci.
 
-### Editor rozvrhu
+### Záloha a obnova
 
-- kolizní přesun je odmítnut v náhledu i při zápisu,
-- odmítnutý přesun nezmění revizi ani polohu hodiny,
-- zamknutí a odemknutí zvyšuje revizi,
-- zamčenou hodinu nelze přesunout,
-- zápis se zastaralou revizí je odmítnut stavem 409,
-- validní přesun se uloží a znovu projde kontrolou tvrdých omezení,
-- opakování stejného zápisu se starou revizí je odmítnuto,
-- undo obnoví původní umístění,
-- přijetí verze se zastaralou revizí je odmítnuto,
-- přijetí aktuální revize označí verzi jako aktuální.
+- stažený soubor obsahuje vstupní data i vytvořenou verzi rozvrhu,
+- záloha obsahuje SHA-256 kontrolní součet,
+- poškozená záloha je odmítnuta a aktivní projekt zůstane nezměněný,
+- úplné vymazání vyžaduje dvě potvrzení,
+- po vymazání je projekt skutečně prázdný,
+- platná záloha obnoví učitele, pravidla, návrhy, zámky i historii,
+- obnovený rozvrh lze znovu otevřít.
 
-### Souběh a rušení
+### Stabilita UI
 
-- několik běhů je zařazeno současně,
-- okamžité požadavky na zrušení nezanechají žádný běh ve stavu `QUEUED` nebo `RUNNING`,
-- skutečně zrušené běhy nevytvoří kandidátní verzi.
+Během celé cesty nesmí vzniknout:
 
-### Stabilita uživatelského rozhraní
-
-- hlavní workflow projde přes Přehled, Školní data, Tvorbu rozvrhu a Editor,
-- stránka Nastavení existuje, načte kontext školního roku a nevrací 404,
-- detail hodiny lze otevřít a zavřít klávesnicí,
-- během průchodu nevznikne `pageerror`, neočekávaná konzolová chyba ani HTTP 500.
+- `pageerror`,
+- neočekávaná konzolová chyba,
+- HTTP odpověď 500 nebo vyšší.
 
 ## Solver release-gate
 
-- stejné vstupy, seed a konfigurace vytvoří stejný rozvrh, objective i skóre,
-- jediná učebna nemůže hostit dvě třídy ve stejném slotu,
-- nedostatek kapacity učitele má strukturované vysvětlení,
+- stejné vstupy a seed vytvoří deterministický výsledek,
+- učitel, třída ani učebna nejsou ve stejném slotu použiti dvakrát,
+- nedostatek kapacity má strukturované vysvětlení,
 - dvojhodina nesmí zasáhnout nedostupný slot,
-- preferovaný slot ovlivní výsledek, pokud jsou tvrdé podmínky rovnocenné.
+- preference ovlivní výsledek pouze při zachování tvrdých omezení.
 
-## Doménové regresní testy
+## Co local-first režim záměrně neumí
 
-- neplatná konfigurace dvojhodiny blokuje připravenost,
-- kolize učebny zneplatní rozvrh i jeho skóre,
-- nedostupnost druhé části dvojhodiny je zachycena,
-- validace přesunu nemění původní pole hodin.
+- automatickou synchronizaci mezi různými počítači nebo prohlížeči,
+- centrální víceuživatelskou historii,
+- obnovu bez záložního souboru po vymazání IndexedDB,
+- současnou editaci více lidmi,
+- účty, role a autorizaci,
+- garantované zachování dat mezi různými doménami nebo Vercel Preview URL.
 
-## Co tento verdikt zatím nepokrývá
+## Co dosud není ověřené
 
-Následující oblasti nelze označit za ověřené, dokud nejsou implementované nebo dokud pro ně nevznikne samostatná brána:
-
-- export rozvrhu do PDF, Excelu nebo jiného výstupního formátu,
-- regenerace existujícího rozvrhu se zachováním zamčených hodin,
-- porovnávání více kandidátních verzí v uživatelském rozhraní,
-- dlouhodobý watchdog zaseknutého workeru a obnova po tvrdém ukončení procesu,
-- výkon a kvalita na anonymizovaném datasetu velikosti skutečné velké školy,
-- víceuživatelské zatížení ve stovkách souběžných požadavků,
-- bezpečnostní penetrační test, autentizace a autorizace, dokud nejsou součástí MVP.
-
-Tyto položky nesmějí být v závěrečném reportu vydávány za hotové nebo stoprocentně ověřené.
+- skutečný Vercel Preview deployment v konkrétním účtu,
+- dostupnost Vercel Services Private Beta pro vlastníka projektu,
+- velikost výsledného Python function bundle s OR-Tools na Vercelu,
+- výkon solveru nad anonymizovaným datasetem velikosti reálné velké školy,
+- export výsledného rozvrhu do PDF nebo Excelu,
+- dlouhodobé chování po měsících používání bez pravidelných záloh.
 
 ## Pravidla verdiktu
 
-- **RELEASE_GATE_GREEN**: všechny implementované povinné brány na přesném HEAD jsou zelené.
-- **RELEASE_GATE_BLOCKED**: alespoň jedna povinná brána selhala nebo nebyla spuštěna.
-- **OUT_OF_SCOPE_NOT_VERIFIED**: funkce není implementována nebo není součástí aktuálního ověřovaného rozsahu.
+- **LOCAL_FIRST_GATE_GREEN**: všechny implementované povinné brány na přesném HEAD jsou zelené.
+- **LOCAL_FIRST_GATE_BLOCKED**: alespoň jedna povinná brána selhala nebo nebyla spuštěna.
+- **VERCEL_PREVIEW_PENDING**: lokální a Docker brány jsou zelené, ale konkrétní Vercel Preview nebyl ověřen.
+- **OUT_OF_SCOPE_NOT_VERIFIED**: funkce není součástí local-first MVP.
 
 Žádný merge ani deployment se v rámci této verifikační práce neprovádí.
