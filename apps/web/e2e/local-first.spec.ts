@@ -157,7 +157,7 @@ test("entire project survives backup, deletion and restore without a server data
     page.getByText("Projekt byl úspěšně obnoven z ověřené zálohy."),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "Rozvrh" }).click();
+  await page.getByRole("link", { name: "Rozvrh", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Kvalita návrhu" }),
   ).toBeVisible();
