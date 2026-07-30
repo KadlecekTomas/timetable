@@ -161,7 +161,6 @@ test("Excel import → solver → lock → validated move → score → undo", a
   const lockLesson = ordered[0]!;
   const moveLesson = ordered[1]!;
   const lockIndex = ordered.findIndex((lesson) => lesson.id === lockLesson.id);
-  const moveIndex = ordered.findIndex((lesson) => lesson.id === moveLesson.id);
   const lessonButtons = page.getByRole("button", { name: /M\s+NOV\s+101/ });
   await expect(lessonButtons).toHaveCount(2);
 
@@ -179,7 +178,11 @@ test("Excel import → solver → lock → validated move → score → undo", a
   expect(lockedAfterSave?.locked).toBe(true);
   const target = findLateFreeSlot(afterLock, moveLesson);
 
-  await lessonButtons.nth(moveIndex).click();
+  const unlockedLessonButton = page.getByRole("button", {
+    name: /M\s+NOV\s+101/,
+  });
+  await expect(unlockedLessonButton).toHaveCount(1);
+  await unlockedLessonButton.click();
   await page.getByLabel("Den").selectOption(String(target.day));
   await page.getByLabel("Hodina").selectOption(String(target.period));
   const moveResponsePromise = page.waitForResponse(
