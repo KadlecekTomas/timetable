@@ -19,10 +19,8 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - run: npm run db:generate
       - run: npm run format:check
       - run: npm run lint --workspace @timetable/web
-      - run: npm run build --workspace @timetable/database
       - run: npm run typecheck --workspace @timetable/web
       - run: npm run test --workspace @timetable/web
       - run: npm run build --workspace @timetable/web
@@ -55,24 +53,29 @@ jobs:
         with:
           python-version: "3.11"
       - run: npm install
-      - run: npm run db:generate
       - run: pip install "."
         working-directory: apps/solver
       - run: npx playwright install --with-deps chromium
-      - name: Build web without a running database
-        run: |
-          npm run build --workspace @timetable/database
-          npm run build --workspace @timetable/web
+      - name: Build web without a database
+        run: npm run build --workspace @timetable/web
       - name: Start solver and web
+        shell: bash
         run: |
-          cd apps/solver
-          uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/solver.log 2>&1 &
-          cd ../..
-          npm run start --workspace @timetable/web > /tmp/web.log 2>&1 &
-          sleep 5
-          curl --fail http://127.0.0.1:8000/health
-          curl --fail http://127.0.0.1:3000/api/health
-          curl --fail http://127.0.0.1:3000/solver/health
+          nohup bash -c 'cd apps/solver && uvicorn app.main:app --host 127.0.0.1 --port 8000' > /tmp/solver.log 2>&1 &
+          nohup npm run start --workspace @timetable/web > /tmp/web.log 2>&1 &
+
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null && \
+               curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null && \
+               curl --fail --silent http://127.0.0.1:3000/solver/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat /tmp/solver.log || true
+          cat /tmp/web.log || true
+          exit 1
       - name: Run database-free browser workflow
         run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts --retries=0
       - name: Repeat local-first release gate three times
@@ -85,6 +88,4 @@ jobs:
           path: |
             apps/web/playwright-report
             apps/web/test-results
-            /tmp/solver.log
-            /tmp/web.log
           if-no-files-found: ignore
