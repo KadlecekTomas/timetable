@@ -160,29 +160,13 @@ jobs:
                 timeout: 5s
                 retries: 10
           EOF
-      - name: Remove database commands from CI
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('.github/workflows/ci.yml')
-          text = path.read_text()
-          text = text.replace('      - run: npm run db:generate\n', '')
-          text = text.replace('      - run: npm run build --workspace @timetable/database\n', '')
-          text = text.replace('          npm run build --workspace @timetable/database\n', '')
-          path.write_text(text)
-          PY
       - run: npm install --package-lock-only
-      - run: npx prettier --write package.json apps/web apps/solver .github/workflows/ci.yml compose.yaml vercel.json
-      - name: Commit final migration
+      - run: npx prettier --write package.json apps/web apps/solver compose.yaml vercel.json
+      - name: Commit application migration
         shell: bash
         run: |
-          rm -f \
-            .github/workflows/finalize-local-migration.yml \
-            .github/workflows/remove-legacy-database.yml \
-            .github/workflows/fix-local-arraybuffers.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add -A apps packages package.json package-lock.json compose.yaml vercel.json
           git commit -m "refactor: remove PostgreSQL and worker runtime"
           git push origin HEAD:${{ github.head_ref }}
