@@ -20,7 +20,9 @@ test("odkaz Nastavení vede na existující a načitatelnou stránku", async ({
   await expect(
     page.getByRole("heading", { name: "Nastavení školního roku" }),
   ).toBeVisible();
-  await expect(page.getByText("Nastavení route", { exact: false })).toBeVisible();
+  await expect(
+    page.getByText("Nastavení route", { exact: false }),
+  ).toBeVisible();
   await expect(page.getByText("Školní rok 2026/2027")).toBeVisible();
   expect(serverErrors).toEqual([]);
 });

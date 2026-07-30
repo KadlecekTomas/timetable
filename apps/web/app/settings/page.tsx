@@ -1,6 +1,11 @@
 "use client";
 
-import { CalendarDays, Database, FileSpreadsheet, Settings2 } from "lucide-react";
+import {
+  CalendarDays,
+  Database,
+  FileSpreadsheet,
+  Settings2,
+} from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -34,7 +39,9 @@ export default function SettingsPage() {
     let cancelled = false;
     async function load() {
       try {
-        const response = await fetch("/api/school-years", { cache: "no-store" });
+        const response = await fetch("/api/school-years", {
+          cache: "no-store",
+        });
         if (!response.ok) {
           throw new Error("Nastavení školního roku se nepodařilo načíst.");
         }
@@ -124,15 +131,18 @@ export default function SettingsPage() {
 
             <article className="rounded-xl border border-border bg-surface p-5">
               <div className="flex items-center gap-3">
-                <CalendarDays className="size-5 text-primary" aria-hidden="true" />
-                <h2 className="font-semibold text-text-primary">Rozsah týdne</h2>
+                <CalendarDays
+                  className="size-5 text-primary"
+                  aria-hidden="true"
+                />
+                <h2 className="font-semibold text-text-primary">
+                  Rozsah týdne
+                </h2>
               </div>
               <p className="mt-4 text-sm font-medium text-text-primary">
                 {schoolYear.periodsPerDay.join(" · ")} hodin
               </p>
-              <p className="mt-1 text-xs text-text-muted">
-                Pondělí až pátek
-              </p>
+              <p className="mt-1 text-xs text-text-muted">Pondělí až pátek</p>
             </article>
 
             <article className="rounded-xl border border-border bg-surface p-5">
@@ -158,7 +168,9 @@ export default function SettingsPage() {
                   <h2 className="font-semibold text-text-primary">Stav</h2>
                 </div>
                 <StatusBadge tone="neutral">
-                  {schoolYear.status === "ACTIVE" ? "Aktivní" : schoolYear.status}
+                  {schoolYear.status === "ACTIVE"
+                    ? "Aktivní"
+                    : schoolYear.status}
                 </StatusBadge>
               </div>
               <p className="mt-4 text-sm text-text-secondary">
@@ -184,7 +196,9 @@ export default function SettingsPage() {
                 <Link href={`/import${context}`}>Načíst data z Excelu</Link>
               </Button>
               <Button asChild variant="outline">
-                <Link href={`/generate${context}`}>Zkontrolovat připravenost</Link>
+                <Link href={`/generate${context}`}>
+                  Zkontrolovat připravenost
+                </Link>
               </Button>
             </div>
           </section>
