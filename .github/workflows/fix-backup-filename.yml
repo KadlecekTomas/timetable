@@ -1,0 +1,46 @@
+name: Fix backup filename normalization
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Remove combining diacritical marks before filename sanitization
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('apps/web/app/settings/page.tsx')
+          text = path.read_text()
+          old = '''  return value
+    .normalize("NFKD")
+    .replace(/[^a-zA-Z0-9]+/g, "-")'''
+          new = '''  return value
+    .normalize("NFKD")
+    .replace(/[\\u0300-\\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")'''
+          if old not in text:
+              raise SystemExit('safeFilePart pattern missing')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - run: npx prettier --write apps/web/app/settings/page.tsx
+      - name: Commit product fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/app/settings/page.tsx
+          git commit -m "fix: normalize Czech backup filenames"
+          git push origin HEAD:${{ github.head_ref }}
