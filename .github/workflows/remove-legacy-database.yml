@@ -1,0 +1,159 @@
+name: Remove legacy database runtime
+
+on:
+  push:
+    branches: [feat/local-first-indexeddb]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/local-first-indexeddb
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Remove legacy database and worker implementation
+        shell: bash
+        run: |
+          find apps/web/app/api -type f ! -path 'apps/web/app/api/health/route.ts' -delete
+          find apps/web/app/api -type d -empty -delete
+          rm -rf apps/web/lib/server apps/worker packages/database
+          rm -f \
+            apps/web/e2e/mvp-flow.spec.ts \
+            apps/web/e2e/release-gate.helpers.ts \
+            apps/web/e2e/release-gate.spec.ts \
+            apps/web/e2e/settings-route.spec.ts \
+            apps/web/e2e/visual-gallery.spec.ts
+
+          for file in apps/web/tests/*.test.ts; do
+            if grep -Eq '@timetable/database|lib/server|snapshot-jsonb' "$file"; then
+              rm "$file"
+            fi
+          done
+      - name: Rewrite package manifests
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root_path = Path('package.json')
+          root = json.loads(root_path.read_text())
+          root['workspaces'] = ['apps/web']
+          root['scripts'] = {
+              'dev': 'npm run dev --workspace @timetable/web',
+              'build': 'npm run build --workspace @timetable/web',
+              'lint': 'npm run lint --workspace @timetable/web',
+              'typecheck': 'npm run typecheck --workspace @timetable/web',
+              'test': 'npm run test --workspace @timetable/web',
+              'format': 'prettier --write package.json apps/web apps/solver .github/workflows compose.yaml vercel.json',
+              'format:check': 'prettier --check package.json apps/web apps/solver .github/workflows compose.yaml vercel.json',
+          }
+          root_path.write_text(json.dumps(root, ensure_ascii=False, indent=2) + '\n')
+
+          web_path = Path('apps/web/package.json')
+          web = json.loads(web_path.read_text())
+          web['dependencies'].pop('@timetable/database', None)
+          web_path.write_text(json.dumps(web, ensure_ascii=False, indent=2) + '\n')
+          PY
+      - name: Rewrite database-free Docker stack
+        shell: bash
+        run: |
+          cat > apps/web/Dockerfile <<'EOF'
+          FROM node:22-alpine AS dependencies
+          WORKDIR /app
+          COPY package.json ./
+          COPY apps/web/package.json apps/web/package.json
+          RUN npm install
+
+          FROM node:22-alpine AS builder
+          WORKDIR /app
+          COPY --from=dependencies /app/node_modules ./node_modules
+          COPY . .
+          RUN npm run build --workspace @timetable/web
+
+          FROM node:22-alpine AS runner
+          WORKDIR /app
+          ENV NODE_ENV=production
+          ENV PORT=3000
+          ENV HOSTNAME=0.0.0.0
+          COPY --from=builder /app/apps/web/.next/standalone ./
+          COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
+          EXPOSE 3000
+          CMD ["node", "apps/web/server.js"]
+          EOF
+
+          cat > compose.yaml <<'EOF'
+          services:
+            solver:
+              build:
+                context: .
+                dockerfile: apps/solver/Dockerfile
+              ports:
+                - "8000:8000"
+              healthcheck:
+                test:
+                  [
+                    "CMD",
+                    "python",
+                    "-c",
+                    "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+                  ]
+                interval: 10s
+                timeout: 5s
+                retries: 10
+
+            web:
+              build:
+                context: .
+                dockerfile: apps/web/Dockerfile
+              environment:
+                SOLVER_URL: ${SOLVER_URL:-http://solver:8000}
+                NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Rozvrhář}
+              ports:
+                - "3000:3000"
+              depends_on:
+                solver:
+                  condition: service_healthy
+              healthcheck:
+                test:
+                  [
+                    "CMD",
+                    "node",
+                    "-e",
+                    "fetch('http://localhost:3000/api/health').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1))",
+                  ]
+                interval: 10s
+                timeout: 5s
+                retries: 10
+          EOF
+      - name: Remove database commands from CI
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/ci.yml')
+          text = path.read_text()
+          text = text.replace('      - run: npm run db:generate\n', '')
+          text = text.replace('      - run: npm run build --workspace @timetable/database\n', '')
+          text = text.replace('          npm run build --workspace @timetable/database\n', '')
+          path.write_text(text)
+          PY
+      - run: npm install --package-lock-only
+      - run: npx prettier --write package.json apps/web apps/solver .github/workflows/ci.yml compose.yaml vercel.json
+      - name: Remove this one-shot workflow
+        run: rm .github/workflows/remove-legacy-database.yml
+      - name: Commit database-free architecture
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "refactor: remove PostgreSQL and worker runtime"
+          git push origin HEAD:feat/local-first-indexeddb
