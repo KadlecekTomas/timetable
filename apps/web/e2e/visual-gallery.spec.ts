@@ -6,10 +6,7 @@ import ExcelJS, { type Worksheet } from "exceljs";
 
 const screenshotDirectory = path.resolve("screenshots");
 
-function writeRows(
-  worksheet: Worksheet,
-  rows: Array<Array<string | number>>,
-) {
+function writeRows(worksheet: Worksheet, rows: Array<Array<string | number>>) {
   rows.forEach((values, rowIndex) => {
     values.forEach((value, columnIndex) => {
       worksheet.getCell(rowIndex + 2, columnIndex + 1).value = value;
@@ -172,7 +169,9 @@ test("creates a visual gallery of the integrated application", async ({
   await capture(page, "02-dashboard-ready.png");
 
   await page.goto(`/data?schoolYearId=${schoolYear.id}`);
-  await expect(page.getByRole("heading", { name: "Školní data" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Školní data" }),
+  ).toBeVisible();
   await expect(page.getByText("3 záznamů", { exact: true })).toBeVisible();
   await capture(page, "03-school-data.png");
 
@@ -204,7 +203,10 @@ test("creates a visual gallery of the integrated application", async ({
   ).toBeVisible();
   await capture(page, "07-timetable-teacher-view.png");
 
-  await page.getByRole("button", { name: /6A|7A|8A/ }).first().click();
+  await page
+    .getByRole("button", { name: /6A|7A|8A/ })
+    .first()
+    .click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await capture(page, "08-lesson-detail.png");
   await page.getByRole("button", { name: "Zavřít" }).click();
