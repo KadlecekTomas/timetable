@@ -327,7 +327,7 @@ export default function DataPage() {
       <div className="rounded-xl border border-warning-border bg-warning-subtle p-6">
         <h1 className="text-lg font-semibold">Nejprve vyberte školní rok</h1>
         <p className="mt-2 text-sm text-text-secondary">
-          Vraťte se na Přehled a otevřete data s parametrem schoolYearId.
+          Vraťte se na Přehled a vyberte školní rok.
         </p>
       </div>
     );
@@ -512,8 +512,8 @@ function SectionForm({
         {field("firstName", "Jméno")}
         {field("lastName", "Příjmení")}
         {field("targetWeeklyLoad", "Cílový úvazek", "number")}
-        {field("minWeeklyLoad", "Minimum", "number", false)}
-        {field("maxWeeklyLoad", "Maximum", "number", false)}
+        {field("minWeeklyLoad", "Nejnižší úvazek", "number", false)}
+        {field("maxWeeklyLoad", "Nejvyšší úvazek", "number", false)}
       </>
     );
   }
@@ -624,7 +624,7 @@ function SectionForm({
           })),
           false,
         )}
-        {field("maxPerDay", "Maximum za den", "number", false)}
+        {field("maxPerDay", "Nejvýše za den", "number", false)}
         {field("minDayGap", "Minimální rozestup dnů", "number", false)}
       </>
     );

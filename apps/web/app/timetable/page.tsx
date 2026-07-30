@@ -221,7 +221,7 @@ export default function TimetablePage() {
     if (!previewResponse.ok || !preview.valid) {
       setMoveIssues(issues.map((item) => item.message));
       if (!issues.length)
-        setError(preview.error?.message ?? "Přesun není validní.");
+        setError(preview.error?.message ?? "Přesun není platný.");
       setBusy(false);
       return;
     }
@@ -286,7 +286,7 @@ export default function TimetablePage() {
           Zatím není dostupný návrh rozvrhu
         </h1>
         <p className="mt-2 text-sm text-text-secondary">
-          Nejprve dokončete generování návrhu.
+          Nejprve dokončete vytvoření návrhu.
         </p>
       </div>
     );
@@ -536,7 +536,7 @@ export default function TimetablePage() {
                 ))}
               {!payload?.version.incidentReport?.length ? (
                 <p className="text-sm text-text-muted">
-                  Žádné evidované penalizace.
+                  Žádné evidované srážky bodů.
                 </p>
               ) : null}
             </div>
