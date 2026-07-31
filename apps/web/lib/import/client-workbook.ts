@@ -910,7 +910,11 @@ async function normalizeClientWorkbook(
       ),
     };
     let targetRow = 2;
-    for (let row = header.row + 1; row <= source.actualRowCount; row += 1) {
+    for (
+      let row = header.row + 1;
+      row <= CLIENT_TEMPLATE_LAST_DATA_ROW;
+      row += 1
+    ) {
       const values = definition.columns.map((column) =>
         mapCell(
           source.getCell(row, header.columns.get(column.key)!).value,
