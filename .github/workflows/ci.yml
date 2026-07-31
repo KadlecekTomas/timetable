@@ -23,6 +23,7 @@ jobs:
       - name: Patch conversion workbook
         run: |
           python - <<'PY'
+          import re
           from pathlib import Path
           path = Path('apps/web/lib/import/client-workbook.ts')
           text = path.read_text()
@@ -34,25 +35,28 @@ jobs:
               'import { analyzeImportWorkbook, createImportTemplate } from "./workbook";',
               'import { analyzeImportWorkbook } from "./workbook";',
           )
-          old = '''  const legacy = new ExcelJS.Workbook();
-              await legacy.xlsx.load((await createImportTemplate()) as never);
-              for (const definition of DEFINITIONS) {
-                const source = workbook.getWorksheet(definition.name);
-                const target = legacy.getWorksheet(definition.legacyName);
-                if (!target) continue;'''
-          new = '''  const legacy = new ExcelJS.Workbook();
-              const metadata = legacy.addWorksheet("Metadata", { state: "veryHidden" });
-              metadata.addRows([
-                ["templateVersion", IMPORT_TEMPLATE_VERSION],
-                ["generator", "Rozvrhář"],
-              ]);
-              for (const definition of DEFINITIONS) {
-                const source = workbook.getWorksheet(definition.name);
-                const target = legacy.addWorksheet(definition.legacyName);
-                target.addRow(definition.columns.map((column) => column.key));'''
-          if old not in text:
-              raise SystemExit('Missing legacy workbook initialization')
-          path.write_text(text.replace(old, new))
+          pattern = re.compile(
+              r'  const legacy = new ExcelJS\.Workbook\(\);\n'
+              r'  await legacy\.xlsx\.load\([\s\S]*?\);\n'
+              r'  for \(const definition of DEFINITIONS\) \{\n'
+              r'    const source = workbook\.getWorksheet\(definition\.name\);\n'
+              r'    const target = legacy\.getWorksheet\(definition\.legacyName\);\n'
+              r'    if \(!target\) continue;'
+          )
+          replacement = '''  const legacy = new ExcelJS.Workbook();
+          const metadata = legacy.addWorksheet("Metadata", { state: "veryHidden" });
+          metadata.addRows([
+            ["templateVersion", IMPORT_TEMPLATE_VERSION],
+            ["generator", "Rozvrhář"],
+          ]);
+          for (const definition of DEFINITIONS) {
+            const source = workbook.getWorksheet(definition.name);
+            const target = legacy.addWorksheet(definition.legacyName);
+            target.addRow(definition.columns.map((column) => column.key));'''
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'Expected one legacy initialization block, found {count}')
+          path.write_text(text)
           PY
           npx prettier --write apps/web/lib/import/client-workbook.ts
       - name: Commit fix
