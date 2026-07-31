@@ -8,8 +8,7 @@
     "solver": {
       "root": "apps/solver",
       "framework": "fastapi",
-      "entrypoint": "app.main:app",
-      "maxDuration": 300
+      "entrypoint": "app.main:app"
     }
   },
   "rewrites": [
