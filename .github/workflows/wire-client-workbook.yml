@@ -1,0 +1,57 @@
+name: Wire client workbook
+on:
+  push:
+    branches: [feat/client-friendly-excel-template]
+permissions:
+  contents: write
+jobs:
+  wire:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/client-friendly-excel-template
+      - name: Wire generator and parser
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          def edit(path, replacements):
+              file = Path(path)
+              text = file.read_text()
+              for old, new in replacements:
+                  if old not in text:
+                      raise SystemExit(f"Missing in {path}: {old}")
+                  text = text.replace(old, new)
+              file.write_text(text)
+          edit('apps/web/app/import/page.tsx', [
+              ('import { createImportTemplate } from "@/lib/import/workbook";', 'import { createClientImportTemplate } from "@/lib/import/client-workbook";'),
+              ('await createImportTemplate()', 'await createClientImportTemplate()'),
+              ('rozvrhar-sablona-1.0.0.xlsx', 'rozvrhar-klientska-sablona.xlsx'),
+              ('Stáhnout šablonu 1.0.0', 'Stáhnout klientskou šablonu'),
+          ])
+          edit('apps/web/lib/local/api.ts', [
+              ('import { analyzeImportWorkbook } from "@/lib/import/workbook";', 'import { analyzeClientImportWorkbook } from "@/lib/import/client-workbook";'),
+              ('await analyzeImportWorkbook(buffer)', 'await analyzeClientImportWorkbook(buffer)'),
+          ])
+          edit('apps/web/e2e/local-first.spec.ts', [
+              ('import { createImportTemplate } from "../lib/import/workbook";', 'import { createClientImportTemplate, CLIENT_TEMPLATE_FIRST_DATA_ROW } from "../lib/import/client-workbook";'),
+              ('rowIndex + 2', 'rowIndex + CLIENT_TEMPLATE_FIRST_DATA_ROW'),
+              ('await createImportTemplate()', 'await createClientImportTemplate()'),
+              ('getWorksheet("Učitelé")', 'getWorksheet("1. Učitelé")'),
+              ('getWorksheet("Třídy")', 'getWorksheet("2. Třídy")'),
+              ('getWorksheet("Předměty")', 'getWorksheet("3. Předměty")'),
+              ('getWorksheet("Učebny")', 'getWorksheet("4. Učebny")'),
+              ('getWorksheet("Výukové_vazby")', 'getWorksheet("5. Kdo co učí")'),
+              ('"WHOLE"', '"Celá třída"'),
+              ('"SINGLE"', '"Jednotlivé hodiny"'),
+          ])
+          PY
+          npx prettier --write apps/web/app/import/page.tsx apps/web/lib/local/api.ts apps/web/e2e/local-first.spec.ts
+      - name: Commit wiring
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/app/import/page.tsx apps/web/lib/local/api.ts apps/web/e2e/local-first.spec.ts
+          git commit -m "feat: use client-friendly Excel template"
+          git push origin HEAD:feat/client-friendly-excel-template
