@@ -69,7 +69,11 @@ test("client template is Czech, guided and imports friendly values", async () =>
   const analysis = await analyzeClientImportWorkbook(
     new Uint8Array(await workbook.xlsx.writeBuffer()),
   );
-  assert.equal(analysis.status, "READY");
+  assert.equal(
+    analysis.status,
+    "READY",
+    JSON.stringify(analysis.issues, null, 2),
+  );
   assert.equal(analysis.summary.errors, 0);
   assert.equal(analysis.payload?.assignments[0]?.group, "WHOLE");
   assert.equal(analysis.payload?.assignments[0]?.lesson_shape, "SINGLE");
