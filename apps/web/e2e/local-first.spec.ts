@@ -3,39 +3,71 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import ExcelJS, { type Worksheet } from "exceljs";
 
-import { createImportTemplate } from "../lib/import/workbook";
+import {
+  createClientImportTemplate,
+  CLIENT_TEMPLATE_FIRST_DATA_ROW,
+} from "../lib/import/client-workbook";
 
 function writeRows(worksheet: Worksheet, rows: Array<Array<string | number>>) {
   rows.forEach((values, rowIndex) => {
     values.forEach((value, columnIndex) => {
-      worksheet.getCell(rowIndex + 2, columnIndex + 1).value = value;
+      worksheet.getCell(
+        rowIndex + CLIENT_TEMPLATE_FIRST_DATA_ROW,
+        columnIndex + 1,
+      ).value = value;
     });
   });
 }
 
 async function createSchoolWorkbook(): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load((await createImportTemplate()) as never);
+  await workbook.xlsx.load((await createClientImportTemplate()) as never);
 
   writeRows(workbook.getWorksheet("Nastavení")!, [
     ["2026/2027", 8, 8, 8, 8, 7],
   ]);
-  writeRows(workbook.getWorksheet("Učitelé")!, [
+  writeRows(workbook.getWorksheet("1. Učitelé")!, [
     ["NOV", "Jan", "Novák", 2, 2, 2, "M", "6A"],
     ["SVO", "Petra", "Svobodová", 2, 2, 2, "CJ", "6A"],
   ]);
-  writeRows(workbook.getWorksheet("Třídy")!, [["6A", 6, "6.A"]]);
-  writeRows(workbook.getWorksheet("Předměty")!, [
+  writeRows(workbook.getWorksheet("2. Třídy")!, [["6A", 6, "6.A"]]);
+  writeRows(workbook.getWorksheet("3. Předměty")!, [
     ["M", "Matematika", ""],
     ["CJ", "Český jazyk", ""],
   ]);
-  writeRows(workbook.getWorksheet("Učebny")!, [
+  writeRows(workbook.getWorksheet("4. Učebny")!, [
     ["101", "Kmenová učebna", "GENERAL", 30],
     ["102", "Jazyková učebna", "GENERAL", 30],
   ]);
-  writeRows(workbook.getWorksheet("Výukové_vazby")!, [
-    ["6A-M-NOV", "6A", "M", "NOV", "WHOLE", 2, "SINGLE", 0, "101", "", 1, 1],
-    ["6A-CJ-SVO", "6A", "CJ", "SVO", "WHOLE", 2, "SINGLE", 0, "102", "", 1, 1],
+  writeRows(workbook.getWorksheet("5. Kdo co učí")!, [
+    [
+      "6A-M-NOV",
+      "6A",
+      "M",
+      "NOV",
+      "Celá třída",
+      2,
+      "Jednotlivé hodiny",
+      0,
+      "101",
+      "",
+      1,
+      1,
+    ],
+    [
+      "6A-CJ-SVO",
+      "6A",
+      "CJ",
+      "SVO",
+      "Celá třída",
+      2,
+      "Jednotlivé hodiny",
+      0,
+      "102",
+      "",
+      1,
+      1,
+    ],
   ]);
 
   return Buffer.from(await workbook.xlsx.writeBuffer());

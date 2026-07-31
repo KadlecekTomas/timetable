@@ -12,7 +12,7 @@ import type {
   ImportPayload,
   ImportSummary,
 } from "@/lib/import/contracts";
-import { analyzeImportWorkbook } from "@/lib/import/workbook";
+import { analyzeClientImportWorkbook } from "@/lib/import/client-workbook";
 
 export const LOCAL_SCHOOL_YEAR_ID = "local-school-year";
 
@@ -915,7 +915,7 @@ async function analyzeImport(init?: RequestInit): Promise<Response> {
   }
 
   const analysis = addSchoolYearMismatch(
-    await analyzeImportWorkbook(buffer),
+    await analyzeClientImportWorkbook(buffer),
     project,
   );
   const batch: LocalImportBatch = {
