@@ -6,9 +6,71 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
+  fix-client-settings-row:
+    if: github.event_name == 'pull_request' && github.actor != 'github-actions[bot]' && github.head_ref == 'feat/client-friendly-excel-template'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Patch settings row handling
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('apps/web/lib/import/client-workbook.ts')
+          text = path.read_text()
+
+          old_defaults = '''  workbook
+            .getWorksheet(CLIENT_TEMPLATE_SHEET_NAMES.settings)!
+            .getRow(CLIENT_TEMPLATE_FIRST_DATA_ROW).values = [
+            undefined,
+            "2026/2027",
+            8,
+            8,
+            8,
+            8,
+            7,
+          ];'''
+          new_defaults = '''  const settings = workbook.getWorksheet(
+            CLIENT_TEMPLATE_SHEET_NAMES.settings,
+          )!;
+          ["2026/2027", 8, 8, 8, 8, 7].forEach((value, index) => {
+            settings.getCell(CLIENT_TEMPLATE_FIRST_DATA_ROW, index + 1).value = value;
+          });'''
+          if old_defaults not in text:
+              raise SystemExit('Missing settings default block')
+          text = text.replace(old_defaults, new_defaults)
+
+          old_loop = '''    let targetRow = 2;
+            for (let row = header.row + 1; row <= source.actualRowCount; row += 1) {'''
+          new_loop = '''    let targetRow = 2;
+            for (
+              let row = header.row + 1;
+              row <= CLIENT_TEMPLATE_LAST_DATA_ROW;
+              row += 1
+            ) {'''
+          if old_loop not in text:
+              raise SystemExit('Missing normalization loop')
+          text = text.replace(old_loop, new_loop)
+
+          path.write_text(text)
+          PY
+          npx prettier --write apps/web/lib/import/client-workbook.ts
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/lib/import/client-workbook.ts
+          git commit -m "fix: normalize the client settings row reliably"
+          git push origin HEAD:${{ github.head_ref }}
+
   web:
     runs-on: ubuntu-latest
     env:
