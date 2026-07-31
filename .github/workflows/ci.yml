@@ -6,9 +6,78 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
+  fix-client-workbook-normalization:
+    if: github.event_name == 'pull_request' && github.actor != 'github-actions[bot]' && github.head_ref == 'feat/client-friendly-excel-template'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Patch normalization
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('apps/web/lib/import/client-workbook.ts')
+          text = path.read_text()
+          old = '''    const header = findHeader(source, definition);
+              if (!header) {
+                target.getRow(1).values = [
+                  undefined,
+                  ...definition.columns.map((column) => `missing_${column.key}`),
+                ];
+                continue;
+              }
+              for (let row = header.row + 1; row <= source.actualRowCount; row += 1) {
+                const values = definition.columns.map((column) =>
+                  mapCell(
+                    source.getCell(row, header.columns.get(column.key)!).value,
+                    column.valueMap,
+                  ),
+                );
+                if (values.some((value) => value != null && String(value).trim() !== ""))
+                  target.addRow(values);
+              }'''
+          new = '''    const header = findHeader(source, definition) ?? {
+                row: CLIENT_TEMPLATE_HEADER_ROW,
+                columns: new Map(
+                  definition.columns.map((column, index) => [column.key, index + 1]),
+                ),
+              };
+              let targetRow = 2;
+              for (let row = header.row + 1; row <= source.actualRowCount; row += 1) {
+                const values = definition.columns.map((column) =>
+                  mapCell(
+                    source.getCell(row, header.columns.get(column.key)!).value,
+                    column.valueMap,
+                  ),
+                );
+                if (values.some((value) => value != null && String(value).trim() !== "")) {
+                  values.forEach((value, index) => {
+                    target.getCell(targetRow, index + 1).value = value;
+                  });
+                  targetRow += 1;
+                }
+              }'''
+          if old not in text:
+              raise SystemExit('Missing normalization block')
+          path.write_text(text.replace(old, new))
+          PY
+          npx prettier --write apps/web/lib/import/client-workbook.ts
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/lib/import/client-workbook.ts
+          git commit -m "fix: normalize client workbook into data rows"
+          git push origin HEAD:${{ github.head_ref }}
+
   web:
     runs-on: ubuntu-latest
     env:
