@@ -82,7 +82,8 @@ function writeRows(
 ) {
   rows.forEach((values, rowIndex) => {
     values.forEach((value, columnIndex) => {
-      worksheet.getCell(FIRST_DATA_ROW + rowIndex, columnIndex + 1).value = value;
+      worksheet.getCell(FIRST_DATA_ROW + rowIndex, columnIndex + 1).value =
+        value;
     });
   });
 }
@@ -143,7 +144,11 @@ function createOrganizationSheet(workbook: ExcelJS.Workbook) {
       pattern: "solid",
       fgColor: { argb: "FF3157C8" },
     };
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true,
+    };
   });
   sheet.getRow(4).height = 34;
 

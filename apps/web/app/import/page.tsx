@@ -14,7 +14,7 @@ import { PageHeader } from "@/components/page-header";
 import { localApiFetch } from "@/lib/local/api";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { createClientImportTemplate } from "@/lib/import/client-workbook";
+import { createSchoolClientImportTemplate } from "@/lib/import/school-client-workbook";
 import { importSeverityLabels, importSummaryLabels } from "@/lib/ui-labels";
 
 interface ImportIssueView {
@@ -45,7 +45,7 @@ export default function ImportPage() {
   const [error, setError] = useState<string | null>(null);
 
   async function downloadTemplate() {
-    const bytes = await createClientImportTemplate();
+    const bytes = await createSchoolClientImportTemplate();
     const templateBytes = new Uint8Array(bytes.byteLength);
     templateBytes.set(bytes);
     const blob = new Blob([templateBytes.buffer], {
