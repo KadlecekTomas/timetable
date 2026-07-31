@@ -38,8 +38,10 @@ test("school client template prefills classes, split groups and PE organization"
   assert.ok(assignments);
   assert.deepEqual(
     Array.from({ length: 10 }, (_, rowIndex) =>
-      Array.from({ length: 7 }, (_, columnIndex) =>
-        assignments.getCell(6 + rowIndex, 1 + columnIndex).text,
+      Array.from(
+        { length: 7 },
+        (_, columnIndex) =>
+          assignments.getCell(6 + rowIndex, 1 + columnIndex).text,
       ),
     ),
     [
