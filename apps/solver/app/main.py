@@ -18,6 +18,7 @@ from app.models import (
     SolveResponse,
     TeachingGroup,
 )
+from app.school_day import crosses_lunch_break
 from app.scoring import score_schedule
 from app.validator import validate_schedule
 
@@ -137,6 +138,8 @@ def _candidate_keys(
         if fixed and day != fixed.day:
             continue
         for period in range(0, periods - block.duration + 1):
+            if crosses_lunch_break(period, block.duration):
+                continue
             if fixed and period != fixed.period:
                 continue
             for room_id in room_ids:

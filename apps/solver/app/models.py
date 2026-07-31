@@ -110,8 +110,8 @@ class SolveRequest(BaseModel):
     def validate_contract(self) -> "SolveRequest":
         if self.contract_version != "1.0":
             raise ValueError("Unsupported contract version")
-        if any(periods < 1 or periods > 16 for periods in self.periods_per_day):
-            raise ValueError("periods_per_day values must be between 1 and 16")
+        if any(periods < 1 or periods > 12 for periods in self.periods_per_day):
+            raise ValueError("periods_per_day values must be between 1 and 12")
 
         assignment_ids = [assignment.id for assignment in self.assignments]
         if len(assignment_ids) != len(set(assignment_ids)):

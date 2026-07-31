@@ -7,6 +7,11 @@ import {
   type TimetableMove,
   type ValidationIssue,
 } from "./contracts";
+import {
+  crossesLunchBreak,
+  MIN_LUNCH_BREAK_MINUTES,
+  MORNING_PERIOD_LIMIT,
+} from "./school-day";
 
 function groupsConflict(left: TeachingGroup, right: TeachingGroup): boolean {
   return left === "WHOLE" || right === "WHOLE" || left === right;
@@ -127,6 +132,22 @@ export function validateSchedule(
         [lesson.block_id],
         lesson.day,
         lesson.period,
+      );
+      continue;
+    }
+
+    if (crossesLunchBreak(lesson.period, lesson.duration)) {
+      pushIssue(
+        issues,
+        "LUNCH_BREAK_CROSSED",
+        `Blok ${lesson.block_id} nesmí spojit dopolední a odpolední vyučování přes obědovou přestávku.`,
+        [lesson.block_id, lesson.class_id],
+        lesson.day,
+        lesson.period,
+        {
+          morningPeriodLimit: MORNING_PERIOD_LIMIT,
+          minimumLunchBreakMinutes: MIN_LUNCH_BREAK_MINUTES,
+        },
       );
       continue;
     }

@@ -11,13 +11,24 @@ import {
   X,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { localApiFetch } from "@/lib/local/api";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { teachingGroupLabels } from "@/lib/ui-labels";
+import {
+  MIN_LUNCH_BREAK_MINUTES,
+  MORNING_PERIOD_LIMIT,
+} from "@/lib/domain/school-day";
 
 const dayNames = [
   "Pondělí",
@@ -408,76 +419,86 @@ export default function TimetablePage() {
                 ))}
               </div>
               {Array.from({ length: maximumPeriods }, (_, period) => (
-                <div
-                  key={period}
-                  className="grid min-h-24 grid-cols-[64px_repeat(5,minmax(170px,1fr))] border-b border-border last:border-b-0"
-                >
-                  <div className="p-3 text-center text-sm font-semibold text-text-muted">
-                    {period + 1}.
-                  </div>
-                  {dayNames.slice(0, 5).map((_day, day) => {
-                    const cellLessons = payload?.lessons.filter(
-                      (lesson) =>
-                        lesson.day === day && lesson.period === period,
-                    );
-                    const disabled =
-                      period >= (payload?.periodsPerDay[day] ?? 0);
-                    return (
-                      <div
-                        key={`${day}-${period}`}
-                        className={
-                          disabled
-                            ? "border-l border-border bg-surface-subtle p-2"
-                            : "space-y-2 border-l border-border p-2"
-                        }
-                      >
-                        {cellLessons?.map((lesson) => (
-                          <button
-                            key={lesson.id}
-                            type="button"
-                            onClick={() => {
-                              setMoveIssues([]);
-                              setSelectedLesson(lesson);
-                            }}
-                            className="w-full rounded-md border border-primary/30 bg-primary-subtle p-2.5 text-left transition hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <strong className="text-sm text-text-primary">
-                                {lesson.subject?.code}
-                              </strong>
-                              <span className="flex items-center gap-1 text-text-muted">
-                                {lesson.locked ? (
-                                  <Lock
-                                    className="size-3.5"
-                                    aria-label="Zamčeno"
-                                  />
-                                ) : null}
-                                {lesson.manually_changed ? (
-                                  <Move
-                                    className="size-3.5"
-                                    aria-label="Ručně změněno"
-                                  />
-                                ) : null}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-xs text-text-secondary">
-                              {view === "class"
-                                ? lesson.teacher?.code
-                                : lesson.schoolClass?.code}
-                              {lesson.group !== "WHOLE"
-                                ? ` · ${teachingGroupLabels[lesson.group] ?? lesson.group}`
-                                : ""}
-                            </p>
-                            <p className="mt-1 text-xs text-text-muted">
-                              {lesson.room?.code ?? "bez učebny"}
-                              {lesson.duration === 2 ? " · dvojhodina" : ""}
-                            </p>
-                          </button>
-                        ))}
+                <Fragment key={period}>
+                  {period === MORNING_PERIOD_LIMIT ? (
+                    <div className="grid grid-cols-[64px_repeat(5,minmax(170px,1fr))] border-b border-warning-border bg-warning-subtle">
+                      <div className="col-span-6 px-4 py-2 text-center text-xs font-semibold text-warning-strong">
+                        Obědová přestávka · nejméně {MIN_LUNCH_BREAK_MINUTES}{" "}
+                        minut
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  ) : null}
+                  <div
+                    key={`period-${period}`}
+                    className="grid min-h-24 grid-cols-[64px_repeat(5,minmax(170px,1fr))] border-b border-border last:border-b-0"
+                  >
+                    <div className="p-3 text-center text-sm font-semibold text-text-muted">
+                      {period + 1}.
+                    </div>
+                    {dayNames.slice(0, 5).map((_day, day) => {
+                      const cellLessons = payload?.lessons.filter(
+                        (lesson) =>
+                          lesson.day === day && lesson.period === period,
+                      );
+                      const disabled =
+                        period >= (payload?.periodsPerDay[day] ?? 0);
+                      return (
+                        <div
+                          key={`${day}-${period}`}
+                          className={
+                            disabled
+                              ? "border-l border-border bg-surface-subtle p-2"
+                              : "space-y-2 border-l border-border p-2"
+                          }
+                        >
+                          {cellLessons?.map((lesson) => (
+                            <button
+                              key={lesson.id}
+                              type="button"
+                              onClick={() => {
+                                setMoveIssues([]);
+                                setSelectedLesson(lesson);
+                              }}
+                              className="w-full rounded-md border border-primary/30 bg-primary-subtle p-2.5 text-left transition hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <strong className="text-sm text-text-primary">
+                                  {lesson.subject?.code}
+                                </strong>
+                                <span className="flex items-center gap-1 text-text-muted">
+                                  {lesson.locked ? (
+                                    <Lock
+                                      className="size-3.5"
+                                      aria-label="Zamčeno"
+                                    />
+                                  ) : null}
+                                  {lesson.manually_changed ? (
+                                    <Move
+                                      className="size-3.5"
+                                      aria-label="Ručně změněno"
+                                    />
+                                  ) : null}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-xs text-text-secondary">
+                                {view === "class"
+                                  ? lesson.teacher?.code
+                                  : lesson.schoolClass?.code}
+                                {lesson.group !== "WHOLE"
+                                  ? ` · ${teachingGroupLabels[lesson.group] ?? lesson.group}`
+                                  : ""}
+                              </p>
+                              <p className="mt-1 text-xs text-text-muted">
+                                {lesson.room?.code ?? "bez učebny"}
+                                {lesson.duration === 2 ? " · dvojhodina" : ""}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Fragment>
               ))}
             </div>
           </div>

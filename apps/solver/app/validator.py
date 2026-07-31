@@ -9,6 +9,7 @@ from app.models import (
     TeachingGroup,
     ValidationIssue,
 )
+from app.school_day import crosses_lunch_break
 
 
 def _groups_conflict(left: TeachingGroup, right: TeachingGroup) -> bool:
@@ -101,6 +102,22 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
                     entity_ids=[lesson.block_id],
                     day=lesson.day,
                     period=lesson.period,
+                )
+            )
+            continue
+
+        if crosses_lunch_break(lesson.period, lesson.duration):
+            issues.append(
+                ValidationIssue(
+                    code="LUNCH_BREAK_CROSSED",
+                    message=(
+                        f"Blok {lesson.block_id} nesmí spojit dopolední a "
+                        "odpolední vyučování přes obědovou přestávku."
+                    ),
+                    entity_ids=[lesson.block_id, lesson.class_id],
+                    day=lesson.day,
+                    period=lesson.period,
+                    details={"morningPeriodLimit": 6, "minimumLunchBreakMinutes": 50},
                 )
             )
             continue
