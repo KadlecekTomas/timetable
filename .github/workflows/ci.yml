@@ -6,48 +6,9 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  fix-client-workbook:
-    if: github.event_name == 'pull_request' && github.actor != 'github-actions[bot]' && github.head_ref == 'feat/client-friendly-excel-template'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm install
-      - name: Patch and format generator
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('apps/web/lib/import/client-workbook.ts')
-          text = path.read_text().replace('  workbook.views = [{ activeTab: 0 }];\n', '')
-          old = '    if (!source || !target) continue;'
-          new = '''    if (!target) continue;
-              if (!source) {
-                target.getRow(1).values = [
-                  undefined,
-                  ...definition.columns.map((column) => `missing_${column.key}`),
-                ];
-                continue;
-              }'''
-          if old not in text:
-              raise SystemExit('Missing source guard')
-          path.write_text(text.replace(old, new))
-          PY
-          npx prettier --write apps/web/lib/import/client-workbook.ts
-      - name: Commit fix
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/web/lib/import/client-workbook.ts
-          git commit -m "fix: validate missing client workbook sheets"
-          git push origin HEAD:${{ github.head_ref }}
-
   web:
     runs-on: ubuntu-latest
     env:
