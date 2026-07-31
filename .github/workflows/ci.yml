@@ -6,67 +6,9 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  fix-client-workbook-conversion:
-    if: github.event_name == 'pull_request' && github.actor != 'github-actions[bot]' && github.head_ref == 'feat/client-friendly-excel-template'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm install
-      - name: Patch conversion workbook
-        run: |
-          python - <<'PY'
-          import re
-          from pathlib import Path
-          path = Path('apps/web/lib/import/client-workbook.ts')
-          text = path.read_text()
-          text = text.replace(
-              'import type { ImportAnalysis, ImportIssueDraft } from "./contracts";',
-              'import {\n  IMPORT_TEMPLATE_VERSION,\n  type ImportAnalysis,\n  type ImportIssueDraft,\n} from "./contracts";',
-          )
-          text = text.replace(
-              'import { analyzeImportWorkbook, createImportTemplate } from "./workbook";',
-              'import { analyzeImportWorkbook } from "./workbook";',
-          )
-          pattern = re.compile(
-              r'  const legacy = new ExcelJS\.Workbook\(\);\n'
-              r'  await legacy\.xlsx\.load\([\s\S]*?\);\n'
-              r'  for \(const definition of DEFINITIONS\) \{\n'
-              r'    const source = workbook\.getWorksheet\(definition\.name\);\n'
-              r'    const target = legacy\.getWorksheet\(definition\.legacyName\);\n'
-              r'    if \(!target\) continue;'
-          )
-          replacement = '''  const legacy = new ExcelJS.Workbook();
-          const metadata = legacy.addWorksheet("Metadata", { state: "veryHidden" });
-          metadata.addRows([
-            ["templateVersion", IMPORT_TEMPLATE_VERSION],
-            ["generator", "Rozvrhář"],
-          ]);
-          for (const definition of DEFINITIONS) {
-            const source = workbook.getWorksheet(definition.name);
-            const target = legacy.addWorksheet(definition.legacyName);
-            target.addRow(definition.columns.map((column) => column.key));'''
-          text, count = pattern.subn(replacement, text, count=1)
-          if count != 1:
-              raise SystemExit(f'Expected one legacy initialization block, found {count}')
-          path.write_text(text)
-          PY
-          npx prettier --write apps/web/lib/import/client-workbook.ts
-      - name: Commit fix
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/web/lib/import/client-workbook.ts
-          git commit -m "fix: build deterministic technical import workbook"
-          git push origin HEAD:${{ github.head_ref }}
-
   web:
     runs-on: ubuntu-latest
     env:
