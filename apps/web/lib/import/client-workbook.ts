@@ -1,7 +1,11 @@
 import ExcelJS, { type CellValue, type Worksheet } from "exceljs";
 
-import type { ImportAnalysis, ImportIssueDraft } from "./contracts";
-import { analyzeImportWorkbook, createImportTemplate } from "./workbook";
+import {
+  IMPORT_TEMPLATE_VERSION,
+  type ImportAnalysis,
+  type ImportIssueDraft,
+} from "./contracts";
+import { analyzeImportWorkbook } from "./workbook";
 
 export const CLIENT_IMPORT_TEMPLATE_VERSION = "2.0.0" as const;
 export const CLIENT_TEMPLATE_HEADER_ROW = 5;
@@ -883,11 +887,15 @@ async function normalizeClientWorkbook(
     workbook.getWorksheet("Metadata")?.getCell("B1").text.trim() ?? "";
   if (version !== CLIENT_IMPORT_TEMPLATE_VERSION) return null;
   const legacy = new ExcelJS.Workbook();
-  await legacy.xlsx.load((await createImportTemplate()) as never);
+  const metadata = legacy.addWorksheet("Metadata", { state: "veryHidden" });
+  metadata.addRows([
+    ["templateVersion", IMPORT_TEMPLATE_VERSION],
+    ["generator", "Rozvrhář"],
+  ]);
   for (const definition of DEFINITIONS) {
     const source = workbook.getWorksheet(definition.name);
-    const target = legacy.getWorksheet(definition.legacyName);
-    if (!target) continue;
+    const target = legacy.addWorksheet(definition.legacyName);
+    target.addRow(definition.columns.map((column) => column.key));
     if (!source) {
       target.getRow(1).values = [
         undefined,
