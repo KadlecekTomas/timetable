@@ -793,7 +793,6 @@ export async function createClientImportTemplate(): Promise<Uint8Array> {
     8,
     7,
   ];
-  workbook.views = [{ activeTab: 0 }];
   return new Uint8Array(await workbook.xlsx.writeBuffer());
 }
 
@@ -888,7 +887,14 @@ async function normalizeClientWorkbook(
   for (const definition of DEFINITIONS) {
     const source = workbook.getWorksheet(definition.name);
     const target = legacy.getWorksheet(definition.legacyName);
-    if (!source || !target) continue;
+    if (!target) continue;
+    if (!source) {
+      target.getRow(1).values = [
+        undefined,
+        ...definition.columns.map((column) => `missing_${column.key}`),
+      ];
+      continue;
+    }
     const header = findHeader(source, definition);
     if (!header) {
       target.getRow(1).values = [
