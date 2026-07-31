@@ -895,14 +895,13 @@ async function normalizeClientWorkbook(
       ];
       continue;
     }
-    const header = findHeader(source, definition);
-    if (!header) {
-      target.getRow(1).values = [
-        undefined,
-        ...definition.columns.map((column) => `missing_${column.key}`),
-      ];
-      continue;
-    }
+    const header = findHeader(source, definition) ?? {
+      row: CLIENT_TEMPLATE_HEADER_ROW,
+      columns: new Map(
+        definition.columns.map((column, index) => [column.key, index + 1]),
+      ),
+    };
+    let targetRow = 2;
     for (let row = header.row + 1; row <= source.actualRowCount; row += 1) {
       const values = definition.columns.map((column) =>
         mapCell(
@@ -910,8 +909,14 @@ async function normalizeClientWorkbook(
           column.valueMap,
         ),
       );
-      if (values.some((value) => value != null && String(value).trim() !== ""))
-        target.addRow(values);
+      if (
+        values.some((value) => value != null && String(value).trim() !== "")
+      ) {
+        values.forEach((value, index) => {
+          target.getCell(targetRow, index + 1).value = value;
+        });
+        targetRow += 1;
+      }
     }
   }
   return new Uint8Array(await legacy.xlsx.writeBuffer());
