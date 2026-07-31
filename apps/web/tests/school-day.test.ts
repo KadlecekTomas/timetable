@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { CanonicalSnapshot, ScheduledLesson } from "../lib/domain/contracts";
+import type {
+  CanonicalSnapshot,
+  ScheduledLesson,
+} from "../lib/domain/contracts";
 import {
   crossesLunchBreak,
   MIN_LUNCH_BREAK_MINUTES,
