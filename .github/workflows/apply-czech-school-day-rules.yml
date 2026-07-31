@@ -1,28 +1,13 @@
-name: Format Czech school day files
+name: Disabled Czech school day formatter
 
 on:
-  pull_request:
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  format:
-    if: github.actor != 'github-actions[bot]'
+  disabled:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm install
-      - run: npx prettier --write apps/web/lib/domain/school-day.ts apps/web/tests/school-day.test.ts
-      - name: Commit formatting
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/web/lib/domain/school-day.ts apps/web/tests/school-day.test.ts
-          git commit -m "style: format Czech school day rules"
-          git push origin HEAD:${{ github.head_ref }}
+      - run: echo "One-shot Czech school day formatter already completed."
