@@ -37,8 +37,10 @@ test("school client template prefills classes, split groups and PE organization"
   const assignments = workbook.getWorksheet("5. Kdo co učí");
   assert.ok(assignments);
   assert.deepEqual(
-    Array.from({ length: 10 }, (_, index) =>
-      assignments.getRow(6 + index).values.slice(1, 8),
+    Array.from({ length: 10 }, (_, rowIndex) =>
+      Array.from({ length: 7 }, (_, columnIndex) =>
+        assignments.getCell(6 + rowIndex, 1 + columnIndex).text,
+      ),
     ),
     [
       ["6A-CJ-S1", "6A", "CJ", "", "Skupina 1", "", "Jednotlivé hodiny"],
