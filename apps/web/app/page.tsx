@@ -12,6 +12,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
+import { localApiFetch } from "@/lib/local/api";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { ReadinessReport } from "@/lib/domain/contracts";
@@ -39,7 +40,7 @@ export default function HomePage() {
     let cancelled = false;
     async function load() {
       try {
-        const response = await fetch("/api/school-years", {
+        const response = await localApiFetch("/api/school-years", {
           cache: "no-store",
         });
         if (!response.ok) throw new Error("Školní roky se nepodařilo načíst.");
@@ -69,7 +70,7 @@ export default function HomePage() {
     }
     let cancelled = false;
     async function loadReadiness() {
-      const response = await fetch(
+      const response = await localApiFetch(
         `/api/school-years/${selectedId}/readiness`,
         {
           cache: "no-store",
@@ -155,8 +156,8 @@ export default function HomePage() {
         {error ? <p className="mt-3 text-sm text-danger">{error}</p> : null}
         {!loading && schoolYears.length === 0 ? (
           <p className="mt-3 text-sm text-text-secondary">
-            Zatím neexistuje žádný školní rok. Vytvořte jej pomocí programového
-            rozhraní nebo připravovaného formuláře nastavení.
+            Lokální projekt se nepodařilo vytvořit. Zkontrolujte, zda prohlížeč
+            povoluje úložiště webu.
           </p>
         ) : null}
       </section>
@@ -237,7 +238,7 @@ export default function HomePage() {
                   </h2>
                   <p className="mt-1 text-sm leading-6 text-text-secondary">
                     {readiness?.ready
-                      ? "Vstupní data prošla serverovou kontrolou."
+                      ? "Vstupní data prošla lokální kontrolou."
                       : (readiness?.blockers[0]?.message ??
                         "Načítám kontrolu připravenosti…")}
                   </p>

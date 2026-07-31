@@ -12,22 +12,18 @@ jobs:
   web:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgresql://timetable:timetable@localhost:5432/timetable?schema=public
-      SOLVER_URL: http://localhost:8000
-      WORKER_TOKEN: ci-worker-token
+      SOLVER_URL: http://127.0.0.1:8000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm install
-      - run: npm run db:generate
-      - run: npm run db:validate
       - run: npm run format:check
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm run test
-      - run: npm run build
+      - run: npm run lint --workspace @timetable/web
+      - run: npm run typecheck --workspace @timetable/web
+      - run: npm run test --workspace @timetable/web
+      - run: npm run build --workspace @timetable/web
 
   solver:
     runs-on: ubuntu-latest
@@ -44,45 +40,31 @@ jobs:
 
   containers:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - run: docker compose config
       - run: docker compose build
-      - name: Start built services and wait for health checks
-        run: docker compose up -d --wait --wait-timeout 120 postgres solver web
-      - name: Verify web container runtime
-        run: curl --fail --silent --show-error http://127.0.0.1:3000/api/health
+      - name: Start database-free Docker stack
+        run: docker compose up -d --wait --wait-timeout 180
+      - name: Verify web and proxied solver runtime
+        run: |
+          curl --fail --silent --show-error http://127.0.0.1:3000/api/health
+          curl --fail --silent --show-error http://127.0.0.1:3000/solver/health
+          curl --fail --silent --show-error http://127.0.0.1:8000/health
       - name: Show container diagnostics
         if: failure()
         run: docker compose ps && docker compose logs --no-color
-      - name: Stop runtime stack
+      - name: Stop Docker stack
         if: always()
         run: docker compose down --volumes --remove-orphans
 
-  e2e:
+  local-first-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: timetable
-          POSTGRES_USER: timetable
-          POSTGRES_PASSWORD: timetable
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U timetable -d timetable"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+    timeout-minutes: 20
     env:
-      DATABASE_URL: postgresql://timetable:timetable@127.0.0.1:5432/timetable?schema=public
       SOLVER_URL: http://127.0.0.1:8000
-      WEB_INTERNAL_URL: http://127.0.0.1:3000
-      WORKER_TOKEN: e2e-worker-token
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
-      WORKER_POLL_INTERVAL_MS: 250
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -92,17 +74,12 @@ jobs:
         with:
           python-version: "3.11"
       - run: npm install
-      - run: npm run db:generate
-      - run: npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
       - run: pip install "."
         working-directory: apps/solver
       - run: npx playwright install --with-deps chromium
-      - name: Build application processes
-        run: |
-          npm run build --workspace @timetable/database
-          npm run build --workspace @timetable/worker
-          npm run build --workspace @timetable/web
-      - name: Start solver, web and worker
+      - name: Build web without a database
+        run: npm run build --workspace @timetable/web
+      - name: Start solver and web
         shell: bash
         run: |
           nohup bash -c 'cd apps/solver && uvicorn app.main:app --host 127.0.0.1 --port 8000' > /tmp/solver.log 2>&1 &
@@ -110,42 +87,26 @@ jobs:
 
           for attempt in $(seq 1 90); do
             if curl --fail --silent http://127.0.0.1:8000/health >/dev/null && \
-               curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null; then
-              break
+               curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null && \
+               curl --fail --silent http://127.0.0.1:3000/solver/health >/dev/null; then
+              exit 0
             fi
             sleep 1
           done
 
-          curl --fail --silent http://127.0.0.1:8000/health
-          curl --fail --silent http://127.0.0.1:3000/api/health
-          nohup node apps/worker/dist/index.js > /tmp/worker.log 2>&1 &
-          sleep 1
-      - name: Run integrated browser scenarios
-        run: npm run e2e --workspace @timetable/web
-      - name: Repeat critical release gate three times without retries
-        run: npm run e2e --workspace @timetable/web -- e2e/release-gate.spec.ts --repeat-each=3 --retries=0
-      - name: Upload visual screenshot gallery
-        if: success()
+          cat /tmp/solver.log || true
+          cat /tmp/web.log || true
+          exit 1
+      - name: Run database-free browser workflows
+        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/local-first-backup.spec.ts --retries=0
+      - name: Repeat critical local-first workflow three times
+        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts --repeat-each=3 --retries=0
+      - name: Upload failure diagnostics
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: visual-screenshots
-          path: apps/web/screenshots
-          if-no-files-found: error
-          retention-days: 14
-      - name: Collect failure diagnostics
-        if: failure()
-        shell: bash
-        run: |
-          mkdir -p artifacts
-          cp /tmp/solver.log artifacts/solver.log 2>/dev/null || true
-          cp /tmp/web.log artifacts/web.log 2>/dev/null || true
-          cp /tmp/worker.log artifacts/worker.log 2>/dev/null || true
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: playwright-failure
+          name: local-first-failure
           path: |
             apps/web/playwright-report
             apps/web/test-results
-            artifacts
           if-no-files-found: ignore

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
+import { localApiFetch } from "@/lib/local/api";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
@@ -123,9 +124,11 @@ export default function DataPage() {
         resourceNames.add("room-types");
 
       const [yearResponse, ...resourceResponses] = await Promise.all([
-        fetch(`/api/school-years/${schoolYearId}`, { cache: "no-store" }),
+        localApiFetch(`/api/school-years/${schoolYearId}`, {
+          cache: "no-store",
+        }),
         ...[...resourceNames].map((resource) =>
-          fetch(`/api/school-years/${schoolYearId}/${resource}`, {
+          localApiFetch(`/api/school-years/${schoolYearId}/${resource}`, {
             cache: "no-store",
           }),
         ),
@@ -261,7 +264,7 @@ export default function DataPage() {
     }
 
     try {
-      const response = await fetch(
+      const response = await localApiFetch(
         `/api/school-years/${schoolYearId}/${section}`,
         {
           method: "POST",
@@ -301,7 +304,7 @@ export default function DataPage() {
     )
       return;
     setError(null);
-    const response = await fetch(
+    const response = await localApiFetch(
       `/api/school-years/${schoolYearId}/${section}/${id}`,
       {
         method: "DELETE",

@@ -142,7 +142,7 @@ function addListValidation(
   }
 }
 
-export async function createImportTemplate(): Promise<Buffer> {
+export async function createImportTemplate(): Promise<Uint8Array> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Timetable";
   workbook.created = new Date("2026-01-01T00:00:00.000Z");
@@ -205,7 +205,7 @@ export async function createImportTemplate(): Promise<Buffer> {
   addListValidation(fixedLessons, 3, DAY_VALUES);
   addListValidation(fixedLessons, 7, ["TRUE", "FALSE"]);
 
-  return Buffer.from(await workbook.xlsx.writeBuffer());
+  return new Uint8Array(await workbook.xlsx.writeBuffer());
 }
 
 function issue(
@@ -485,7 +485,7 @@ function emptySummary(): ImportSummary {
 }
 
 export async function analyzeImportWorkbook(
-  buffer: Buffer,
+  buffer: ArrayBuffer | Uint8Array,
 ): Promise<ImportAnalysis> {
   const issues: ImportIssueDraft[] = [];
   const workbook = new ExcelJS.Workbook();

@@ -13,6 +13,7 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
+import { localApiFetch } from "@/lib/local/api";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { ReadinessReport } from "@/lib/domain/contracts";
@@ -55,10 +56,10 @@ export default function GeneratePage() {
   const load = useCallback(async () => {
     if (!schoolYearId) return;
     const [readinessResponse, runsResponse] = await Promise.all([
-      fetch(`/api/school-years/${schoolYearId}/readiness`, {
+      localApiFetch(`/api/school-years/${schoolYearId}/readiness`, {
         cache: "no-store",
       }),
-      fetch(`/api/school-years/${schoolYearId}/generation-runs`, {
+      localApiFetch(`/api/school-years/${schoolYearId}/generation-runs`, {
         cache: "no-store",
       }),
     ]);
@@ -85,7 +86,7 @@ export default function GeneratePage() {
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(
+      const response = await localApiFetch(
         `/api/school-years/${schoolYearId}/generation-runs`,
         {
           method: "POST",
@@ -117,7 +118,7 @@ export default function GeneratePage() {
   }
 
   async function cancel(runId: string) {
-    const response = await fetch(`/api/generation-runs/${runId}`, {
+    const response = await localApiFetch(`/api/generation-runs/${runId}`, {
       method: "DELETE",
     });
     if (!response.ok) {
@@ -142,7 +143,7 @@ export default function GeneratePage() {
       <PageHeader
         eyebrow="Fáze 5–6"
         title="Tvorba rozvrhu"
-        description="Úloha se uloží do fronty zpracování. Aplikace zobrazuje skutečnou fázi výpočtu a nevymýšlí procenta, která plánovací modul nezná."
+        description="Zadání se odešle přímo plánovacímu modulu. Výsledek se po dokončení automaticky uloží do lokálního projektu v tomto prohlížeči."
         actions={
           <Button variant="outline" onClick={() => void load()}>
             <RefreshCw className="size-4" aria-hidden="true" />
@@ -220,7 +221,7 @@ export default function GeneratePage() {
             disabled={busy || !readiness?.ready}
           >
             <Play className="size-4" aria-hidden="true" />
-            {busy ? "Zařazuji…" : "Vytvořit nový návrh"}
+            {busy ? "Počítám rozvrh…" : "Vytvořit nový návrh"}
           </Button>
         </article>
       </section>
@@ -231,7 +232,7 @@ export default function GeneratePage() {
             Průběh tvorby rozvrhu
           </h2>
           <p className="mt-1 text-xs text-text-muted">
-            Neměnné vstupy, průběh zpracování a výsledná verze.
+            Lokálně uložené výpočty a výsledné verze.
           </p>
         </div>
         {runs.length ? (

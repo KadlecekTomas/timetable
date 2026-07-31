@@ -4,22 +4,16 @@
   "private": true,
   "packageManager": "npm@11.4.2",
   "workspaces": [
-    "apps/web",
-    "apps/worker",
-    "packages/*"
+    "apps/web"
   ],
   "scripts": {
     "dev": "npm run dev --workspace @timetable/web",
-    "build": "npm run build --workspace @timetable/database && npm run build --workspace @timetable/worker && npm run build --workspace @timetable/web",
+    "build": "npm run build --workspace @timetable/web",
     "lint": "npm run lint --workspace @timetable/web",
-    "typecheck": "npm run build --workspace @timetable/database && npm run typecheck --workspace @timetable/worker && npm run typecheck --workspace @timetable/web",
-    "test": "npm run test --workspace @timetable/worker && npm run test --workspace @timetable/web",
-    "format": "prettier --write package.json apps/web apps/worker packages/database .github/workflows compose.yaml",
-    "format:check": "prettier --check package.json apps/web apps/worker packages/database .github/workflows compose.yaml",
-    "db:generate": "npm run prisma:generate --workspace @timetable/database",
-    "db:validate": "npm run prisma:validate --workspace @timetable/database",
-    "db:migrate": "npm run prisma:migrate --workspace @timetable/database",
-    "db:studio": "npm run prisma:studio --workspace @timetable/database"
+    "typecheck": "npm run typecheck --workspace @timetable/web",
+    "test": "npm run test --workspace @timetable/web",
+    "format": "prettier --write package.json apps/web apps/solver .github/workflows compose.yaml vercel.json",
+    "format:check": "prettier --check package.json apps/web apps/solver .github/workflows compose.yaml vercel.json"
   },
   "devDependencies": {
     "prettier": "3.6.2"

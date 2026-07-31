@@ -1,81 +1,128 @@
-# Timetable
+# Rozvrhář
 
-Jednoduchá webová aplikace pro vytvoření kvalitního návrhu školního rozvrhu pro 2. stupeň základní školy.
+Webová aplikace pro vytvoření a ruční doladění školního rozvrhu pro jednu školu a jedno vedení.
 
-## Cíl MVP
+## Provozní model
 
-Zástupkyně školy nahraje připravenou Excel šablonu, doplní omezení a spustí generování. Aplikace vytvoří návrh rozvrhu bez tvrdých konfliktů a s důrazem na minimalizaci dlouhých mezer mezi hodinami učitelů i tříd.
+Aplikace je navržená jako **local-first**:
 
-## Základní principy
+- učitelé, třídy, předměty, učebny a pravidla se ukládají do IndexedDB v prohlížeči;
+- vytvořené návrhy, zámky, ruční přesuny a historie vrácení změn zůstávají ve stejném lokálním projektu;
+- není potřeba PostgreSQL, Prisma, serverová fronta ani permanentně běžící worker;
+- plánovací výpočet provádí samostatná FastAPI služba s Google OR-Tools;
+- data školy se na serveru trvale neukládají.
 
-- Povinná pravidla se nikdy nesmí porušit.
-- Preference se optimalizují podle verzovaných vah.
+Tento režim je určený pro práci na jednom hlavním počítači nebo v jednom stabilním profilu prohlížeče. Data různých prohlížečů, zařízení, domén a Vercel Preview deploymentů se automaticky nesynchronizují.
+
+## Povinné zálohování
+
+IndexedDB přežije zavření karty i restart počítače, ale může být odstraněná vymazáním dat webu, resetem profilu nebo poruchou zařízení.
+
+V části **Nastavení** proto aplikace umožňuje:
+
+- stáhnout úplnou zálohu projektu;
+- ověřit zálohu pomocí SHA-256 kontrolního součtu;
+- obnovit celý projekt na stejném nebo jiném zařízení;
+- bezpečně vymazat lokální projekt až po dvojím potvrzení.
+
+Doporučený postup je stáhnout zálohu po každé významné změně a uložit ji na školní Google Disk nebo jiné spravované úložiště.
+
+## Hlavní workflow
+
+1. Nastavit školu a školní rok.
+2. Stáhnout Excel šablonu.
+3. Vyplnit učitele, třídy, předměty, učebny, vazby a omezení.
+4. Nechat soubor analyzovat bez zápisu.
+5. Potvrdit validní import do lokálního projektu.
+6. Spustit přímý výpočet rozvrhu.
+7. Zkontrolovat kvalitu a konflikty.
+8. Ručně přesouvat a zamykat hodiny.
+9. Stáhnout zálohu projektu.
+
+## Základní pravidla
+
+- Povinná omezení se nesmí porušit.
 - Učitel, třída ani učebna nesmí být ve stejný čas na dvou místech.
-- Dělená výuka má v MVP právě dvě skupiny: Skupina 1 a Skupina 2.
-- Import je atomický, validovaný a ukazuje chybu na konkrétním listu, řádku a sloupci.
-- Výsledek solveru prochází nezávislou kontrolou tvrdých omezení.
-- Uživatel může rozvrh ručně upravit, zamknout a přegenerovat jeho nezamčenou část.
+- Dělená výuka používá skupiny 1 a 2.
+- Import je atomický a ukazuje chybu na konkrétním listu, řádku a sloupci.
+- Výsledek solveru prochází nezávislou kontrolou tvrdých omezení v prohlížeči.
 - Každý návrh obsahuje vysvětlitelné hodnocení kvality.
+- Ruční změny jsou verzované a lze je vracet.
 
 ## Stack
 
-- Next.js, React a TypeScript strict
-- Tailwind CSS a shadcn/ui
-- PostgreSQL a Prisma
+- Next.js 15, React 19 a TypeScript strict
+- Tailwind CSS
+- IndexedDB a Web Crypto API
+- ExcelJS
 - Python, FastAPI a Google OR-Tools CP-SAT
+- Playwright
 - Docker Compose
 - GitHub Actions
 
-## Rychlé spuštění
+## Rychlé spuštění přes Docker
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-Po startu je web dostupný na `http://localhost:3000` a dokumentace solver API na `http://localhost:8000/docs`.
+Po startu:
 
-Podrobný postup a verifikační příkazy jsou v [lokálním vývojovém setupu](docs/16-development-setup.md).
+- web: `http://localhost:3000`
+- solver API: `http://localhost:8000/docs`
 
-## Monorepo
+Docker Compose spouští pouze web a solver. Žádná databáze ani worker nejsou součástí runtime.
+
+## Vývoj bez Dockeru
+
+Web:
+
+```bash
+npm install
+SOLVER_URL=http://127.0.0.1:8000 npm run dev
+```
+
+Solver v druhém terminálu:
+
+```bash
+cd apps/solver
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+## Struktura repozitáře
 
 ```text
 apps/
-  web/       Next.js aplikace
-  solver/    FastAPI a OR-Tools služba
-packages/
-  database/  Prisma schema a sdílený klient
+  web/       Next.js UI, IndexedDB úložiště a lokální doménová logika
+  solver/    FastAPI a OR-Tools plánovací služba
 docs/        Produktová a technická dokumentace
+vercel.json  Konfigurace Vercel Services pro web a solver
 ```
 
-## Dokumentace
+## Nasazení na Vercel
 
-Dokumentace v `docs/` je hlavním zdrojem pravdy pro produkt i implementaci:
+Repozitář obsahuje konfiguraci pro dvě služby v jednom Vercel projektu:
 
-1. [Produktový scope](docs/01-product-scope.md)
-2. [Uživatelský tok](docs/02-user-flow.md)
-3. [Datový model](docs/03-data-model.md)
-4. [Excel importní kontrakt](docs/04-excel-import.md)
-5. [Solver](docs/05-solver.md)
-6. [Scoring a kvalita](docs/06-scoring.md)
-7. [UI a UX](docs/07-ui-ux.md)
-8. [Technická architektura](docs/08-architecture.md)
-9. [API kontrakt](docs/09-api.md)
-10. [Design systém](docs/10-design-system.md)
-11. [Roadmapa](docs/11-roadmap.md)
-12. [Akceptační testy](docs/12-acceptance-tests.md)
-13. [Pravidla pro AI vývoj](docs/13-vibecode-rules.md)
-14. [Budoucí funkce](docs/14-future-features.md)
-15. [Architecture Decision Records](docs/adr/README.md)
-16. [Lokální vývoj](docs/16-development-setup.md)
+- `web` jako Next.js frontend;
+- `solver` jako FastAPI backend pod cestou `/solver`.
 
-## Pravidla repozitáře
+Vercel projekt musí používat režim **Services**. Před produkčním použitím musí proběhnout Preview deployment a stejný local-first Playwright scénář proti jeho veřejné URL. CI v GitHub Actions ověřuje databázově nezávislý runtime lokálně, nikoli dostupnost konkrétního Vercel účtu nebo povolení beta funkce Services.
 
-- [Pokyny pro přispívání](CONTRIBUTING.md)
-- [Instrukce pro AI agenty](AGENTS.md)
-- [Bezpečnostní zásady](SECURITY.md)
-- [Proces architektonických rozhodnutí](docs/adr/README.md)
+## Automatická verifikace
 
-## Aktuální stav
+CI ověřuje:
 
-Fáze 1 — repository foundation je implementována na feature větvi. Skeleton obsahuje web, databázovou vrstvu, solver službu, Docker Compose, health checks a CI. Doménové funkce se budou přidávat až v dalších fázích podle roadmapy.
+- formátování, lint a TypeScript;
+- webové a doménové jednotkové testy;
+- produkční build webu bez databáze;
+- solver lint a testy;
+- kompletní workflow Excel → IndexedDB → solver → rozvrh → záloha → vymazání → obnova;
+- stejnou kritickou browserovou bránu třikrát za sebou bez retry.
+
+## Důležité omezení
+
+Tato varianta není víceuživatelský cloudový systém. Neobsahuje účty, synchronizaci mezi zařízeními ani centrální historii. Přístup k datům určuje přístup k danému počítači a profilu prohlížeče.

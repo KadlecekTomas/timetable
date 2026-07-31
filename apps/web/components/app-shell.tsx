@@ -13,6 +13,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { LOCAL_SCHOOL_YEAR_ID } from "@/lib/local/api";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -31,7 +32,7 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const schoolYearId = searchParams.get("schoolYearId");
+  const schoolYearId = searchParams.get("schoolYearId") ?? LOCAL_SCHOOL_YEAR_ID;
   const appendContext = (href: string) => {
     if (!schoolYearId) return href;
     const separator = href.includes("?") ? "&" : "?";
@@ -57,10 +58,10 @@ export function AppShell({ children }: AppShellProps) {
 
         <div className="border-b border-border px-5 py-4">
           <p className="truncate text-sm font-medium text-text-primary">
-            {schoolYearId ? "Vybraný školní rok" : "Ukázkový pracovní prostor"}
+            Lokální projekt jedné školy
           </p>
           <p className="mt-0.5 truncate text-xs text-text-muted">
-            {schoolYearId ?? "Připojte školní rok přes Přehled"}
+            Uloženo pouze v tomto prohlížeči
           </p>
         </div>
 
