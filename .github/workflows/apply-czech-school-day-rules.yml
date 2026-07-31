@@ -1,118 +1,13 @@
-name: Apply Czech school day rules
+name: Disabled Czech school day patcher
 
 on:
-  pull_request:
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply:
-    if: github.actor != 'github-actions[bot]'
+  disabled:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm install
-      - name: Apply legal morning and lunch boundary
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          def replace(path: str, old: str, new: str) -> None:
-              file = Path(path)
-              text = file.read_text()
-              if old not in text:
-                  raise SystemExit(f"Missing expected text in {path}: {old!r}")
-              file.write_text(text.replace(old, new))
-
-          replace(
-              "apps/solver/app/main.py",
-              "from app.scoring import score_schedule\nfrom app.validator import validate_schedule",
-              "from app.school_day import crosses_lunch_break\nfrom app.scoring import score_schedule\nfrom app.validator import validate_schedule",
-          )
-          replace(
-              "apps/solver/app/main.py",
-              "        for period in range(0, periods - block.duration + 1):\n            if fixed and period != fixed.period:",
-              "        for period in range(0, periods - block.duration + 1):\n            if crosses_lunch_break(period, block.duration):\n                continue\n            if fixed and period != fixed.period:",
-          )
-
-          replace(
-              "apps/solver/app/validator.py",
-              ")\n\n\ndef _groups_conflict",
-              ")\nfrom app.school_day import crosses_lunch_break\n\n\ndef _groups_conflict",
-          )
-          replace(
-              "apps/solver/app/validator.py",
-              "            continue\n\n        if assignment.required_room_id",
-              "            continue\n\n        if crosses_lunch_break(lesson.period, lesson.duration):\n            issues.append(\n                ValidationIssue(\n                    code=\"LUNCH_BREAK_CROSSED\",\n                    message=(\n                        f\"Blok {lesson.block_id} nesmí spojit dopolední a \"\n                        \"odpolední vyučování přes obědovou přestávku.\"\n                    ),\n                    entity_ids=[lesson.block_id, lesson.class_id],\n                    day=lesson.day,\n                    period=lesson.period,\n                    details={\"morningPeriodLimit\": 6, \"minimumLunchBreakMinutes\": 50},\n                )\n            )\n            continue\n\n        if assignment.required_room_id",
-          )
-
-          replace(
-              "apps/solver/app/models.py",
-              "periods_per_day values must be between 1 and 16",
-              "periods_per_day values must be between 1 and 12",
-          )
-          replace(
-              "apps/solver/app/models.py",
-              "if any(periods < 1 or periods > 16 for periods in self.periods_per_day):",
-              "if any(periods < 1 or periods > 12 for periods in self.periods_per_day):",
-          )
-
-          replace(
-              "apps/web/lib/domain/validation.ts",
-              '} from "./contracts";\n',
-              '} from "./contracts";\nimport { crossesLunchBreak, MIN_LUNCH_BREAK_MINUTES, MORNING_PERIOD_LIMIT } from "./school-day";\n',
-          )
-          replace(
-              "apps/web/lib/domain/validation.ts",
-              "      continue;\n    }\n\n    if (\n      assignment.required_room_id",
-              "      continue;\n    }\n\n    if (crossesLunchBreak(lesson.period, lesson.duration)) {\n      pushIssue(\n        issues,\n        \"LUNCH_BREAK_CROSSED\",\n        `Blok ${lesson.block_id} nesmí spojit dopolední a odpolední vyučování přes obědovou přestávku.`,\n        [lesson.block_id, lesson.class_id],\n        lesson.day,\n        lesson.period,\n        {\n          morningPeriodLimit: MORNING_PERIOD_LIMIT,\n          minimumLunchBreakMinutes: MIN_LUNCH_BREAK_MINUTES,\n        },\n      );\n      continue;\n    }\n\n    if (\n      assignment.required_room_id",
-          )
-
-          replace(
-              "apps/web/app/timetable/page.tsx",
-              'import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";',
-              'import { Fragment, FormEvent, useCallback, useEffect, useMemo, useState } from "react";',
-          )
-          replace(
-              "apps/web/app/timetable/page.tsx",
-              'import { teachingGroupLabels } from "@/lib/ui-labels";',
-              'import { teachingGroupLabels } from "@/lib/ui-labels";\nimport { MIN_LUNCH_BREAK_MINUTES, MORNING_PERIOD_LIMIT } from "@/lib/domain/school-day";',
-          )
-          replace(
-              "apps/web/app/timetable/page.tsx",
-              "              {Array.from({ length: maximumPeriods }, (_, period) => (\n                <div\n                  key={period}",
-              "              {Array.from({ length: maximumPeriods }, (_, period) => (\n                <Fragment key={period}>\n                  {period === MORNING_PERIOD_LIMIT ? (\n                    <div className=\"grid grid-cols-[64px_repeat(5,minmax(170px,1fr))] border-b border-warning-border bg-warning-subtle\">\n                      <div className=\"col-span-6 px-4 py-2 text-center text-xs font-semibold text-warning-strong\">\n                        Obědová přestávka · nejméně {MIN_LUNCH_BREAK_MINUTES} minut\n                      </div>\n                    </div>\n                  ) : null}\n                  <div\n                  key={`period-${period}`}",
-          )
-          replace(
-              "apps/web/app/timetable/page.tsx",
-              "                </div>\n              ))}\n            </div>\n          </div>",
-              "                  </div>\n                </Fragment>\n              ))}\n            </div>\n          </div>",
-          )
-
-          replace(
-              "apps/web/lib/import/client-workbook.ts",
-              '"Vyplňte jeden řádek. Počet hodin znamená, kolik vyučovacích hodin může být v daný den.",',
-              '"Vyplňte jeden řádek. Nejvýše 6 hodin je dopolední výuka; 7. a další hodina je odpolední výuka po obědové přestávce nejméně 50 minut.",',
-          )
-          replace(
-              "apps/web/lib/import/client-workbook.ts",
-              '"Celé číslo 1–16.",\n        whole(1, 16),',
-              '"Celé číslo 1–12. Prvních 6 hodin je dopoledních, další jsou odpolední.",\n        whole(1, 12),',
-          )
-          PY
-      - run: npx prettier --write apps/web/lib/domain/validation.ts apps/web/app/timetable/page.tsx apps/web/lib/import/client-workbook.ts
-      - name: Commit school day rules
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/solver apps/web
-          git commit -m "feat: enforce Czech morning and lunch schedule rules"
-          git push origin HEAD:${{ github.head_ref }}
+      - run: echo "One-shot Czech school day patch already completed."
