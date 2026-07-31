@@ -42,9 +42,7 @@ test("client template is Czech, guided and imports friendly values", async () =>
     ["NOV", "Jan", "Novák", 2, "", "", "M", "6A"],
   ]);
   writeRows(workbook.getWorksheet("2. Třídy")!, [["6A", 6, "6.A"]]);
-  writeRows(workbook.getWorksheet("3. Předměty")!, [
-    ["M", "Matematika", ""],
-  ]);
+  writeRows(workbook.getWorksheet("3. Předměty")!, [["M", "Matematika", ""]]);
   writeRows(workbook.getWorksheet("4. Učebny")!, [
     ["101", "Kmenová učebna", "BĚŽNÁ", 30],
   ]);
