@@ -35,8 +35,7 @@ export function applySchoolStaffingOverrides(workbook: ExcelJS.Workbook) {
 
   organization.getCell("B7").value = "Pouze informatika, 12 hodin týdně";
   organization.getCell("C7").value = "Učí pouze v úterý a ve středu";
-  organization.getCell("D7").value =
-    "Pondělí, čtvrtek a pátek jsou nedostupné";
+  organization.getCell("D7").value = "Pondělí, čtvrtek a pátek jsou nedostupné";
   organization.getCell("E7").value =
     "Nedostupné sloty nastavte na listu 6. Dostupnost.";
 }
