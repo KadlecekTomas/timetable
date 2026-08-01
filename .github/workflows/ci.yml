@@ -61,7 +61,7 @@ jobs:
 
   local-first-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     env:
       SOLVER_URL: http://127.0.0.1:8000
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
@@ -99,6 +99,8 @@ jobs:
           exit 1
       - name: Run database-free browser workflows
         run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/local-first-backup.spec.ts --retries=0
+      - name: Run realistic 40-teacher school workflow
+        run: npm run e2e --workspace @timetable/web -- e2e/school-scale.spec.ts --retries=0
       - name: Repeat critical local-first workflow three times
         run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts --repeat-each=3 --retries=0
       - name: Upload failure diagnostics
