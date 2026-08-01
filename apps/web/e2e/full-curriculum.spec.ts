@@ -156,6 +156,7 @@ function teacherPool(
 
 const TEACHERS: TeacherDefinition[] = [
   { code: "KAD", firstName: "Tomáš", lastName: "Kadleček" },
+  { code: "VAS", firstName: "—", lastName: "Vašáková" },
   ...teacherPool("CJ", 6, "Čeština"),
   ...teacherPool("M", 6, "Matematika"),
   ...teacherPool("AJ", 5, "Angličtina"),
@@ -263,18 +264,47 @@ function buildAssignments(): AssignmentDefinition[] {
       }
     });
 
-    assignments.push({
-      code: `${classCode}-INF`,
-      classCode,
-      additionalClassCodes: [],
-      subjectCode: "INF",
-      teacherCode: "KAD",
-      group: "Celá třída",
-      weeklyPeriods: 1,
-      shape: "Jednotlivé hodiny",
-      requiredRoomType: "POČÍTAČOVÁ UČEBNA",
-      maxPerDay: 1,
-    });
+    if (classCode === "8B") {
+      assignments.push({
+        code: "8B-INF",
+        classCode,
+        additionalClassCodes: [],
+        subjectCode: "INF",
+        teacherCode: "KAD",
+        group: "Celá třída",
+        weeklyPeriods: 1,
+        shape: "Jednotlivé hodiny",
+        requiredRoomType: "POČÍTAČOVÁ UČEBNA",
+        maxPerDay: 1,
+      });
+    } else {
+      assignments.push(
+        {
+          code: `${classCode}-INF-S1`,
+          classCode,
+          additionalClassCodes: [],
+          subjectCode: "INF",
+          teacherCode: "KAD",
+          group: "Skupina 1",
+          weeklyPeriods: 1,
+          shape: "Jednotlivé hodiny",
+          requiredRoomType: "POČÍTAČOVÁ UČEBNA",
+          maxPerDay: 1,
+        },
+        {
+          code: `${classCode}-INF-S2`,
+          classCode,
+          additionalClassCodes: [],
+          subjectCode: "INF",
+          teacherCode: "VAS",
+          group: "Skupina 2",
+          weeklyPeriods: 1,
+          shape: "Jednotlivé hodiny",
+          requiredRoomType: "POČÍTAČOVÁ UČEBNA",
+          maxPerDay: 1,
+        },
+      );
+    }
 
     if (classCode !== "9C") {
       const sharedKadPe = classCode === "9A";
@@ -361,28 +391,47 @@ function buildAvailabilityRows() {
     ["Učitel", "KAD", "Pátek", 1, "Nemůže", null, "Ranní povinnost"],
     ["Učitel", "KAD", "Pátek", 2, "Nemůže", null, "Ranní povinnost"],
   ];
-  TEACHERS.filter((teacher) => teacher.code !== "KAD").forEach(
-    (teacher, index) => {
+
+  for (const [day, periods] of [
+    ["Pondělí", 8],
+    ["Čtvrtek", 8],
+    ["Pátek", 7],
+  ] as const) {
+    for (let period = 1; period <= periods; period += 1) {
       rows.push([
         "Učitel",
-        teacher.code,
-        DAY_LABELS[index % DAY_LABELS.length],
-        ((index * 2) % 7) + 1,
+        "VAS",
+        day,
+        period,
         "Nemůže",
         null,
-        "Individuální nedostupnost",
+        "Vašáková učí pouze v úterý a ve středu",
       ]);
-      rows.push([
-        "Učitel",
-        teacher.code,
-        DAY_LABELS[(index + 2) % DAY_LABELS.length],
-        ((index + 1) % 6) + 1,
-        "Preferuje",
-        5,
-        "Preferovaný dopolední slot",
-      ]);
-    },
-  );
+    }
+  }
+
+  TEACHERS.filter(
+    (teacher) => teacher.code !== "KAD" && teacher.code !== "VAS",
+  ).forEach((teacher, index) => {
+    rows.push([
+      "Učitel",
+      teacher.code,
+      DAY_LABELS[index % DAY_LABELS.length],
+      ((index * 2) % 7) + 1,
+      "Nemůže",
+      null,
+      "Individuální nedostupnost",
+    ]);
+    rows.push([
+      "Učitel",
+      teacher.code,
+      DAY_LABELS[(index + 2) % DAY_LABELS.length],
+      ((index + 1) % 6) + 1,
+      "Preferuje",
+      5,
+      "Preferovaný dopolední slot",
+    ]);
+  });
   return rows;
 }
 
@@ -572,7 +621,7 @@ function occupiedExportCells(worksheet: Worksheet): number {
   return occupied;
 }
 
-test("vedení školy vytvoří a exportuje plný rozvrh druhého stupně se 122 hodinami", async ({
+test("vedení školy vytvoří plný rozvrh s Vašákovou pouze v úterý a ve středu", async ({
   page,
 }) => {
   test.setTimeout(600_000);
@@ -591,8 +640,8 @@ test("vedení školy vytvoří a exportuje plný rozvrh druhého stupně se 122 
   await page.getByRole("button", { name: "Uložit nastavení" }).click();
 
   const workbook = await createFullCurriculumWorkbook();
-  expect(TEACHERS).toHaveLength(40);
-  expect(workbook.assignments).toHaveLength(244);
+  expect(TEACHERS).toHaveLength(41);
+  expect(workbook.assignments).toHaveLength(256);
   await page.getByRole("link", { name: "Načtení dat" }).click();
   await page.locator("#import-file").setInputFiles({
     name: "plny-druhy-stupen.xlsx",
@@ -610,19 +659,57 @@ test("vedení školy vytvoří a exportuje plný rozvrh druhého stupně se 122 
   ).toBeVisible();
   await expect
     .poll(async () => (await readProject(page)).teachers.length)
-    .toBe(40);
+    .toBe(41);
 
   const imported = await readProject(page);
-  expect(imported.teachers).toHaveLength(40);
+  expect(imported.teachers).toHaveLength(41);
   expect(imported.classes).toHaveLength(13);
   expect(imported.subjects).toHaveLength(16);
-  expect(imported.assignments).toHaveLength(244);
+  expect(imported.assignments).toHaveLength(256);
   expect(
     new Map(imported.subjects.map((subject) => [subject.code, subject.name])),
   ).toEqual(new Map(SUBJECTS.map(([code, name]) => [code, name])));
+
   const subjectById = new Map(
     imported.subjects.map((subject) => [subject.id, subject.code]),
   );
+  const teacherByCode = new Map(
+    imported.teachers.map((teacher) => [teacher.code, teacher]),
+  );
+  const teacherCodeById = new Map(
+    imported.teachers.map((teacher) => [teacher.id, teacher.code]),
+  );
+  const kad = teacherByCode.get("KAD")!;
+  const vas = teacherByCode.get("VAS")!;
+
+  expect(kad.targetWeeklyLoad).toBe(17);
+  expect(kad.minWeeklyLoad).toBe(17);
+  expect(kad.maxWeeklyLoad).toBe(17);
+  expect(vas.targetWeeklyLoad).toBe(12);
+  expect(vas.minWeeklyLoad).toBe(12);
+  expect(vas.maxWeeklyLoad).toBe(12);
+
+  const vasAssignments = imported.assignments.filter(
+    (assignment) => assignment.teacherId === vas.id,
+  );
+  expect(vasAssignments).toHaveLength(12);
+  expect(
+    new Set(
+      vasAssignments.map((assignment) => subjectById.get(assignment.subjectId)),
+    ),
+  ).toEqual(new Set(["INF"]));
+  expect(
+    vasAssignments.every((assignment) => assignment.group === "GROUP_2"),
+  ).toBe(true);
+
+  const vasUnavailable = imported.availability.filter(
+    (rule) => rule.entityId === vas.id && rule.kind === "UNAVAILABLE",
+  );
+  expect(vasUnavailable).toHaveLength(23);
+  expect(new Set(vasUnavailable.map((rule) => rule.dayOfWeek))).toEqual(
+    new Set([0, 3, 4]),
+  );
+
   for (const schoolClass of imported.classes) {
     const assignments = assignmentsForClass(imported, schoolClass);
     expect(occupiedPeriodsFromAssignments(assignments)).toBe(
@@ -637,6 +724,7 @@ test("vedení školy vytvoří a exportuje plný rozvrh druhého stupně se 122 
         (code !== "JAZ2" || schoolClass.grade >= 7),
     );
     expect([...subjectCodes].sort()).toEqual([...expectedSubjects].sort());
+
     for (const splitSubject of SPLIT_SUBJECTS) {
       if (splitSubject === "JAZ2" && schoolClass.grade < 7) continue;
       const splitAssignments = assignments.filter(
@@ -646,15 +734,28 @@ test("vedení školy vytvoří a exportuje plný rozvrh druhého stupně se 122 
         splitAssignments.map((assignment) => assignment.group).sort(),
       ).toEqual(["GROUP_1", "GROUP_2"]);
     }
-  }
 
-  const teacherByCode = new Map(
-    imported.teachers.map((teacher) => [teacher.code, teacher]),
-  );
-  const kad = teacherByCode.get("KAD")!;
-  expect(kad.targetWeeklyLoad).toBe(17);
-  expect(kad.minWeeklyLoad).toBe(17);
-  expect(kad.maxWeeklyLoad).toBe(17);
+    const informatics = assignments.filter(
+      (assignment) => subjectById.get(assignment.subjectId) === "INF",
+    );
+    if (schoolClass.code === "8B") {
+      expect(informatics).toHaveLength(1);
+      expect(informatics[0]!.group).toBe("WHOLE");
+      expect(teacherCodeById.get(informatics[0]!.teacherId)).toBe("KAD");
+    } else {
+      expect(
+        informatics
+          .map((assignment) => [
+            assignment.group,
+            teacherCodeById.get(assignment.teacherId),
+          ])
+          .sort(),
+      ).toEqual([
+        ["GROUP_1", "KAD"],
+        ["GROUP_2", "VAS"],
+      ]);
+    }
+  }
 
   await page.getByRole("link", { name: "Přehled" }).click();
   await expect(page.getByText("Rozvrh lze vytvořit")).toBeVisible();
@@ -675,6 +776,7 @@ test("vedení školy vytvoří a exportuje plný rozvrh druhého stupně se 122 
   const version = currentVersion(generated);
   expect(validateSchedule(version.snapshot, version.lessons)).toEqual([]);
   assertUnavailableSlots(generated, version.lessons);
+
   for (const schoolClass of generated.classes) {
     const occupiedSlots = new Set<string>();
     version.lessons
@@ -698,10 +800,22 @@ test("vedení školy vytvoří a exportuje plný rozvrh druhého stupně se 122 
       ).toBe(true);
     }
   }
+
   const kadLessons = version.lessons.filter(
     (lesson) => lesson.teacher_id === kad.id,
   );
   expect(kadLessons.reduce((sum, lesson) => sum + lesson.duration, 0)).toBe(17);
+
+  const vasLessons = version.lessons.filter(
+    (lesson) => lesson.teacher_id === vas.id,
+  );
+  expect(vasLessons.reduce((sum, lesson) => sum + lesson.duration, 0)).toBe(12);
+  expect(new Set(vasLessons.map((lesson) => lesson.day))).toEqual(
+    new Set([1, 2]),
+  );
+  expect(
+    new Set(vasLessons.map((lesson) => subjectById.get(lesson.subject_id))),
+  ).toEqual(new Set(["INF"]));
 
   const downloadPromise = page.waitForEvent("download");
   await page
@@ -714,9 +828,12 @@ test("vedení školy vytvoří a exportuje plný rozvrh druhého stupně se 122 
   await copyFile(downloadPath!, artifactPath);
   const exported = new ExcelJS.Workbook();
   await exported.xlsx.readFile(artifactPath);
-  expect(exported.worksheets).toHaveLength(54);
+  expect(exported.worksheets).toHaveLength(55);
   const overview = exported.getWorksheet("Přehled")!;
   expect(overview).toBeDefined();
+  expect(overview.getCell("E5").value).toBe(41);
+  expect(overview.getCell("E7").value).toBe(569);
+
   for (const [classCode, grade] of CLASSES) {
     const worksheet = exported.getWorksheet(`Třída ${classCode}`)!;
     expect(worksheet).toBeDefined();
@@ -733,9 +850,13 @@ test("vedení školy vytvoří a exportuje plný rozvrh druhého stupně se 122 
     expect(overviewRow).not.toBeNull();
     expect(overview.getCell(overviewRow!, 3).value).toBe(expectedWeeklyPeriods);
   }
+
   const kadSheet = exported.getWorksheet("Učitel KAD")!;
   expect(kadSheet.getCell("A1").text).toContain("Tomáš Kadleček");
   expect(occupiedExportCells(kadSheet)).toBe(17);
+  const vasSheet = exported.getWorksheet("Učitel VAS")!;
+  expect(vasSheet.getCell("A1").text).toContain("Vašáková");
+  expect(occupiedExportCells(vasSheet)).toBe(12);
 
   expect(pageErrors).toEqual([]);
   expect(serverErrors).toEqual([]);
