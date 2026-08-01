@@ -23,6 +23,12 @@ jobs:
       - run: npm run lint --workspace @timetable/web
       - run: npm run typecheck --workspace @timetable/web
       - run: npm run test --workspace @timetable/web
+      - name: Upload leadership timetable example
+        uses: actions/upload-artifact@v4
+        with:
+          name: leadership-timetable-export
+          path: apps/web/artifacts/rozvrh-vedeni-ukazka.xlsx
+          if-no-files-found: error
       - run: npm run build --workspace @timetable/web
 
   solver:
@@ -98,7 +104,7 @@ jobs:
           cat /tmp/web.log || true
           exit 1
       - name: Run database-free browser workflows
-        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/local-first-backup.spec.ts --retries=0
+        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/local-first-backup.spec.ts e2e/timetable-export.spec.ts --retries=0
       # Release gate: complete 40-teacher second-stage school workflow.
       - name: Run realistic 40-teacher school workflow
         run: npm run e2e --workspace @timetable/web -- e2e/school-scale.spec.ts --retries=0
