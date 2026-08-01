@@ -9,7 +9,12 @@ const artifactDirectory = path.join(
   "teaching-plan-screenshots",
 );
 
-async function screenshot(page: Parameters<typeof test>[0] extends never ? never : import("@playwright/test").Page, name: string) {
+async function screenshot(
+  page: Parameters<typeof test>[0] extends never
+    ? never
+    : import("@playwright/test").Page,
+  name: string,
+) {
   await mkdir(artifactDirectory, { recursive: true });
   await page.screenshot({
     path: path.join(artifactDirectory, name),
@@ -42,7 +47,10 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
     .locator('input[aria-label="Počet hodin předmětu"]')
     .nth(0)
     .fill("2");
-  await page.getByRole("button", { name: "Přidat další předmět" }).nth(0).click();
+  await page
+    .getByRole("button", { name: "Přidat další předmět" })
+    .nth(0)
+    .click();
   await page.locator('select[aria-label="Předmět"]').nth(1).selectOption("INF");
   await page
     .locator('input[aria-label="Počet hodin předmětu"]')
@@ -64,9 +72,7 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
     .getByRole("button", { name: "Uložit učitele do projektu" })
     .click();
   await expect(
-    page.getByText(
-      "Hotovo. Uloženo 2 učitelů včetně celých nedostupných dnů.",
-    ),
+    page.getByText("Hotovo. Uloženo 2 učitelů včetně celých nedostupných dnů."),
   ).toBeVisible();
 
   await page.goto("/teaching-plan?schoolYearId=local-school-year");
@@ -80,8 +86,12 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
   await page.getByLabel("Předmět 1").selectOption("VV");
   await page.getByLabel("Hodin týdně 1").fill("2");
   await page.getByRole("button", { name: "Pouze dvojhodiny" }).click();
-  await page.getByLabel("Učitel 1 předmětu 1").selectOption({ label: "Tomáš Kadleček" });
-  await expect(page.getByText("1× dvojhodina", { exact: true }).last()).toBeVisible();
+  await page
+    .getByLabel("Učitel 1 předmětu 1")
+    .selectOption({ label: "Tomáš Kadleček" });
+  await expect(
+    page.getByText("1× dvojhodina", { exact: true }).last(),
+  ).toBeVisible();
   await expect(page.getByText("2 hodiny v kuse")).toBeVisible();
   await screenshot(page, "02-vv-jedna-dvojhodina.png");
 
@@ -89,8 +99,12 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
   await page.getByLabel("Předmět 2").selectOption("INF");
   await page.getByLabel("Hodin týdně 2").fill("1");
   await page.getByRole("button", { name: "Dvě skupiny" }).nth(1).click();
-  await page.getByLabel("Učitel 1 předmětu 2").selectOption({ label: "Tomáš Kadleček" });
-  await page.getByLabel("Učitel 2 předmětu 2").selectOption({ label: "N. Vašáková" });
+  await page
+    .getByLabel("Učitel 1 předmětu 2")
+    .selectOption({ label: "Tomáš Kadleček" });
+  await page
+    .getByLabel("Učitel 2 předmětu 2")
+    .selectOption({ label: "N. Vašáková" });
   await expect(
     page.getByText("Obě skupiny budou vždy ve stejnou dobu."),
   ).toBeVisible();
@@ -106,15 +120,10 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
   const download = await downloadPromise;
   await mkdir(artifactDirectory, { recursive: true });
   await download.saveAs(
-    path.join(
-      artifactDirectory,
-      "02-tridy-predmety-dvojhodiny-a-deleni.xlsx",
-    ),
+    path.join(artifactDirectory, "02-tridy-predmety-dvojhodiny-a-deleni.xlsx"),
   );
 
-  await page
-    .getByRole("button", { name: "Uložit výuku do projektu" })
-    .click();
+  await page.getByRole("button", { name: "Uložit výuku do projektu" }).click();
   await expect(
     page.getByText(
       "Hotovo. Uloženo 2 předmětů jako 3 výukových vazeb včetně dvojhodin a dělených skupin.",
@@ -141,7 +150,9 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
         openRequest.onsuccess = () => {
           const database = openRequest.result;
           const transaction = database.transaction("state", "readonly");
-          const request = transaction.objectStore("state").get("active-project");
+          const request = transaction
+            .objectStore("state")
+            .get("active-project");
           request.onerror = () => reject(request.error);
           request.onsuccess = () => resolve(request.result);
           transaction.oncomplete = () => database.close();
@@ -150,7 +161,9 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
   );
 
   expect(stored.assignments).toHaveLength(3);
-  const art = stored.assignments.find((item) => item.assignmentCode.includes("VV"));
+  const art = stored.assignments.find((item) =>
+    item.assignmentCode.includes("VV"),
+  );
   expect(art).toMatchObject({
     group: "WHOLE",
     weeklyPeriods: 2,

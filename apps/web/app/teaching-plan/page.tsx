@@ -94,7 +94,9 @@ function teacherLabel(teacher: StaffingTeacher): string {
 
 function subjectLabel(code: string): string {
   const subject = STAFFING_SUBJECTS.find((item) => item.code === code);
-  return subject ? `${subject.label} (${subject.code})` : code || "Nový předmět";
+  return subject
+    ? `${subject.label} (${subject.code})`
+    : code || "Nový předmět";
 }
 
 function safeCode(value: string): string {
@@ -136,8 +138,7 @@ function teacherMatchesSubject(
 
 export default function TeachingPlanPage() {
   const searchParams = useSearchParams();
-  const schoolYearId =
-    searchParams.get("schoolYearId") ?? LOCAL_SCHOOL_YEAR_ID;
+  const schoolYearId = searchParams.get("schoolYearId") ?? LOCAL_SCHOOL_YEAR_ID;
   const context = `schoolYearId=${encodeURIComponent(schoolYearId)}`;
 
   const [staffingPlan, setStaffingPlan] = useState<StaffingPlan>(() => ({
@@ -151,8 +152,9 @@ export default function TeachingPlanPage() {
   const [loaded, setLoaded] = useState(false);
   const [selectedClass, setSelectedClass] = useState("");
   const [newClassCode, setNewClassCode] = useState("");
-  const [analysis, setAnalysis] =
-    useState<TeachingPlanWorkbookAnalysis | null>(null);
+  const [analysis, setAnalysis] = useState<TeachingPlanWorkbookAnalysis | null>(
+    null,
+  );
   const [fileName, setFileName] = useState("");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
@@ -199,7 +201,8 @@ export default function TeachingPlanPage() {
   ).length;
   const doubleBlockCount = plan.rows.reduce(
     (total, row) =>
-      total + lessonBlockDurations(row).filter((duration) => duration === 2).length,
+      total +
+      lessonBlockDurations(row).filter((duration) => duration === 2).length,
     0,
   );
 
@@ -231,7 +234,10 @@ export default function TeachingPlanPage() {
       setNewClassCode("");
       return;
     }
-    commit({ ...plan, classes: [...plan.classes, createTeachingPlanClass(code)] });
+    commit({
+      ...plan,
+      classes: [...plan.classes, createTeachingPlanClass(code)],
+    });
     setSelectedClass(code);
     setNewClassCode("");
   }
@@ -247,9 +253,7 @@ export default function TeachingPlanPage() {
 
   function removeClass(code: string): void {
     if (
-      !window.confirm(
-        `Odstranit třídu ${code} včetně všech jejích předmětů?`,
-      )
+      !window.confirm(`Odstranit třídu ${code} včetně všech jejích předmětů?`)
     ) {
       return;
     }
@@ -295,7 +299,9 @@ export default function TeachingPlanPage() {
       URL.revokeObjectURL(url);
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : "Excel se nepodařilo vytvořit.",
+        cause instanceof Error
+          ? cause.message
+          : "Excel se nepodařilo vytvořit.",
       );
     } finally {
       setBusy(false);
@@ -354,7 +360,9 @@ export default function TeachingPlanPage() {
     const currentValidation = validateTeachingPlan(plan, staffingPlan);
     const currentWorkload = workloadMessages;
     if (currentValidation.length > 0 || currentWorkload.length > 0) {
-      setError(currentValidation[0] ?? currentWorkload[0] ?? "Plán není hotový.");
+      setError(
+        currentValidation[0] ?? currentWorkload[0] ?? "Plán není hotový.",
+      );
       return;
     }
     setBusy(true);
@@ -362,22 +370,27 @@ export default function TeachingPlanPage() {
     setMessage(null);
     try {
       setProgress("Kontroluji školní data…");
-      const [schoolYear, teachersResponse, classesResponse, subjectsResponse, assignmentsResponse] =
-        await Promise.all([
-          requestJson<SchoolYearResponse>(`/api/school-years/${schoolYearId}`),
-          requestJson<ResourceResponse>(
-            `/api/school-years/${schoolYearId}/teachers`,
-          ),
-          requestJson<ResourceResponse>(
-            `/api/school-years/${schoolYearId}/classes`,
-          ),
-          requestJson<ResourceResponse>(
-            `/api/school-years/${schoolYearId}/subjects`,
-          ),
-          requestJson<ResourceResponse>(
-            `/api/school-years/${schoolYearId}/assignments`,
-          ),
-        ]);
+      const [
+        schoolYear,
+        teachersResponse,
+        classesResponse,
+        subjectsResponse,
+        assignmentsResponse,
+      ] = await Promise.all([
+        requestJson<SchoolYearResponse>(`/api/school-years/${schoolYearId}`),
+        requestJson<ResourceResponse>(
+          `/api/school-years/${schoolYearId}/teachers`,
+        ),
+        requestJson<ResourceResponse>(
+          `/api/school-years/${schoolYearId}/classes`,
+        ),
+        requestJson<ResourceResponse>(
+          `/api/school-years/${schoolYearId}/subjects`,
+        ),
+        requestJson<ResourceResponse>(
+          `/api/school-years/${schoolYearId}/assignments`,
+        ),
+      ]);
       let version = schoolYear.version;
 
       const teacherCodes = teacherCodesForPlan(staffingPlan);
@@ -405,7 +418,11 @@ export default function TeachingPlanPage() {
         return;
       }
 
-      for (let index = 0; index < assignmentsResponse.items.length; index += 1) {
+      for (
+        let index = 0;
+        index < assignmentsResponse.items.length;
+        index += 1
+      ) {
         const assignment = assignmentsResponse.items[index]!;
         setProgress(
           `Nahrazuji starý plán ${index + 1}/${assignmentsResponse.items.length}…`,
@@ -443,7 +460,9 @@ export default function TeachingPlanPage() {
         version = payload.schoolYearVersion ?? version + 1;
       }
 
-      const usedSubjectCodes = [...new Set(plan.rows.map((row) => row.subjectCode))];
+      const usedSubjectCodes = [
+        ...new Set(plan.rows.map((row) => row.subjectCode)),
+      ];
       const existingSubjectCodes = new Set(
         subjectsResponse.items.map((item) => textValue(item, "code")),
       );
@@ -560,7 +579,9 @@ export default function TeachingPlanPage() {
         `Hotovo. Uloženo ${plan.rows.length} předmětů jako ${assignments.length} výukových vazeb včetně dvojhodin a dělených skupin.`,
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Uložení se nepodařilo.");
+      setError(
+        cause instanceof Error ? cause.message : "Uložení se nepodařilo.",
+      );
     } finally {
       setBusy(false);
       setProgress("");
@@ -580,7 +601,10 @@ export default function TeachingPlanPage() {
           description="Nejdřív potřebujeme seznam učitelů z prvního kroku."
         />
         <section className="rounded-2xl border border-warning-border bg-warning-subtle p-8 text-center">
-          <UsersRound className="mx-auto size-10 text-warning" aria-hidden="true" />
+          <UsersRound
+            className="mx-auto size-10 text-warning"
+            aria-hidden="true"
+          />
           <h2 className="mt-4 text-lg font-semibold text-text-primary">
             Nejprve dokončete učitele a úvazky
           </h2>
@@ -617,7 +641,11 @@ export default function TeachingPlanPage() {
       <section className="grid gap-3 md:grid-cols-4">
         {[
           ["1", "Třída a předmět", "Například 8.A · výtvarná výchova."],
-          ["2", "Počet a bloky", "Dvě samostatné hodiny nebo jedna dvojhodina."],
+          [
+            "2",
+            "Počet a bloky",
+            "Dvě samostatné hodiny nebo jedna dvojhodina.",
+          ],
           ["3", "Celá nebo dělená", "U dělení vzniknou dvě souběžné skupiny."],
           ["4", "Učitelé", "Každá skupina může mít vlastního učitele."],
         ].map(([number, title, description]) => (
@@ -638,7 +666,10 @@ export default function TeachingPlanPage() {
 
       <section className="rounded-xl border-2 border-dashed border-primary/40 bg-primary-subtle p-6">
         <div className="flex flex-col items-center text-center">
-          <FileSpreadsheet className="size-10 text-primary" aria-hidden="true" />
+          <FileSpreadsheet
+            className="size-10 text-primary"
+            aria-hidden="true"
+          />
           <h2 className="mt-3 text-lg font-semibold text-text-primary">
             Velké množství tříd vyplňte v Excelu
           </h2>
@@ -666,13 +697,17 @@ export default function TeachingPlanPage() {
       {analysis && !analysis.valid ? (
         <section className="rounded-xl border border-danger-border bg-danger-subtle p-5">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 size-5 text-danger" aria-hidden="true" />
+            <AlertTriangle
+              className="mt-0.5 size-5 text-danger"
+              aria-hidden="true"
+            />
             <div>
               <h2 className="font-semibold text-text-primary">
                 Excel potřebuje opravit
               </h2>
               <p className="mt-1 text-sm text-text-secondary">
-                Nic se nepřepsalo. Opravte uvedené řádky a nahrajte soubor znovu.
+                Nic se nepřepsalo. Opravte uvedené řádky a nahrajte soubor
+                znovu.
               </p>
               <ul className="mt-3 space-y-1 text-sm text-danger-strong">
                 {analysis.issues.slice(0, 12).map((issue, index) => (
@@ -775,7 +810,11 @@ export default function TeachingPlanPage() {
               >
                 {schoolClass.code}
                 <span className="ml-2 text-xs font-normal opacity-75">
-                  {plan.rows.filter((row) => row.classCode === schoolClass.code).length}
+                  {
+                    plan.rows.filter(
+                      (row) => row.classCode === schoolClass.code,
+                    ).length
+                  }
                 </span>
               </button>
               <button
@@ -811,7 +850,8 @@ export default function TeachingPlanPage() {
                 Třída {selectedClass}
               </h2>
               <p className="mt-1 text-sm text-text-secondary">
-                Každý předmět přidejte pouze jednou. Dělení vyřešíte přímo v jeho kartě.
+                Každý předmět přidejte pouze jednou. Dělení vyřešíte přímo v
+                jeho kartě.
               </p>
             </div>
             <Button type="button" onClick={addSubjectRow}>
@@ -822,7 +862,10 @@ export default function TeachingPlanPage() {
 
           {selectedRows.length === 0 ? (
             <article className="rounded-2xl border border-dashed border-border-strong bg-surface p-10 text-center">
-              <BookOpen className="mx-auto size-10 text-text-muted" aria-hidden="true" />
+              <BookOpen
+                className="mx-auto size-10 text-text-muted"
+                aria-hidden="true"
+              />
               <h3 className="mt-4 font-semibold text-text-primary">
                 Třída zatím nemá žádné předměty
               </h3>
@@ -848,13 +891,17 @@ export default function TeachingPlanPage() {
 
       <section className="rounded-2xl border border-border bg-surface p-6">
         <div className="flex items-start gap-3">
-          <UsersRound className="mt-0.5 size-6 text-primary" aria-hidden="true" />
+          <UsersRound
+            className="mt-0.5 size-6 text-primary"
+            aria-hidden="true"
+          />
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold text-text-primary">
               Kontrola úvazků učitelů
             </h2>
             <p className="mt-1 text-sm text-text-secondary">
-              Dělená hodina se započítá oběma učitelům, protože oba skutečně učí současně.
+              Dělená hodina se započítá oběma učitelům, protože oba skutečně učí
+              současně.
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {staffingPlan.teachers.map((teacher) => {
@@ -879,7 +926,10 @@ export default function TeachingPlanPage() {
                         </p>
                       </div>
                       {exact ? (
-                        <CheckCircle2 className="size-5 text-success" aria-hidden="true" />
+                        <CheckCircle2
+                          className="size-5 text-success"
+                          aria-hidden="true"
+                        />
                       ) : null}
                     </div>
                     <p
@@ -911,9 +961,15 @@ export default function TeachingPlanPage() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-3">
             {allReady ? (
-              <CheckCircle2 className="mt-0.5 size-6 text-success" aria-hidden="true" />
+              <CheckCircle2
+                className="mt-0.5 size-6 text-success"
+                aria-hidden="true"
+              />
             ) : (
-              <AlertTriangle className="mt-0.5 size-6 text-warning" aria-hidden="true" />
+              <AlertTriangle
+                className="mt-0.5 size-6 text-warning"
+                aria-hidden="true"
+              />
             )}
             <div>
               <h2 className="text-lg font-semibold text-text-primary">
@@ -1058,7 +1114,8 @@ function TeachingRowCard({
                     ...current,
                     weeklyPeriods,
                     lessonShape:
-                      current.lessonShape === "DOUBLE" && weeklyPeriods % 2 !== 0
+                      current.lessonShape === "DOUBLE" &&
+                      weeklyPeriods % 2 !== 0
                         ? "SEPARATE"
                         : current.lessonShape,
                     doublePeriodsCount:
@@ -1085,7 +1142,8 @@ function TeachingRowCard({
             2. Jak mají hodiny probíhat?
           </h4>
           <p className="mt-1 text-sm text-text-secondary">
-            Nezadáváte technický počet bloků. Vyberte variantu, která odpovídá běžnému školnímu týdnu.
+            Nezadáváte technický počet bloků. Vyberte variantu, která odpovídá
+            běžnému školnímu týdnu.
           </p>
           <div className="mt-3 grid gap-3 lg:grid-cols-3">
             {TEACHING_SHAPES.map((shape) => {
@@ -1107,7 +1165,13 @@ function TeachingRowCard({
                         shape.value === "DOUBLE"
                           ? current.weeklyPeriods / 2
                           : shape.value === "MIXED"
-                            ? Math.max(1, Math.min(current.doublePeriodsCount || 1, Math.floor((current.weeklyPeriods - 1) / 2)))
+                            ? Math.max(
+                                1,
+                                Math.min(
+                                  current.doublePeriodsCount || 1,
+                                  Math.floor((current.weeklyPeriods - 1) / 2),
+                                ),
+                              )
                             : 0,
                     }))
                   }
@@ -1233,17 +1297,17 @@ function TeachingRowCard({
           </div>
           {row.organization === "SPLIT" ? (
             <div className="mt-3 rounded-xl border border-success-border bg-success-subtle p-4 text-sm text-success-strong">
-              <strong>Obě skupiny budou vždy ve stejnou dobu.</strong> Solver je umístí paralelně a zabrání kolizi obou učitelů.
+              <strong>Obě skupiny budou vždy ve stejnou dobu.</strong> Solver je
+              umístí paralelně a zabrání kolizi obou učitelů.
             </div>
           ) : null}
         </div>
 
         <div>
-          <h4 className="font-semibold text-text-primary">
-            4. Kdo bude učit?
-          </h4>
+          <h4 className="font-semibold text-text-primary">4. Kdo bude učit?</h4>
           <p className="mt-1 text-sm text-text-secondary">
-            Učitelé, kteří mají tento předmět uvedený v úvazku, jsou v seznamu nahoře.
+            Učitelé, kteří mají tento předmět uvedený v úvazku, jsou v seznamu
+            nahoře.
           </p>
           <div
             className={
@@ -1266,9 +1330,7 @@ function TeachingRowCard({
                 value={row.secondaryTeacherId}
                 teachers={sortedTeachers}
                 subjectCode={row.subjectCode}
-                onChange={(value) =>
-                  selectTeacher(value, "secondaryTeacherId")
-                }
+                onChange={(value) => selectTeacher(value, "secondaryTeacherId")}
                 ariaLabel={`Učitel 2 předmětu ${index + 1}`}
               />
             ) : null}
@@ -1278,7 +1340,10 @@ function TeachingRowCard({
         {!validation.valid ? (
           <div className="rounded-xl border border-danger-border bg-danger-subtle p-4">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 size-5 shrink-0 text-danger" aria-hidden="true" />
+              <AlertTriangle
+                className="mt-0.5 size-5 shrink-0 text-danger"
+                aria-hidden="true"
+              />
               <div>
                 <p className="font-semibold text-text-primary">
                   Tato výuka ještě není hotová
@@ -1295,7 +1360,11 @@ function TeachingRowCard({
           <div className="flex items-center gap-3 rounded-xl border border-success-border bg-success-subtle p-4 text-success-strong">
             <CheckCircle2 className="size-5" aria-hidden="true" />
             <p className="font-semibold">
-              Hotovo — {humanBlockSummary(row)} · {row.organization === "SPLIT" ? "dvě souběžné skupiny" : "celá třída"}.
+              Hotovo — {humanBlockSummary(row)} ·{" "}
+              {row.organization === "SPLIT"
+                ? "dvě souběžné skupiny"
+                : "celá třída"}
+              .
             </p>
           </div>
         )}

@@ -194,7 +194,10 @@ export function validateTeachingPlanRow(
     messages.push("Pouze dvojhodiny vyžadují sudý počet hodin týdně.");
   }
   if (row.lessonShape === "MIXED") {
-    if (!Number.isInteger(row.doublePeriodsCount) || row.doublePeriodsCount < 1) {
+    if (
+      !Number.isInteger(row.doublePeriodsCount) ||
+      row.doublePeriodsCount < 1
+    ) {
       messages.push("U kombinace zadejte alespoň jednu dvojhodinu.");
     }
     if (row.doublePeriodsCount * 2 >= row.weeklyPeriods) {
@@ -204,7 +207,9 @@ export function validateTeachingPlanRow(
     }
   }
 
-  const teacherIds = new Set(staffingPlan.teachers.map((teacher) => teacher.id));
+  const teacherIds = new Set(
+    staffingPlan.teachers.map((teacher) => teacher.id),
+  );
   if (!row.primaryTeacherId || !teacherIds.has(row.primaryTeacherId)) {
     messages.push(
       row.organization === "SPLIT"
@@ -243,7 +248,8 @@ export function validateTeachingPlan(
   for (const schoolClass of plan.classes) {
     const code = normalizeClassCode(schoolClass.code);
     if (!code) messages.push("Každá třída musí mít označení.");
-    if (classCodes.has(code)) messages.push(`Třída ${code} je uvedena vícekrát.`);
+    if (classCodes.has(code))
+      messages.push(`Třída ${code} je uvedena vícekrát.`);
     classCodes.add(code);
   }
 
@@ -252,7 +258,8 @@ export function validateTeachingPlan(
     const validation = validateTeachingPlanRow(row, plan, staffingPlan);
     messages.push(
       ...validation.messages.map(
-        (message) => `${row.classCode || "Třída"} ${row.subjectCode || "předmět"}: ${message}`,
+        (message) =>
+          `${row.classCode || "Třída"} ${row.subjectCode || "předmět"}: ${message}`,
       ),
     );
     const key = `${normalizeClassCode(row.classCode)}|${row.subjectCode}`;
@@ -330,7 +337,9 @@ export function loadTeachingPlan(): TeachingPlan {
   if (typeof window === "undefined") return createEmptyTeachingPlan();
   try {
     const raw = window.localStorage.getItem(TEACHING_PLAN_STORAGE_KEY);
-    return raw ? normalizeTeachingPlan(JSON.parse(raw)) : createEmptyTeachingPlan();
+    return raw
+      ? normalizeTeachingPlan(JSON.parse(raw))
+      : createEmptyTeachingPlan();
   } catch {
     return createEmptyTeachingPlan();
   }

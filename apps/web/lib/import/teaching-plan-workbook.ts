@@ -83,11 +83,7 @@ function teacherLabelMap(staffingPlan: StaffingPlan): Map<string, string> {
   );
 }
 
-function styleTitle(
-  worksheet: Worksheet,
-  range: string,
-  title: string,
-): void {
+function styleTitle(worksheet: Worksheet, range: string, title: string): void {
   worksheet.mergeCells(range);
   const cell = worksheet.getCell(range.split(":")[0]!);
   cell.value = title;
@@ -139,10 +135,7 @@ function addListValidation(
   }
 }
 
-function teacherName(
-  teacherId: string,
-  labels: Map<string, string>,
-): string {
+function teacherName(teacherId: string, labels: Map<string, string>): string {
   return labels.get(teacherId) ?? "";
 }
 
@@ -284,16 +277,8 @@ export async function createTeachingPlanWorkbook(
     `'${DICTIONARY_SHEET}'!$F$2:$F$${TEACHING_ORGANIZATIONS.length + 1}`,
   );
   const teacherLastRow = Math.max(2, staffingPlan.teachers.length + 1);
-  addListValidation(
-    plan,
-    7,
-    `'${DICTIONARY_SHEET}'!$H$2:$H$${teacherLastRow}`,
-  );
-  addListValidation(
-    plan,
-    8,
-    `'${DICTIONARY_SHEET}'!$H$2:$H$${teacherLastRow}`,
-  );
+  addListValidation(plan, 7, `'${DICTIONARY_SHEET}'!$H$2:$H$${teacherLastRow}`);
+  addListValidation(plan, 8, `'${DICTIONARY_SHEET}'!$H$2:$H$${teacherLastRow}`);
 
   for (let row = PLAN_FIRST_ROW; row <= LAST_ROW; row += 1) {
     plan.getCell(row, 3).dataValidation = {
@@ -424,8 +409,7 @@ export async function analyzeTeachingPlanWorkbook(
       sheet: !classesSheet ? TEACHING_CLASSES_SHEET : TEACHING_PLAN_SHEET,
       row: null,
       field: null,
-      message:
-        "Soubor nemá správné listy. Stáhněte novou šablonu z aplikace.",
+      message: "Soubor nemá správné listy. Stáhněte novou šablonu z aplikace.",
     });
     return {
       valid: false,
@@ -589,8 +573,7 @@ export async function analyzeTeachingPlanWorkbook(
             : 0,
       organization: organization ?? "WHOLE",
       primaryTeacherId,
-      secondaryTeacherId:
-        organization === "SPLIT" ? secondaryTeacherId : "",
+      secondaryTeacherId: organization === "SPLIT" ? secondaryTeacherId : "",
     } satisfies TeachingPlanRow);
   }
 

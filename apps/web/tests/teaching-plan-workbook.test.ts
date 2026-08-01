@@ -40,9 +40,7 @@ function staffingPlan(): StaffingPlan {
         lastName: "Vašáková",
         targetWeeklyLoad: 1,
         unavailableDays: [],
-        subjectLoads: [
-          { id: "vas-inf", subjectCode: "INF", weeklyPeriods: 1 },
-        ],
+        subjectLoads: [{ id: "vas-inf", subjectCode: "INF", weeklyPeriods: 1 }],
       },
     ],
   };
@@ -162,8 +160,6 @@ test("workbook rejects a split lesson with the same teacher twice", async () => 
 
   assert.equal(analysis.valid, false);
   assert.ok(
-    analysis.issues.some((issue) =>
-      issue.message.includes("jiného učitele"),
-    ),
+    analysis.issues.some((issue) => issue.message.includes("jiného učitele")),
   );
 });
