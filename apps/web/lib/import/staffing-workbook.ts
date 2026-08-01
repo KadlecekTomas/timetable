@@ -273,20 +273,6 @@ export async function createStaffingWorkbookTemplate(): Promise<Uint8Array> {
           font: { color: { argb: COLORS.green }, bold: true },
         },
       },
-      {
-        type: "notContainsText",
-        operator: "notContainsText",
-        text: "SEDÍ",
-        priority: 2,
-        style: {
-          fill: {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: COLORS.paleRed },
-          },
-          font: { color: { argb: COLORS.red }, bold: true },
-        },
-      },
     ],
   });
 

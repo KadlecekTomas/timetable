@@ -24,10 +24,7 @@ import {
   createStaffingWorkbookTemplate,
   type StaffingWorkbookAnalysis,
 } from "@/lib/import/staffing-workbook";
-import {
-  LOCAL_SCHOOL_YEAR_ID,
-  localApiFetch,
-} from "@/lib/local/api";
+import { LOCAL_SCHOOL_YEAR_ID, localApiFetch } from "@/lib/local/api";
 import {
   STAFFING_DAYS,
   STAFFING_SUBJECTS,
@@ -70,8 +67,7 @@ function nextVersion(
 
 export default function StaffingPage() {
   const searchParams = useSearchParams();
-  const schoolYearId =
-    searchParams.get("schoolYearId") ?? LOCAL_SCHOOL_YEAR_ID;
+  const schoolYearId = searchParams.get("schoolYearId") ?? LOCAL_SCHOOL_YEAR_ID;
   const context = `schoolYearId=${encodeURIComponent(schoolYearId)}`;
 
   const [plan, setPlan] = useState<StaffingPlan>(() => ({
@@ -138,7 +134,10 @@ export default function StaffingPage() {
   }
 
   function addTeacher(): void {
-    commit({ ...plan, teachers: [...plan.teachers, createEmptyStaffingTeacher()] });
+    commit({
+      ...plan,
+      teachers: [...plan.teachers, createEmptyStaffingTeacher()],
+    });
   }
 
   function removeTeacher(teacher: StaffingTeacher): void {
@@ -173,7 +172,9 @@ export default function StaffingPage() {
       URL.revokeObjectURL(url);
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : "Šablonu se nepodařilo vytvořit.",
+        cause instanceof Error
+          ? cause.message
+          : "Šablonu se nepodařilo vytvořit.",
       );
     } finally {
       setBusy(false);
@@ -217,10 +218,7 @@ export default function StaffingPage() {
     }
   }
 
-  async function requestJson<T>(
-    url: string,
-    init?: RequestInit,
-  ): Promise<T> {
+  async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
     const response = await localApiFetch(url, init);
     const payload = (await response.json()) as T & {
       error?: { message?: string };
@@ -244,9 +242,7 @@ export default function StaffingPage() {
       setSyncProgress("Kontroluji současná data školy…");
       const [schoolYear, teachers, assignments, availability] =
         await Promise.all([
-          requestJson<SchoolYearResponse>(
-            `/api/school-years/${schoolYearId}`,
-          ),
+          requestJson<SchoolYearResponse>(`/api/school-years/${schoolYearId}`),
           requestJson<ResourceResponse>(
             `/api/school-years/${schoolYearId}/teachers`,
           ),
@@ -330,7 +326,9 @@ export default function StaffingPage() {
       const teacherIdByCode = new Map(
         storedTeachers.items
           .filter(
-            (item): item is Record<string, unknown> & { id: string; code: string } =>
+            (
+              item,
+            ): item is Record<string, unknown> & { id: string; code: string } =>
               typeof item.id === "string" && typeof item.code === "string",
           )
           .map((item) => [item.code, item.id]),
@@ -381,7 +379,9 @@ export default function StaffingPage() {
         `Hotovo. Uloženo ${plan.teachers.length} učitelů včetně celých nedostupných dnů.`,
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Uložení se nepodařilo.");
+      setError(
+        cause instanceof Error ? cause.message : "Uložení se nepodařilo.",
+      );
     } finally {
       setBusy(false);
       setSyncProgress("");
@@ -414,8 +414,16 @@ export default function StaffingPage() {
       <section className="grid gap-3 md:grid-cols-3">
         {[
           ["1", "Stáhněte Excel", "Jeden učitel = jeden jednoduchý řádek."],
-          ["2", "Vyplňte hodiny", "Součet předmětů musí přesně sedět na úvazek."],
-          ["3", "Označte celé dny", "Ano znamená, že učitel ten den vůbec nepřijde."],
+          [
+            "2",
+            "Vyplňte hodiny",
+            "Součet předmětů musí přesně sedět na úvazek.",
+          ],
+          [
+            "3",
+            "Označte celé dny",
+            "Ano znamená, že učitel ten den vůbec nepřijde.",
+          ],
         ].map(([number, title, description]) => (
           <article
             key={number}
@@ -434,7 +442,10 @@ export default function StaffingPage() {
 
       <section className="rounded-xl border-2 border-dashed border-primary/40 bg-primary-subtle p-6">
         <div className="flex flex-col items-center text-center">
-          <FileSpreadsheet className="size-10 text-primary" aria-hidden="true" />
+          <FileSpreadsheet
+            className="size-10 text-primary"
+            aria-hidden="true"
+          />
           <h2 className="mt-3 text-lg font-semibold text-text-primary">
             Nahrajte vyplněný Excel
           </h2>
@@ -462,13 +473,17 @@ export default function StaffingPage() {
       {analysis && !analysis.valid ? (
         <section className="rounded-xl border border-danger-border bg-danger-subtle p-5">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 size-5 text-danger" aria-hidden="true" />
+            <AlertTriangle
+              className="mt-0.5 size-5 text-danger"
+              aria-hidden="true"
+            />
             <div>
               <h2 className="font-semibold text-text-primary">
                 Excel potřebuje opravit
               </h2>
               <p className="mt-1 text-sm text-text-secondary">
-                Nic se neuložilo. Opravte označené řádky a soubor nahrajte znovu.
+                Nic se neuložilo. Opravte označené řádky a soubor nahrajte
+                znovu.
               </p>
               <ul className="mt-3 space-y-1 text-sm text-danger-strong">
                 {analysis.issues.slice(0, 10).map((issue, index) => (
@@ -553,8 +568,7 @@ export default function StaffingPage() {
               ? Math.min(
                   100,
                   Math.round(
-                    (validation.assignedWeeklyLoad /
-                      teacher.targetWeeklyLoad) *
+                    (validation.assignedWeeklyLoad / teacher.targetWeeklyLoad) *
                       100,
                   ),
                 )
@@ -578,7 +592,8 @@ export default function StaffingPage() {
                         : `Nový učitel ${teacherIndex + 1}`}
                     </h3>
                     <p className="text-xs text-text-muted">
-                      {validation.assignedWeeklyLoad} z {teacher.targetWeeklyLoad} hodin
+                      {validation.assignedWeeklyLoad} z{" "}
+                      {teacher.targetWeeklyLoad} hodin
                     </p>
                   </div>
                 </div>
@@ -669,7 +684,8 @@ export default function StaffingPage() {
                             : "text-lg font-bold text-danger"
                         }
                       >
-                        {validation.assignedWeeklyLoad} / {teacher.targetWeeklyLoad} h
+                        {validation.assignedWeeklyLoad} /{" "}
+                        {teacher.targetWeeklyLoad} h
                       </p>
                     </div>
                   </div>
@@ -722,15 +738,16 @@ export default function StaffingPage() {
                             onChange={(event) =>
                               updateTeacher(teacher.id, (current) => ({
                                 ...current,
-                                subjectLoads: current.subjectLoads.map((item) =>
-                                  item.id === load.id
-                                    ? {
-                                        ...item,
-                                        weeklyPeriods: numberValue(
-                                          event.target.value,
-                                        ),
-                                      }
-                                    : item,
+                                subjectLoads: current.subjectLoads.map(
+                                  (item) =>
+                                    item.id === load.id
+                                      ? {
+                                          ...item,
+                                          weeklyPeriods: numberValue(
+                                            event.target.value,
+                                          ),
+                                        }
+                                      : item,
                                 ),
                               }))
                             }
@@ -788,7 +805,9 @@ export default function StaffingPage() {
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {STAFFING_DAYS.map((day) => {
-                      const selected = teacher.unavailableDays.includes(day.code);
+                      const selected = teacher.unavailableDays.includes(
+                        day.code,
+                      );
                       return (
                         <button
                           key={day.code}
@@ -886,7 +905,8 @@ export default function StaffingPage() {
                 <p className="mt-1 text-sm text-text-secondary">
                   {allValid
                     ? `${plan.teachers.length} učitelů · ${totalTarget} hodin · úvazky přesně sedí.`
-                    : (planMessages[0] ?? "Zkontrolujte červeně označené karty.")}
+                    : (planMessages[0] ??
+                      "Zkontrolujte červeně označené karty.")}
                 </p>
               </div>
             </div>
