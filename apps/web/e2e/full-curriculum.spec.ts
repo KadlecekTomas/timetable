@@ -480,7 +480,9 @@ async function readProject(page: Page): Promise<StoredProject> {
         openRequest.onsuccess = () => {
           const database = openRequest.result;
           const transaction = database.transaction("state", "readonly");
-          const request = transaction.objectStore("state").get("active-project");
+          const request = transaction
+            .objectStore("state")
+            .get("active-project");
           request.onerror = () => reject(request.error);
           request.onsuccess = () => resolve(request.result as StoredProject);
           transaction.oncomplete = () => database.close();
@@ -506,7 +508,9 @@ function assignmentsForClass(
   );
 }
 
-function occupiedPeriodsFromAssignments(assignments: StoredAssignment[]): number {
+function occupiedPeriodsFromAssignments(
+  assignments: StoredAssignment[],
+): number {
   const bySubject = new Map<string, StoredAssignment[]>();
   assignments.forEach((assignment) => {
     bySubject.set(assignment.subjectId, [
@@ -528,13 +532,17 @@ function occupiedPeriodsFromAssignments(assignments: StoredAssignment[]): number
   }, 0);
 }
 
-function assertUnavailableSlots(project: StoredProject, lessons: ScheduledLesson[]) {
+function assertUnavailableSlots(
+  project: StoredProject,
+  lessons: ScheduledLesson[],
+) {
   project.availability
     .filter((rule) => rule.kind === "UNAVAILABLE")
     .forEach((rule) => {
       const collisions = lessons.filter((lesson) => {
         const matches =
-          (rule.entityType === "TEACHER" && lesson.teacher_id === rule.entityId) ||
+          (rule.entityType === "TEACHER" &&
+            lesson.teacher_id === rule.entityId) ||
           (rule.entityType === "CLASS" &&
             [lesson.class_id, ...(lesson.additional_class_ids ?? [])].includes(
               rule.entityId,
@@ -624,10 +632,9 @@ test("vedení školy vytvoří a exportuje plný rozvrh druhého stupně se 122 
       const splitAssignments = assignments.filter(
         (assignment) => subjectById.get(assignment.subjectId) === splitSubject,
       );
-      expect(splitAssignments.map((assignment) => assignment.group).sort()).toEqual([
-        "GROUP_1",
-        "GROUP_2",
-      ]);
+      expect(
+        splitAssignments.map((assignment) => assignment.group).sort(),
+      ).toEqual(["GROUP_1", "GROUP_2"]);
     }
   }
 
