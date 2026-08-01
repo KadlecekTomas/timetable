@@ -26,10 +26,12 @@ jobs:
 
           path = Path("apps/web/app/staffing/page.tsx")
           content = path.read_text()
-          old = '''                          type="button"
+          old = '''                          key={day.code}
+                          type="button"
                           aria-pressed={selected}
           '''
-          new = '''                          type="button"
+          new = '''                          key={day.code}
+                          type="button"
                           aria-label={`${day.shortLabel} ${selected ? "nemůže" : "může"}`}
                           aria-pressed={selected}
           '''
