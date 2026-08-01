@@ -9,6 +9,7 @@ coverage/
 playwright-report/
 test-results/
 screenshots/
+apps/web/artifacts/
 .env
 .env.local
 .env.*.local
