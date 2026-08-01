@@ -13,6 +13,7 @@ def replace_once(path: str, old: str, new: str) -> None:
 
 overrides = "apps/web/lib/import/school-staffing-overrides.ts"
 template_test = "apps/web/tests/school-client-workbook.test.ts"
+scale = "apps/web/e2e/school-scale.spec.ts"
 
 replace_once(
     overrides,
@@ -54,4 +55,46 @@ replace_once(
     template_test,
     '  assert.match(organization.getCell("A10").text, /automaticky nevynucuje/);',
     '  assert.match(organization.getCell("A10").text, /automaticky umístí/);',
+)
+
+synchronization_helper = '''function assertSplitGroupsSynchronized(
+  snapshot: CanonicalSnapshot,
+  lessons: ScheduledLesson[],
+) {
+  for (const schoolClass of snapshot.classes) {
+    for (const subjectCode of SPLIT_SUBJECTS) {
+      const subject = snapshot.subjects.find((item) => item.code === subjectCode);
+      expect(subject).toBeDefined();
+      const assignments = snapshot.assignments.filter(
+        (assignment) =>
+          assignment.class_id === schoolClass.id &&
+          assignment.subject_id === subject!.id,
+      );
+      const group1 = assignments.find((item) => item.group === "GROUP_1");
+      const group2 = assignments.find((item) => item.group === "GROUP_2");
+      expect(group1).toBeDefined();
+      expect(group2).toBeDefined();
+      const slots = (assignmentId: string) =>
+        lessons
+          .filter((lesson) => lesson.assignment_id === assignmentId)
+          .map((lesson) => `${lesson.day}:${lesson.period}:${lesson.duration}`)
+          .sort();
+      expect(slots(group1!.id)).toEqual(slots(group2!.id));
+    }
+  }
+}
+
+'''
+scale_file = Path(scale)
+scale_text = scale_file.read_text()
+marker = 'test("school leadership can import 40 teachers, generate the complete second-stage timetable and move a lesson", async ({\n'
+if synchronization_helper not in scale_text:
+    if marker not in scale_text:
+        raise SystemExit("Missing school-scale test marker")
+    scale_file.write_text(scale_text.replace(marker, synchronization_helper + marker, 1))
+
+replace_once(
+    scale,
+    "  assertAvailabilityRespected(generated, generatedVersion.lessons);",
+    "  assertAvailabilityRespected(generated, generatedVersion.lessons);\n  assertSplitGroupsSynchronized(\n    generatedVersion.snapshot,\n    generatedVersion.lessons,\n  );",
 )
