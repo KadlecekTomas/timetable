@@ -64,21 +64,41 @@ function assignmentRows(): Array<Array<string | number | null>> {
       }
     }
 
-    rows.push([
-      `${classCode}-INF`,
-      classCode,
-      null,
-      "INF",
-      null,
-      "Celá třída",
-      1,
-      "Jednotlivé hodiny",
-      0,
-      null,
-      "POČÍTAČOVÁ UČEBNA",
-      1,
-      0,
-    ]);
+    if (classCode === "8B") {
+      rows.push([
+        "8B-INF",
+        "8B",
+        null,
+        "INF",
+        null,
+        "Celá třída",
+        1,
+        "Jednotlivé hodiny",
+        0,
+        null,
+        "POČÍTAČOVÁ UČEBNA",
+        1,
+        0,
+      ]);
+    } else {
+      for (const groupNumber of [1, 2] as const) {
+        rows.push([
+          `${classCode}-INF-S${groupNumber}`,
+          classCode,
+          null,
+          "INF",
+          null,
+          `Skupina ${groupNumber}`,
+          1,
+          "Jednotlivé hodiny",
+          0,
+          null,
+          "POČÍTAČOVÁ UČEBNA",
+          1,
+          0,
+        ]);
+      }
+    }
   }
 
   for (const classCode of PE_CLASS_CODES) {
@@ -134,7 +154,7 @@ function createOrganizationSheet(workbook: ExcelJS.Workbook) {
 
   sheet.mergeCells("A1:E1");
   const title = sheet.getCell("A1");
-  title.value = "Dělení tříd a spojování tělesné výchovy";
+  title.value = "Dělení tříd, informatika a spojování tělesné výchovy";
   title.font = { bold: true, size: 18, color: { argb: "FFFFFFFF" } };
   title.fill = {
     type: "pattern",
@@ -183,10 +203,24 @@ function createOrganizationSheet(workbook: ExcelJS.Workbook) {
   const rules = [
     [
       "Půlení výuky",
-      "Všechny třídy 6.A–9.C včetně 6.D",
+      "Čeština, matematika a dva cizí jazyky",
       "Skupina 1 + Skupina 2",
       "Nepotřebný předpřipravený řádek lze smazat",
-      "Připraveno pro český jazyk, matematiku a dva cizí jazyky. Informatika zůstává pro celou třídu.",
+      "Připraveno pro všechny třídy 6.A–9.C včetně 6.D.",
+    ],
+    [
+      "Informatika",
+      "Všechny třídy kromě 8.B",
+      "Skupina 1: KAD, skupina 2: VAS",
+      "8.B se učí jako celá třída",
+      "8.B se kvůli nízkému počtu žáků na informatiku nedělí.",
+    ],
+    [
+      "Dostupnost VAS",
+      "Pouze informatika, 12 hodin týdně",
+      "Učí pouze v úterý a ve středu",
+      "Pondělí, čtvrtek a pátek jsou nedostupné",
+      "Nedostupné sloty nastavte na listu 6. Dostupnost.",
     ],
     [
       "Tělesná výchova",
@@ -244,8 +278,8 @@ function createOrganizationSheet(workbook: ExcelJS.Workbook) {
     sheet.getRow(5 + rowIndex).height = 48;
   });
 
-  sheet.mergeCells("A10:E10");
-  const warning = sheet.getCell("A10");
+  sheet.mergeCells("A12:E12");
+  const warning = sheet.getCell("A12");
   warning.value =
     "Pro společnou výuku 9.A + 9.C použijte jeden řádek: hlavní třída 9A a další společná třída 9C. Solver pak blok automaticky umístí do rozvrhu obou tříd současně.";
   warning.font = { bold: true, color: { argb: "FF8A1C1C" } };
@@ -255,7 +289,7 @@ function createOrganizationSheet(workbook: ExcelJS.Workbook) {
     fgColor: { argb: "FFFDECEC" },
   };
   warning.alignment = { vertical: "middle", wrapText: true };
-  sheet.getRow(10).height = 58;
+  sheet.getRow(12).height = 58;
 }
 
 export function applySchoolTemplatePrefill(workbook: ExcelJS.Workbook) {
@@ -273,8 +307,8 @@ export function applySchoolTemplatePrefill(workbook: ExcelJS.Workbook) {
   writeRows(assignments, assignmentRows());
 
   assignments.getCell("A2").value =
-    "Předpřipravené řádky rozdělí češtinu, matematiku, informatiku a cizí jazyky na dvě poloviny. Doplňte učitele a hodinovou dotaci; nepotřebné řádky smažte.";
-  assignments.getRow(2).height = 48;
+    "Předpřipravené řádky rozdělí češtinu, matematiku, informatiku a cizí jazyky na dvě poloviny. Informatika v 8.B zůstává pro celou třídu. Doplňte učitele a hodinovou dotaci; nepotřebné řádky smažte.";
+  assignments.getRow(2).height = 62;
 
   guide.mergeCells("B31:G31");
   const classNote = guide.getCell("B31");
@@ -292,7 +326,7 @@ export function applySchoolTemplatePrefill(workbook: ExcelJS.Workbook) {
   guide.mergeCells("B33:G34");
   const splitNote = guide.getCell("B33");
   splitNote.value =
-    "Na listu 5. Kdo co učí jsou připravené dvě poloviny pro český jazyk, matematiku, informatiku a dva cizí jazyky. Doplňte učitele a počet hodin týdně; nepotřebné řádky smažte.";
+    "Na listu 5. Kdo co učí jsou připravené dvě poloviny pro český jazyk, matematiku, informatiku a dva cizí jazyky. Výjimkou je 8.B, která se na informatiku kvůli nízkému počtu žáků nedělí.";
   splitNote.font = { bold: true, color: { argb: "FF172B4D" } };
   splitNote.fill = {
     type: "pattern",
