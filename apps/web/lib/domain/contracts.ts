@@ -50,6 +50,7 @@ export interface SnapshotAssignment {
   code?: string;
   teacher_id: string;
   class_id: string;
+  additional_class_ids?: string[];
   subject_id: string;
   group: TeachingGroup;
   weekly_periods: number;
@@ -116,6 +117,7 @@ export interface ScheduledLesson {
   assignment_id: string;
   teacher_id: string;
   class_id: string;
+  additional_class_ids?: string[];
   subject_id: string;
   group: TeachingGroup;
   room_id: string | null;
