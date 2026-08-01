@@ -1,0 +1,57 @@
+name: Fix staffing E2E once
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-tests:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Update exact navigation and form selectors
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          for relative in [
+              "apps/web/e2e/local-first.spec.ts",
+              "apps/web/e2e/timetable-export.spec.ts",
+          ]:
+              path = Path(relative)
+              content = path.read_text()
+              if 'name: "Načtení dat"' not in content:
+                  raise SystemExit(f"Old navigation label missing in {relative}")
+              path.write_text(content.replace('name: "Načtení dat"', 'name: "Pokročilý import"'))
+
+          path = Path("apps/web/e2e/staffing.spec.ts")
+          content = path.read_text()
+          replacements = {
+              'page.getByLabel("Předmět").nth(0)': 'page.locator(\'select[aria-label="Předmět"]\').nth(0)',
+              'page.getByLabel("Počet hodin předmětu").nth(0)': 'page.locator(\'input[aria-label="Počet hodin předmětu"]\').nth(0)',
+              'const index = (await page.getByLabel("Předmět").count()) - 1;\n    await page.getByLabel("Předmět").nth(index).selectOption(subject);\n    await page.getByLabel("Počet hodin předmětu").nth(index).fill(hours);': 'const subjectSelects = page.locator(\'select[aria-label="Předmět"]\');\n    const hourInputs = page.locator(\'input[aria-label="Počet hodin předmětu"]\');\n    const index = (await subjectSelects.count()) - 1;\n    await subjectSelects.nth(index).selectOption(subject);\n    await hourInputs.nth(index).fill(hours);',
+          }
+          for old, new in replacements.items():
+              if old not in content:
+                  raise SystemExit(f"Expected staffing selector not found: {old[:50]}")
+              content = content.replace(old, new)
+          path.write_text(content)
+          PY
+      - run: npx prettier --write apps/web/e2e/local-first.spec.ts apps/web/e2e/timetable-export.spec.ts apps/web/e2e/staffing.spec.ts
+      - name: Commit corrected tests
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/e2e/local-first.spec.ts apps/web/e2e/timetable-export.spec.ts apps/web/e2e/staffing.spec.ts
+          git commit -m "test(staffing): use exact beginner workflow selectors"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
