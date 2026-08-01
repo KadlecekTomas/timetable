@@ -51,3 +51,33 @@ def test_double_lesson_can_start_after_the_lunch_break() -> None:
     lesson = response.json()["lessons"][0]
     assert lesson["period"] == 6
     assert lesson["duration"] == 2
+
+
+def test_regular_class_starts_at_eight_every_weekday() -> None:
+    response = client.post(
+        "/solve",
+        json={
+            "periods_per_day": [2, 2, 2, 2, 2],
+            "assignments": [
+                {
+                    "id": "daily-lesson",
+                    "teacher_id": "teacher-1",
+                    "class_id": "class-1",
+                    "subject_id": "subject-1",
+                    "weekly_periods": 5,
+                    "lesson_shape": "SINGLE",
+                    "max_per_day": 1,
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    lessons = response.json()["lessons"]
+    assert sorted((lesson["day"], lesson["period"]) for lesson in lessons) == [
+        (0, 0),
+        (1, 0),
+        (2, 0),
+        (3, 0),
+        (4, 0),
+    ]

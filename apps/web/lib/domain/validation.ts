@@ -7,7 +7,11 @@ import {
   type TimetableMove,
   type ValidationIssue,
 } from "./contracts";
-import { lessonClassIds, parallelAssignmentPairs } from "./class-groups";
+import {
+  classRequiredWeeklyPeriods,
+  lessonClassIds,
+  parallelAssignmentPairs,
+} from "./class-groups";
 import {
   crossesLunchBreak,
   MIN_LUNCH_BREAK_MINUTES,
@@ -304,6 +308,27 @@ export function validateSchedule(
         }
         classSlots.set(classKey, [...existingLessons, lesson]);
       }
+    }
+  }
+
+  const requiredPeriodsByClass = classRequiredWeeklyPeriods(
+    snapshot.assignments,
+  );
+  if (snapshot.periods_per_day.length >= 5) {
+    for (const [classId, weeklyPeriods] of requiredPeriodsByClass) {
+      if (weeklyPeriods < snapshot.periods_per_day.length) continue;
+      snapshot.periods_per_day.forEach((periods, day) => {
+        if (periods <= 0 || classSlots.has(`${classId}:${day}:0`)) return;
+        pushIssue(
+          issues,
+          "CLASS_DOES_NOT_START_AT_EIGHT",
+          `Třída ${classId} musí každý vyučovací den začínat první hodinou v 8:00.`,
+          [classId],
+          day,
+          0,
+          { requiredStartTime: "8:00" },
+        );
+      });
     }
   }
 

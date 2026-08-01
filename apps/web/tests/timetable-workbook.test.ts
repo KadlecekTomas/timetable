@@ -249,6 +249,8 @@ test("leadership export contains printable class and teacher schedules at school
   assert.equal(overview.getCell("B5").text, "2026/2027");
   assert.equal(overview.getCell("E4").value, 13);
   assert.equal(overview.getCell("E5").value, 40);
+  assert.equal(class6A.getCell("A5").text, "1. hodina · 8:00");
+  assert.ok(class6A.getCell("A3").text.includes("začíná vždy v 8:00"));
 
   const class6ARow = findRowByFirstCell(overview, "6A");
   assert.notEqual(class6ARow, null);

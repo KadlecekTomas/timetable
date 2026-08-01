@@ -112,7 +112,7 @@ const DEFINITIONS: SheetDefinition[] = [
     legacyName: "Nastavení",
     title: "Základní nastavení týdne",
     instruction:
-      "Vyplňte jeden řádek. Nejvýše 6 hodin je dopolední výuka; 7. a další hodina je odpolední výuka po obědové přestávce nejméně 50 minut.",
+      "Vyplňte jeden řádek. Vyučování začíná vždy v 8:00 a nultá hodina se nepoužívá. Nejvýše 6 hodin je dopolední výuka; 7. a další hodina je odpolední výuka po obědové přestávce nejméně 50 minut.",
     tabColor: COLORS.navy,
     columns: [
       col("school_year", "Školní rok *", true, 18, "Například 2026/2027."),

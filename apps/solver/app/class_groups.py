@@ -32,3 +32,22 @@ def parallel_assignment_pairs(
         if len(left) == 1 and len(right) == 1:
             pairs.append((left[0], right[0]))
     return pairs
+
+
+def class_required_weekly_periods(assignments: list[Assignment]) -> dict[str, int]:
+    totals: dict[str, int] = defaultdict(int)
+    paired_ids: set[str] = set()
+
+    for left, right in parallel_assignment_pairs(assignments):
+        paired_ids.update((left.id, right.id))
+        weekly_periods = max(left.weekly_periods, right.weekly_periods)
+        for class_id in assignment_class_ids(left):
+            totals[class_id] += weekly_periods
+
+    for assignment in assignments:
+        if assignment.id in paired_ids:
+            continue
+        for class_id in assignment_class_ids(assignment):
+            totals[class_id] += assignment.weekly_periods
+
+    return dict(totals)

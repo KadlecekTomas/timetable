@@ -28,6 +28,7 @@ import { teachingGroupLabels } from "@/lib/ui-labels";
 import {
   MIN_LUNCH_BREAK_MINUTES,
   MORNING_PERIOD_LIMIT,
+  schoolPeriodLabel,
 } from "@/lib/domain/school-day";
 
 const dayNames = [
@@ -406,7 +407,7 @@ export default function TimetablePage() {
 
           <div className="overflow-x-auto rounded-xl border border-border bg-surface">
             <div className="min-w-[980px]">
-              <div className="grid grid-cols-[64px_repeat(5,minmax(170px,1fr))] border-b border-border bg-surface-subtle">
+              <div className="grid grid-cols-[96px_repeat(5,minmax(170px,1fr))] border-b border-border bg-surface-subtle">
                 <div className="p-3 text-xs font-medium text-text-muted">
                   Hodina
                 </div>
@@ -422,7 +423,7 @@ export default function TimetablePage() {
               {Array.from({ length: maximumPeriods }, (_, period) => (
                 <Fragment key={period}>
                   {period === MORNING_PERIOD_LIMIT ? (
-                    <div className="grid grid-cols-[64px_repeat(5,minmax(170px,1fr))] border-b border-warning-border bg-warning-subtle">
+                    <div className="grid grid-cols-[96px_repeat(5,minmax(170px,1fr))] border-b border-warning-border bg-warning-subtle">
                       <div className="col-span-6 px-4 py-2 text-center text-xs font-semibold text-warning-strong">
                         Obědová přestávka · nejméně {MIN_LUNCH_BREAK_MINUTES}{" "}
                         minut
@@ -431,10 +432,10 @@ export default function TimetablePage() {
                   ) : null}
                   <div
                     key={`period-${period}`}
-                    className="grid min-h-24 grid-cols-[64px_repeat(5,minmax(170px,1fr))] border-b border-border last:border-b-0"
+                    className="grid min-h-24 grid-cols-[96px_repeat(5,minmax(170px,1fr))] border-b border-border last:border-b-0"
                   >
                     <div className="p-3 text-center text-sm font-semibold text-text-muted">
-                      {period + 1}.
+                      {schoolPeriodLabel(period)}
                     </div>
                     {dayNames.slice(0, 5).map((_day, day) => {
                       const cellLessons = payload?.lessons.filter(

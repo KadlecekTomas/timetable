@@ -8,7 +8,11 @@ from fastapi import FastAPI, HTTPException
 from ortools.sat.python import cp_model
 from pydantic import BaseModel
 
-from app.class_groups import assignment_class_ids, parallel_assignment_pairs
+from app.class_groups import (
+    assignment_class_ids,
+    class_required_weekly_periods,
+    parallel_assignment_pairs,
+)
 from app.models import (
     Assignment,
     AvailabilityEntityType,
@@ -364,6 +368,16 @@ def solve(payload: SolveRequest) -> SolveResponse:
         group_2 = class_group_2_slots.get(key, [])
         model.add(sum([*whole, *group_1]) <= 1)
         model.add(sum([*whole, *group_2]) <= 1)
+
+    required_periods_by_class = class_required_weekly_periods(payload.assignments)
+    if len(payload.periods_per_day) >= 5:
+        for class_id, weekly_periods in required_periods_by_class.items():
+            if weekly_periods < len(payload.periods_per_day):
+                continue
+            for day, periods in enumerate(payload.periods_per_day):
+                if periods <= 0:
+                    continue
+                model.add(sum(class_all_slots.get((class_id, day, 0), [])) >= 1)
 
     blocks_by_assignment: dict[str, list[Block]] = defaultdict(list)
     for block in blocks:

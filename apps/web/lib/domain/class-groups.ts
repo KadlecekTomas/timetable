@@ -50,3 +50,31 @@ export function parallelAssignmentPairs(
   }
   return pairs;
 }
+
+export function classRequiredWeeklyPeriods(
+  assignments: SnapshotAssignment[],
+): Map<string, number> {
+  const totals = new Map<string, number>();
+  const pairedIds = new Set<string>();
+
+  for (const [left, right] of parallelAssignmentPairs(assignments)) {
+    pairedIds.add(left.id);
+    pairedIds.add(right.id);
+    const weeklyPeriods = Math.max(left.weekly_periods, right.weekly_periods);
+    for (const classId of assignmentClassIds(left)) {
+      totals.set(classId, (totals.get(classId) ?? 0) + weeklyPeriods);
+    }
+  }
+
+  for (const assignment of assignments) {
+    if (pairedIds.has(assignment.id)) continue;
+    for (const classId of assignmentClassIds(assignment)) {
+      totals.set(
+        classId,
+        (totals.get(classId) ?? 0) + assignment.weekly_periods,
+      );
+    }
+  }
+
+  return totals;
+}

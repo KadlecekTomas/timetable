@@ -31,22 +31,22 @@ const CLASSES = [
 ] as const;
 
 const SUBJECTS = [
-  ["CJ", "Český jazyk", ""],
+  ["CJ", "Český jazyk a literatura", ""],
   ["M", "Matematika", ""],
-  ["JAZ1", "Anglický jazyk", ""],
-  ["JAZ2", "Další cizí jazyk", ""],
+  ["JAZ1", "Anglický jazyk", "JAZYKOVÁ UČEBNA"],
+  ["JAZ2", "Další cizí jazyk", "JAZYKOVÁ UČEBNA"],
   ["INF", "Informatika", "POČÍTAČOVÁ UČEBNA"],
   ["TV", "Tělesná výchova", "TĚLOCVIČNA"],
   ["FY", "Fyzika", ""],
   ["DEJ", "Dějepis", ""],
-  ["ZEM", "Zeměpis", ""],
+  ["ZEM", "Geografie (zeměpis)", ""],
   ["PRI", "Přírodopis", ""],
   ["CH", "Chemie", ""],
-  ["OV", "Občanská výchova", ""],
+  ["OV", "Výchova k občanství a osobnostní a sociální výchova", ""],
   ["VZ", "Výchova ke zdraví a bezpečí", ""],
-  ["HV", "Hudební výchova", ""],
-  ["VV", "Výtvarná výchova", ""],
-  ["PC", "Pracovní činnosti", ""],
+  ["HV", "Hudební, taneční a dramatická výchova", ""],
+  ["VV", "Výtvarná a filmová výchova", ""],
+  ["PC", "Polytechnická výchova a praktické činnosti", ""],
 ] as const;
 
 const SPLIT_SUBJECTS = ["CJ", "M", "JAZ1", "JAZ2"] as const;
@@ -103,6 +103,7 @@ interface StoredClass {
 interface StoredSubject {
   id: string;
   code: string;
+  name: string;
 }
 
 interface StoredAssignment {
@@ -616,6 +617,9 @@ test("vedení školy vytvoří a exportuje plný rozvrh druhého stupně se 122 
   expect(imported.classes).toHaveLength(13);
   expect(imported.subjects).toHaveLength(16);
   expect(imported.assignments).toHaveLength(244);
+  expect(
+    new Map(imported.subjects.map((subject) => [subject.code, subject.name])),
+  ).toEqual(new Map(SUBJECTS.map(([code, name]) => [code, name])));
   const subjectById = new Map(
     imported.subjects.map((subject) => [subject.id, subject.code]),
   );
@@ -663,6 +667,9 @@ test("vedení školy vytvoří a exportuje plný rozvrh druhého stupně se 122 
   await expect(
     page.getByRole("heading", { name: "Kvalita návrhu" }),
   ).toBeVisible();
+  await expect(
+    page.getByText("1. hodina · 8:00", { exact: true }),
+  ).toBeVisible();
 
   const generated = await readProject(page);
   const version = currentVersion(generated);
@@ -684,6 +691,12 @@ test("vedení školy vytvoří a exportuje plný rozvrh druhého stupně se 122 
     expect(occupiedSlots.size).toBe(
       expectedClassWeeklyPeriods(schoolClass.code, schoolClass.grade),
     );
+    for (let day = 0; day < 5; day += 1) {
+      expect(
+        occupiedSlots.has(`${day}:0`),
+        `${schoolClass.code} musí v den ${day + 1} začínat v 8:00`,
+      ).toBe(true);
+    }
   }
   const kadLessons = version.lessons.filter(
     (lesson) => lesson.teacher_id === kad.id,
@@ -708,6 +721,7 @@ test("vedení školy vytvoří a exportuje plný rozvrh druhého stupně se 122 
     const worksheet = exported.getWorksheet(`Třída ${classCode}`)!;
     expect(worksheet).toBeDefined();
     const expectedWeeklyPeriods = expectedClassWeeklyPeriods(classCode, grade);
+    expect(worksheet.getCell("A5").text).toBe("1. hodina · 8:00");
     expect(occupiedExportCells(worksheet)).toBe(expectedWeeklyPeriods);
     let overviewRow: number | null = null;
     for (let row = 1; row <= overview.rowCount; row += 1) {

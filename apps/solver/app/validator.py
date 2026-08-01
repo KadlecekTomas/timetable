@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 from app.class_groups import (
+    class_required_weekly_periods,
     lesson_class_ids,
     parallel_assignment_pairs,
 )
@@ -264,6 +265,25 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
                             )
                         )
                 class_slots[class_key].append(lesson)
+
+    required_periods_by_class = class_required_weekly_periods(payload.assignments)
+    if len(payload.periods_per_day) >= 5:
+        for class_id, weekly_periods in required_periods_by_class.items():
+            if weekly_periods < len(payload.periods_per_day):
+                continue
+            for day, periods in enumerate(payload.periods_per_day):
+                if periods <= 0 or class_slots.get((class_id, day, 0)):
+                    continue
+                issues.append(
+                    ValidationIssue(
+                        code="CLASS_DOES_NOT_START_AT_EIGHT",
+                        message=f"Třída {class_id} musí každý vyučovací den začínat první hodinou v 8:00.",
+                        entity_ids=[class_id],
+                        day=day,
+                        period=0,
+                        details={"requiredStartTime": "8:00"},
+                    )
+                )
 
     lessons_by_assignment: dict[str, list[ScheduledLesson]] = defaultdict(list)
     for lesson in lessons:

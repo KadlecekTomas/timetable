@@ -19,12 +19,22 @@ export const SCHOOL_CLASS_ROWS = [
 ] as const;
 
 export const SCHOOL_SUBJECT_ROWS = [
-  ["CJ", "Český jazyk", ""],
+  ["CJ", "Český jazyk a literatura", ""],
   ["M", "Matematika", ""],
+  ["JAZ1", "Anglický jazyk", "JAZYKOVÁ UČEBNA"],
+  ["JAZ2", "Další cizí jazyk", "JAZYKOVÁ UČEBNA"],
   ["INF", "Informatika", "POČÍTAČOVÁ UČEBNA"],
-  ["JAZ1", "Cizí jazyk 1", "JAZYKOVÁ UČEBNA"],
-  ["JAZ2", "Cizí jazyk 2", "JAZYKOVÁ UČEBNA"],
   ["TV", "Tělesná výchova", "TĚLOCVIČNA"],
+  ["FY", "Fyzika", ""],
+  ["DEJ", "Dějepis", ""],
+  ["ZEM", "Geografie (zeměpis)", ""],
+  ["PRI", "Přírodopis", ""],
+  ["CH", "Chemie", ""],
+  ["OV", "Výchova k občanství a osobnostní a sociální výchova", ""],
+  ["VZ", "Výchova ke zdraví a bezpečí", ""],
+  ["HV", "Hudební, taneční a dramatická výchova", ""],
+  ["VV", "Výtvarná a filmová výchova", ""],
+  ["PC", "Polytechnická výchova a praktické činnosti", ""],
 ] as const;
 
 const SPLIT_SUBJECT_CODES = ["CJ", "M", "JAZ1", "JAZ2"] as const;

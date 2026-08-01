@@ -3,6 +3,8 @@ import ExcelJS, { type Cell, type Worksheet } from "exceljs";
 import {
   MIN_LUNCH_BREAK_MINUTES,
   MORNING_PERIOD_LIMIT,
+  SCHOOL_DAY_START_TIME,
+  schoolPeriodLabel,
 } from "../domain/school-day";
 
 const DAY_NAMES = ["Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek"] as const;
@@ -304,7 +306,7 @@ function createTimetableSheet(
     { state: "frozen", xSplit: 1, ySplit: 4, showGridLines: false },
   ];
   worksheet.columns = [
-    { width: 11 },
+    { width: 17 },
     { width: 31 },
     { width: 31 },
     { width: 31 },
@@ -361,7 +363,7 @@ function createTimetableSheet(
 
   worksheet.mergeCells("A3:F3");
   const legend = worksheet.getCell("A3");
-  legend.value = `Skupiny uvedené v jedné buňce probíhají současně. Mezi 6. a 7. hodinou je obědová přestávka nejméně ${MIN_LUNCH_BREAK_MINUTES} minut.`;
+  legend.value = `Vyučování začíná vždy v ${SCHOOL_DAY_START_TIME}. Skupiny uvedené v jedné buňce probíhají současně. Mezi 6. a 7. hodinou je obědová přestávka nejméně ${MIN_LUNCH_BREAK_MINUTES} minut.`;
   legend.fill = {
     type: "pattern",
     pattern: "solid",
@@ -401,7 +403,7 @@ function createTimetableSheet(
 
     const period = row.period;
     const hourCell = worksheet.getCell(rowNumber, 1);
-    hourCell.value = `${period + 1}. hodina`;
+    hourCell.value = schoolPeriodLabel(period);
     hourCell.font = { bold: true, color: { argb: COLORS.text } };
     hourCell.fill = {
       type: "pattern",

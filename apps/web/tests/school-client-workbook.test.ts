@@ -59,6 +59,28 @@ test("school client template prefills split subjects, whole-class informatics an
     ],
   );
 
+  const subjects = workbook.getWorksheet("3. Předměty");
+  assert.ok(subjects);
+  const subjectRows = filledRows(subjects, 3);
+  assert.equal(subjectRows.length, 16);
+  assert.ok(
+    subjectRows.some(
+      ([code, name]) => code === "VZ" && name === "Výchova ke zdraví a bezpečí",
+    ),
+  );
+  assert.ok(
+    subjectRows.some(
+      ([code, name]) =>
+        code === "OV" && name.includes("osobnostní a sociální výchova"),
+    ),
+  );
+  assert.ok(
+    subjectRows.some(
+      ([code, name]) =>
+        code === "PC" && name === "Polytechnická výchova a praktické činnosti",
+    ),
+  );
+
   const assignments = workbook.getWorksheet("5. Kdo co učí");
   assert.ok(assignments);
   const assignmentRows = filledRows(assignments, 13);

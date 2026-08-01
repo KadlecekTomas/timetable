@@ -9,6 +9,8 @@ import {
   crossesLunchBreak,
   MIN_LUNCH_BREAK_MINUTES,
   MORNING_PERIOD_LIMIT,
+  SCHOOL_DAY_START_TIME,
+  schoolPeriodLabel,
 } from "../lib/domain/school-day";
 import { validateSchedule } from "../lib/domain/validation";
 
@@ -72,7 +74,10 @@ function lesson(period: number): ScheduledLesson {
   };
 }
 
-test("Czech school day uses six morning periods and a fifty-minute lunch break", () => {
+test("Czech school day starts at eight and uses six morning periods", () => {
+  assert.equal(SCHOOL_DAY_START_TIME, "8:00");
+  assert.equal(schoolPeriodLabel(0), "1. hodina · 8:00");
+  assert.equal(schoolPeriodLabel(1), "2. hodina");
   assert.equal(MORNING_PERIOD_LIMIT, 6);
   assert.equal(MIN_LUNCH_BREAK_MINUTES, 50);
   assert.equal(crossesLunchBreak(5, 2), true);
@@ -86,4 +91,36 @@ test("local validation rejects a double lesson crossing lunch", () => {
 
 test("local validation allows an afternoon double lesson after lunch", () => {
   assert.deepEqual(validateSchedule(snapshot, [lesson(6)]), []);
+});
+
+test("regular five-day class must start at eight every day", () => {
+  const fullWeekSnapshot: CanonicalSnapshot = {
+    ...snapshot,
+    periods_per_day: [2, 2, 2, 2, 2],
+    assignments: [
+      {
+        ...snapshot.assignments[0]!,
+        weekly_periods: 5,
+        lesson_shape: "SINGLE",
+      },
+    ],
+  };
+  const fullWeekLessons: ScheduledLesson[] = Array.from(
+    { length: 5 },
+    (_, day) => ({
+      ...lesson(0),
+      block_id: `assignment-1:${day}`,
+      day,
+      duration: 1,
+    }),
+  );
+  assert.deepEqual(validateSchedule(fullWeekSnapshot, fullWeekLessons), []);
+
+  const lateStart = fullWeekLessons.map((item) => ({ ...item }));
+  lateStart[2] = { ...lateStart[2]!, period: 1 };
+  assert.ok(
+    validateSchedule(fullWeekSnapshot, lateStart).some(
+      (issue) => issue.code === "CLASS_DOES_NOT_START_AT_EIGHT",
+    ),
+  );
 });
