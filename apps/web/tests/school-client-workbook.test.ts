@@ -30,7 +30,7 @@ function filledRows(
   return rows;
 }
 
-test("school template splits informatics except 8.B", async () => {
+test("school template uses current subjects and splits informatics except 8.B", async () => {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load((await createSchoolClientImportTemplate()) as never);
 
@@ -62,23 +62,35 @@ test("school template splits informatics except 8.B", async () => {
   const subjects = workbook.getWorksheet("3. Předměty");
   assert.ok(subjects);
   const subjectRows = filledRows(subjects, 3);
-  assert.equal(subjectRows.length, 16);
-  assert.ok(
-    subjectRows.some(
-      ([code, name]) => code === "VZ" && name === "Výchova ke zdraví a bezpečí",
-    ),
-  );
-  assert.ok(
-    subjectRows.some(
-      ([code, name]) =>
-        code === "OV" && name.includes("osobnostní a sociální výchova"),
-    ),
-  );
-  assert.ok(
-    subjectRows.some(
-      ([code, name]) =>
-        code === "PC" && name === "Polytechnická výchova a praktické činnosti",
-    ),
+  assert.deepEqual(subjectRows, [
+    ["CJ", "Český jazyk a literatura (ČJ / ČJL)", ""],
+    ["M", "Matematika (M)", ""],
+    ["JAZ1", "Anglický jazyk (Aj)", "JAZYKOVÁ UČEBNA"],
+    [
+      "JAZ2",
+      "Druhý cizí jazyk – německý jazyk (2.Nj)",
+      "JAZYKOVÁ UČEBNA",
+    ],
+    ["INF", "Informatika (Inf)", "POČÍTAČOVÁ UČEBNA"],
+    ["TV", "Tělesná výchova (Tv)", "TĚLOCVIČNA"],
+    ["FY", "Fyzika (F)", ""],
+    ["DEJ", "Dějepis (D)", ""],
+    ["ZEM", "Zeměpis (Z)", ""],
+    ["PRI", "Přírodopis (Př)", ""],
+    ["CH", "Chemie (Ch)", ""],
+    ["OV", "Občanská výchova (Ov)", ""],
+    ["VZ", "Výchova ke zdraví (Vkz)", ""],
+    ["HV", "Hudební výchova (Hv)", ""],
+    ["VV", "Výtvarná výchova (Vv)", ""],
+    ["PC", "Pracovní činnosti (Pč)", ""],
+    ["SVS", "Svs", ""],
+    ["PKCJ", "PkČj", ""],
+    ["PRPK", "PřPk", ""],
+  ]);
+  assert.match(subjects.getCell("A2").text, /aktuálních školních rozvrzích/);
+  assert.doesNotMatch(
+    subjectRows.map((row) => row[1]).join("\n"),
+    /Revolution Train|Jumppark|Kampa|suplování/i,
   );
 
   const assignments = workbook.getWorksheet("5. Kdo co učí");
