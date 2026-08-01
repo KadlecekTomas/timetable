@@ -15,8 +15,8 @@ prefill = "apps/web/lib/import/client-workbook-prefill.ts"
 
 replace(
     workbook,
-    "      subject_code: requiredText(\n        values.subject_code ?? \"\",",
-    "      additional_class_codes: (values.additional_class_codes ?? \"\")\n        .split(/[;,]/)\n        .map((value) => value.trim())\n        .filter(Boolean),\n      subject_code: requiredText(\n        values.subject_code ?? \"\",",
+    "      class_code: requiredText(\n        values.class_code ?? \"\",\n        issues,\n        SHEETS.assignments,\n        rowNumber,\n        \"class_code\",\n      ),\n      subject_code: requiredText(",
+    "      class_code: requiredText(\n        values.class_code ?? \"\",\n        issues,\n        SHEETS.assignments,\n        rowNumber,\n        \"class_code\",\n      ),\n      additional_class_codes: (values.additional_class_codes ?? \"\")\n        .split(/[;,]/)\n        .map((value) => value.trim())\n        .filter(Boolean),\n      subject_code: requiredText(",
     1,
 )
 replace(
