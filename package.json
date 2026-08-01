@@ -13,7 +13,7 @@
     "typecheck": "npm run typecheck --workspace @timetable/web",
     "test": "npm run test --workspace @timetable/web",
     "format": "prettier --write package.json apps/web apps/solver .github/workflows compose.yaml vercel.json",
-    "format:check": "prettier --write apps/web/app/staffing/page.tsx apps/web/lib/import/staffing-workbook.ts apps/web/lib/local/staffing-plan.ts"
+    "format:check": "prettier --check package.json apps/web apps/solver .github/workflows compose.yaml vercel.json"
   },
   "devDependencies": {
     "prettier": "3.6.2"
