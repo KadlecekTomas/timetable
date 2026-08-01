@@ -1,0 +1,81 @@
+name: Patch shared export once
+
+on:
+  push:
+    branches:
+      - feat/client-friendly-excel-template
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/client-friendly-excel-template
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Add shared-class label and regression assertion
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          export_path = Path("apps/web/lib/export/timetable-workbook.ts")
+          export_text = export_path.read_text()
+          old = '''  const details = [
+            lesson.group === "WHOLE" ? null : GROUP_LABELS[lesson.group],
+            lesson.room?.code ?? "bez učebny",
+          '''
+          new = '''  const sharedClasses =
+            view === "class" && (lesson.schoolClasses?.length ?? 0) > 1
+              ? `společně: ${lesson.schoolClasses?.map((item) => item.code).join(" + ")}`
+              : null;
+          const details = [
+            sharedClasses,
+            lesson.group === "WHOLE" ? null : GROUP_LABELS[lesson.group],
+            lesson.room?.code ?? "bez učebny",
+          '''
+          if old not in export_text:
+              raise SystemExit("Expected lesson details block was not found")
+          export_path.write_text(export_text.replace(old, new, 1))
+
+          test_path = Path("apps/web/tests/timetable-workbook.test.ts")
+          test_text = test_path.read_text()
+          old_test = '''  assert.ok(textValues(class9A).some((value) => value.startsWith("TV · KAD")));
+          assert.ok(textValues(class9C).some((value) => value.startsWith("TV · KAD")));
+          '''
+          new_test = '''  assert.ok(textValues(class9A).some((value) => value.startsWith("TV · KAD")));
+          assert.ok(textValues(class9C).some((value) => value.startsWith("TV · KAD")));
+          assert.ok(
+            textValues(class9A).some((value) =>
+              value.includes("společně: 9A + 9C"),
+            ),
+          );
+          assert.ok(
+            textValues(class9C).some((value) =>
+              value.includes("společně: 9A + 9C"),
+            ),
+          );
+          '''
+          if old_test not in test_text:
+              raise SystemExit("Expected shared-class assertions were not found")
+          test_path.write_text(test_text.replace(old_test, new_test, 1))
+          PY
+          npx prettier --write \
+            apps/web/lib/export/timetable-workbook.ts \
+            apps/web/tests/timetable-workbook.test.ts
+          rm .github/workflows/patch-shared-export-once.yml
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/lib/export/timetable-workbook.ts \
+            apps/web/tests/timetable-workbook.test.ts \
+            .github/workflows/patch-shared-export-once.yml
+          git commit -m "fix(export): label shared classes in class schedules"
+          git push origin HEAD:feat/client-friendly-excel-template
