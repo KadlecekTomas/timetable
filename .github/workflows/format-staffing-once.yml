@@ -23,27 +23,18 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           path = Path("apps/web/lib/import/staffing-workbook.ts")
           content = path.read_text()
-          unsupported = '''      {
-                type: "notContainsText",
-                operator: "notContainsText",
-                text: "SEDÍ",
-                priority: 2,
-                style: {
-                  fill: {
-                    type: "pattern",
-                    pattern: "solid",
-                    fgColor: { argb: COLORS.paleRed },
-                  },
-                  font: { color: { argb: COLORS.red }, bold: true },
-                },
-              },
-          '''
-          if unsupported not in content:
-              raise SystemExit("Unsupported formatting block not found")
-          path.write_text(content.replace(unsupported, ""))
+          pattern = re.compile(
+              r'\n\s*\{\n\s*type: "notContainsText",.*?\n\s*\},(?=\n\s*\],)',
+              re.DOTALL,
+          )
+          updated, count = pattern.subn("", content, count=1)
+          if count != 1:
+              raise SystemExit(f"Expected one unsupported rule, removed {count}")
+          path.write_text(updated)
           PY
       - run: npx prettier --write apps/web/app/staffing/page.tsx apps/web/lib/import/staffing-workbook.ts apps/web/lib/local/staffing-plan.ts
       - name: Commit canonical files
