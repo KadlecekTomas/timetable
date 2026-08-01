@@ -43,6 +43,7 @@ async function createSchoolWorkbook(): Promise<Buffer> {
     [
       "6A-M-NOV",
       "6A",
+      "",
       "M",
       "NOV",
       "Celá třída",
@@ -57,6 +58,7 @@ async function createSchoolWorkbook(): Promise<Buffer> {
     [
       "6A-CJ-SVO",
       "6A",
+      "",
       "CJ",
       "SVO",
       "Celá třída",
