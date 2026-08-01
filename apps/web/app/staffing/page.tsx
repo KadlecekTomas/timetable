@@ -922,8 +922,8 @@ export default function StaffingPage() {
               </Button>
               {message?.startsWith("Hotovo") ? (
                 <Button asChild variant="outline">
-                  <Link href={`/data?section=classes&${context}`}>
-                    Pokračovat na třídy
+                  <Link href={`/teaching-plan?${context}`}>
+                    Pokračovat na výuku tříd
                     <ArrowRight className="size-4" aria-hidden="true" />
                   </Link>
                 </Button>
