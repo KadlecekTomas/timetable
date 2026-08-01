@@ -56,6 +56,17 @@ for old, new in [
     ('["6A-JAZ2-S2", "6A", "JAZ2", "", "Skupina 2", "", "Jednotlivé hodiny"]', '["6A-JAZ2-S2", "6A", "", "JAZ2", "", "Skupina 2", "", "Jednotlivé hodiny"]'),
 ]:
     replace(school_test, old, new)
+
+school_file = Path(school_test)
+school_text = school_file.read_text()
+inf_row = '      ["6A-INF", "6A", "", "INF", "", "Celá třída", "1", "Jednotlivé hodiny"],\n'
+jaz2_row = '      ["6A-JAZ2-S2", "6A", "", "JAZ2", "", "Skupina 2", "", "Jednotlivé hodiny"],\n'
+if inf_row not in school_text or jaz2_row not in school_text:
+    raise SystemExit("Missing expected school-template rows for ordering")
+school_text = school_text.replace(inf_row, "", 1)
+school_text = school_text.replace(jaz2_row, jaz2_row + inf_row, 1)
+school_file.write_text(school_text)
+
 replace(school_test, 'row[2] === "INF"', 'row[3] === "INF"')
 replace(
     school_test,
