@@ -1,6 +1,8 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.models import ScheduledLesson, SolveRequest, TeachingGroup
+from app.validator import validate_schedule
 
 client = TestClient(app)
 
@@ -81,3 +83,75 @@ def test_regular_class_starts_at_eight_every_weekday() -> None:
         (3, 0),
         (4, 0),
     ]
+
+
+def test_regular_class_has_continuous_lessons_from_eight() -> None:
+    response = client.post(
+        "/solve",
+        json={
+            "periods_per_day": [3, 3, 3, 3, 3],
+            "assignments": [
+                {
+                    "id": "daily-math",
+                    "teacher_id": "teacher-1",
+                    "class_id": "class-1",
+                    "subject_id": "math",
+                    "weekly_periods": 5,
+                    "max_per_day": 1,
+                },
+                {
+                    "id": "daily-czech",
+                    "teacher_id": "teacher-2",
+                    "class_id": "class-1",
+                    "subject_id": "czech",
+                    "weekly_periods": 5,
+                    "max_per_day": 1,
+                },
+            ],
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    lessons = response.json()["lessons"]
+    for day in range(5):
+        assert sorted(
+            lesson["period"] for lesson in lessons if lesson["day"] == day
+        ) == [0, 1]
+
+
+def test_validator_rejects_internal_class_gap() -> None:
+    payload = SolveRequest.model_validate(
+        {
+            "periods_per_day": [3, 1, 1, 1, 1],
+            "assignments": [
+                {
+                    "id": "daily-lesson",
+                    "teacher_id": "teacher-1",
+                    "class_id": "class-1",
+                    "subject_id": "subject-1",
+                    "weekly_periods": 6,
+                    "max_per_day": 2,
+                }
+            ],
+        }
+    )
+    positions = [(0, 0), (0, 2), (1, 0), (2, 0), (3, 0), (4, 0)]
+    lessons = [
+        ScheduledLesson(
+            block_id=f"daily-lesson:{index}",
+            assignment_id="daily-lesson",
+            teacher_id="teacher-1",
+            class_id="class-1",
+            subject_id="subject-1",
+            group=TeachingGroup.WHOLE,
+            room_id=None,
+            day=day,
+            period=period,
+            duration=1,
+        )
+        for index, (day, period) in enumerate(positions)
+    ]
+
+    issues = validate_schedule(payload, lessons)
+
+    assert any(issue.code == "CLASS_HAS_INTERNAL_GAP" for issue in issues)
