@@ -61,35 +61,71 @@ test("school client template prefills split subjects, whole-class informatics an
 
   const assignments = workbook.getWorksheet("5. Kdo co učí");
   assert.ok(assignments);
-  const assignmentRows = filledRows(assignments, 12);
+  const assignmentRows = filledRows(assignments, 13);
   assert.deepEqual(
-    assignmentRows.slice(0, 9).map((row) => row.slice(0, 7)),
+    assignmentRows.slice(0, 9).map((row) => row.slice(0, 8)),
     [
-      ["6A-CJ-S1", "6A", "CJ", "", "Skupina 1", "", "Jednotlivé hodiny"],
-      ["6A-CJ-S2", "6A", "CJ", "", "Skupina 2", "", "Jednotlivé hodiny"],
-      ["6A-M-S1", "6A", "M", "", "Skupina 1", "", "Jednotlivé hodiny"],
-      ["6A-M-S2", "6A", "M", "", "Skupina 2", "", "Jednotlivé hodiny"],
-      ["6A-INF", "6A", "INF", "", "Celá třída", "1", "Jednotlivé hodiny"],
-      ["6A-JAZ1-S1", "6A", "JAZ1", "", "Skupina 1", "", "Jednotlivé hodiny"],
-      ["6A-JAZ1-S2", "6A", "JAZ1", "", "Skupina 2", "", "Jednotlivé hodiny"],
-      ["6A-JAZ2-S1", "6A", "JAZ2", "", "Skupina 1", "", "Jednotlivé hodiny"],
-      ["6A-JAZ2-S2", "6A", "JAZ2", "", "Skupina 2", "", "Jednotlivé hodiny"],
+      ["6A-CJ-S1", "6A", "", "CJ", "", "Skupina 1", "", "Jednotlivé hodiny"],
+      ["6A-CJ-S2", "6A", "", "CJ", "", "Skupina 2", "", "Jednotlivé hodiny"],
+      ["6A-M-S1", "6A", "", "M", "", "Skupina 1", "", "Jednotlivé hodiny"],
+      ["6A-M-S2", "6A", "", "M", "", "Skupina 2", "", "Jednotlivé hodiny"],
+      [
+        "6A-JAZ1-S1",
+        "6A",
+        "",
+        "JAZ1",
+        "",
+        "Skupina 1",
+        "",
+        "Jednotlivé hodiny",
+      ],
+      [
+        "6A-JAZ1-S2",
+        "6A",
+        "",
+        "JAZ1",
+        "",
+        "Skupina 2",
+        "",
+        "Jednotlivé hodiny",
+      ],
+      [
+        "6A-JAZ2-S1",
+        "6A",
+        "",
+        "JAZ2",
+        "",
+        "Skupina 1",
+        "",
+        "Jednotlivé hodiny",
+      ],
+      [
+        "6A-JAZ2-S2",
+        "6A",
+        "",
+        "JAZ2",
+        "",
+        "Skupina 2",
+        "",
+        "Jednotlivé hodiny",
+      ],
+      ["6A-INF", "6A", "", "INF", "", "Celá třída", "1", "Jednotlivé hodiny"],
     ],
   );
 
-  const informaticsRows = assignmentRows.filter((row) => row[2] === "INF");
+  const informaticsRows = assignmentRows.filter((row) => row[3] === "INF");
   assert.equal(informaticsRows.length, 13);
   assert.deepEqual(
     informaticsRows.map((row) => [
       row[0],
       row[1],
-      row[4],
       row[5],
       row[6],
       row[7],
-      row[9],
+      row[8],
       row[10],
       row[11],
+      row[12],
     ]),
     [
       "6A",
@@ -131,5 +167,8 @@ test("school client template prefills split subjects, whole-class informatics an
   assert.equal(organization.getCell("D8").text, "7.B + 8.B");
   assert.equal(organization.getCell("A9").text, "Informatika");
   assert.match(organization.getCell("C9").text, /1 hodina týdně/);
-  assert.match(organization.getCell("A10").text, /automaticky nevynucuje/);
+  assert.match(
+    organization.getCell("A10").text,
+    /9A a další společná třída 9C/,
+  );
 });

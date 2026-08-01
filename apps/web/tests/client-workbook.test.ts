@@ -31,7 +31,7 @@ test("client template is Czech, guided and imports friendly values", async () =>
     "Zkratka učitele *",
   );
   assert.equal(
-    workbook.getWorksheet("5. Kdo co učí")?.getCell("E6").dataValidation.type,
+    workbook.getWorksheet("5. Kdo co učí")?.getCell("F6").dataValidation.type,
     "list",
   );
 
@@ -50,6 +50,7 @@ test("client template is Czech, guided and imports friendly values", async () =>
     [
       "6A-M-NOV",
       "6A",
+      "",
       "M",
       "NOV",
       "Celá třída",

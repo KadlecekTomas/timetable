@@ -27,7 +27,7 @@ export const SCHOOL_SUBJECT_ROWS = [
   ["TV", "Tělesná výchova", "TĚLOCVIČNA"],
 ] as const;
 
-const SPLIT_SUBJECT_CODES = ["CJ", "M", "INF", "JAZ1", "JAZ2"] as const;
+const SPLIT_SUBJECT_CODES = ["CJ", "M", "JAZ1", "JAZ2"] as const;
 const PE_CLASS_CODES = ["7B", "8B", "9A", "9B", "9C"] as const;
 
 function assignmentRows(): Array<Array<string | number | null>> {
@@ -39,6 +39,7 @@ function assignmentRows(): Array<Array<string | number | null>> {
         rows.push([
           `${classCode}-${subjectCode}-S${groupNumber}`,
           classCode,
+          null,
           subjectCode,
           null,
           `Skupina ${groupNumber}`,
@@ -52,6 +53,22 @@ function assignmentRows(): Array<Array<string | number | null>> {
         ]);
       }
     }
+
+    rows.push([
+      `${classCode}-INF`,
+      classCode,
+      null,
+      "INF",
+      null,
+      "Celá třída",
+      1,
+      "Jednotlivé hodiny",
+      0,
+      null,
+      "POČÍTAČOVÁ UČEBNA",
+      1,
+      0,
+    ]);
   }
 
   for (const classCode of PE_CLASS_CODES) {
@@ -59,6 +76,7 @@ function assignmentRows(): Array<Array<string | number | null>> {
       rows.push([
         `${classCode}-TV-S${groupNumber}`,
         classCode,
+        null,
         "TV",
         null,
         `Skupina ${groupNumber}`,
@@ -119,7 +137,7 @@ function createOrganizationSheet(workbook: ExcelJS.Workbook) {
   sheet.mergeCells("A2:E2");
   const intro = sheet.getCell("A2");
   intro.value =
-    "Půlení jedné třídy je v Rozvrháři podporované. Spojování různých tříd v jedné společné hodině je zde zatím evidované jako organizační požadavek pro další rozšíření plánovacího modelu.";
+    "Půlení jedné třídy i společná výuka více tříd jsou v Rozvrháři podporované. Další společné třídy zadejte přímo na listu 5. Kdo co učí.";
   intro.fill = {
     type: "pattern",
     pattern: "solid",
@@ -158,7 +176,7 @@ function createOrganizationSheet(workbook: ExcelJS.Workbook) {
       "Všechny třídy 6.A–9.C včetně 6.D",
       "Skupina 1 + Skupina 2",
       "Nepotřebný předpřipravený řádek lze smazat",
-      "Připraveno pro český jazyk, matematiku, informatiku a dva cizí jazyky.",
+      "Připraveno pro český jazyk, matematiku a dva cizí jazyky. Informatika zůstává pro celou třídu.",
     ],
     [
       "Tělesná výchova",
@@ -219,7 +237,7 @@ function createOrganizationSheet(workbook: ExcelJS.Workbook) {
   sheet.mergeCells("A10:E10");
   const warning = sheet.getCell("A10");
   warning.value =
-    "Současný solver automaticky nevynucuje povinné ani volitelné spojení různých tříd. Toto pravidlo musí být po vytvoření rozvrhu zkontrolované ručně, dokud nebude doplněná podpora společných hodin více tříd.";
+    "Pro společnou výuku 9.A + 9.C použijte jeden řádek: hlavní třída 9A a další společná třída 9C. Solver pak blok automaticky umístí do rozvrhu obou tříd současně.";
   warning.font = { bold: true, color: { argb: "FF8A1C1C" } };
   warning.fill = {
     type: "pattern",

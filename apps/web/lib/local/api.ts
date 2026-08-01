@@ -92,6 +92,7 @@ interface LocalAssignment {
   id: string;
   assignmentCode: string;
   classId: string;
+  additionalClassIds: string[];
   subjectId: string;
   teacherId: string;
   group: "WHOLE" | "GROUP_1" | "GROUP_2";
@@ -424,6 +425,7 @@ function projectSnapshot(
       code: assignment.assignmentCode,
       teacher_id: assignment.teacherId,
       class_id: assignment.classId,
+      additional_class_ids: assignment.additionalClassIds,
       subject_id: assignment.subjectId,
       group: assignment.group,
       weekly_periods: assignment.weeklyPeriods,
@@ -475,6 +477,9 @@ function assignmentView(project: LocalProject, assignment: LocalAssignment) {
     ...assignment,
     teacher: project.teachers.find((item) => item.id === assignment.teacherId),
     schoolClass: project.classes.find((item) => item.id === assignment.classId),
+    schoolClasses: [assignment.classId, ...assignment.additionalClassIds]
+      .map((classId) => project.classes.find((item) => item.id === classId))
+      .filter(Boolean),
     subject: project.subjects.find((item) => item.id === assignment.subjectId),
     requiredRoom: project.rooms.find(
       (item) => item.id === assignment.requiredRoomId,
@@ -676,6 +681,14 @@ async function createResource(
         id: idFor("assignment", assignmentCode),
         assignmentCode,
         classId,
+        additionalClassIds: Array.isArray(body.additionalClassIds)
+          ? body.additionalClassIds.filter(
+              (item): item is string =>
+                typeof item === "string" &&
+                item !== classId &&
+                project.classes.some((schoolClass) => schoolClass.id === item),
+            )
+          : [],
         subjectId,
         teacherId,
         group: stringField(body, "group") as LocalAssignment["group"],
@@ -754,7 +767,9 @@ async function deleteResource(
     }
     if (
       resource === "classes" &&
-      project.assignments.some((item) => item.classId === id)
+      project.assignments.some(
+        (item) => item.classId === id || item.additionalClassIds.includes(id),
+      )
     ) {
       response = errorResponse(
         409,
@@ -1012,6 +1027,9 @@ function applyImportPayload(
     id: idFor("assignment", item.assignment_code),
     assignmentCode: item.assignment_code,
     classId: classByCode.get(item.class_code)!,
+    additionalClassIds: item.additional_class_codes.map(
+      (classCode) => classByCode.get(classCode)!,
+    ),
     subjectId: subjectByCode.get(item.subject_code)!,
     teacherId: teacherByCode.get(item.teacher_code)!,
     group: item.group,
@@ -1327,7 +1345,10 @@ function timetableView(
       if (!entityId) return true;
       const assignment = assignmentById.get(lesson.assignment_id);
       return view === "class"
-        ? assignment?.classId === entityId
+        ? assignment != null &&
+            [assignment.classId, ...assignment.additionalClassIds].includes(
+              entityId,
+            )
         : assignment?.teacherId === entityId;
     })
     .map((lesson) => {
@@ -1338,6 +1359,13 @@ function timetableView(
       const schoolClass = project.classes.find(
         (item) => item.id === assignment?.classId,
       );
+      const schoolClasses = assignment
+        ? [assignment.classId, ...assignment.additionalClassIds]
+            .map((classId) =>
+              project.classes.find((item) => item.id === classId),
+            )
+            .filter((item): item is LocalClass => Boolean(item))
+        : [];
       const subject = project.subjects.find(
         (item) => item.id === assignment?.subjectId,
       );
@@ -1351,6 +1379,11 @@ function timetableView(
               name: `${teacher.firstName} ${teacher.lastName}`.trim(),
             }
           : undefined,
+        schoolClasses: schoolClasses.map((item) => ({
+          id: item.id,
+          code: item.code,
+          name: item.name,
+        })),
         schoolClass: schoolClass
           ? {
               id: schoolClass.id,

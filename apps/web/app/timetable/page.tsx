@@ -74,6 +74,7 @@ interface LessonView {
   origin: string;
   teacher?: EntityView;
   schoolClass?: EntityView;
+  schoolClasses?: EntityView[];
   subject?: EntityView & { colorToken?: string | null };
   room?: RoomView | null;
 }
@@ -483,7 +484,9 @@ export default function TimetablePage() {
                               <p className="mt-1 text-xs text-text-secondary">
                                 {view === "class"
                                   ? lesson.teacher?.code
-                                  : lesson.schoolClass?.code}
+                                  : (lesson.schoolClasses
+                                      ?.map((item) => item.code)
+                                      .join(" + ") ?? lesson.schoolClass?.code)}
                                 {lesson.group !== "WHOLE"
                                   ? ` · ${teachingGroupLabels[lesson.group] ?? lesson.group}`
                                   : ""}
@@ -593,8 +596,10 @@ export default function TimetablePage() {
                 </h2>
                 <p className="mt-1 text-sm text-text-secondary">
                   {selectedLesson.subject?.name} ·{" "}
-                  {selectedLesson.schoolClass?.code} ·{" "}
-                  {selectedLesson.teacher?.code}
+                  {selectedLesson.schoolClasses
+                    ?.map((item) => item.code)
+                    .join(" + ") ?? selectedLesson.schoolClass?.code}{" "}
+                  · {selectedLesson.teacher?.code}
                 </p>
               </div>
               <button

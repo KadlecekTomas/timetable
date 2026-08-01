@@ -7,7 +7,7 @@ import {
 } from "./contracts";
 import { analyzeImportWorkbook } from "./workbook";
 
-export const CLIENT_IMPORT_TEMPLATE_VERSION = "2.0.0" as const;
+export const CLIENT_IMPORT_TEMPLATE_VERSION = "2.1.0" as const;
 export const CLIENT_TEMPLATE_HEADER_ROW = 5;
 export const CLIENT_TEMPLATE_FIRST_DATA_ROW = 6;
 export const CLIENT_TEMPLATE_LAST_DATA_ROW = 505;
@@ -270,6 +270,13 @@ const DEFINITIONS: SheetDefinition[] = [
     columns: [
       col("assignment_code", "Kód vazby *", true, 22, "Například 6A-M-NOV."),
       col("class_code", "Třída *", true, 14, "Zkratka z listu 2. Třídy."),
+      col(
+        "additional_class_codes",
+        "Další společné třídy",
+        false,
+        24,
+        "Pro společnou výuku více tříd, například 9C. Více kódů oddělte čárkou.",
+      ),
       col(
         "subject_code",
         "Předmět *",
@@ -823,7 +830,11 @@ function findHeader(worksheet: Worksheet, definition: SheetDefinition) {
       );
       if (key) found.set(key, column);
     }
-    if (definition.columns.every((column) => found.has(column.key)))
+    if (
+      definition.columns
+        .filter((column) => column.key !== "additional_class_codes")
+        .every((column) => found.has(column.key))
+    )
       return { row, columns: found };
   }
   return null;
@@ -885,7 +896,7 @@ async function normalizeClientWorkbook(
 ): Promise<Uint8Array | null> {
   const version =
     workbook.getWorksheet("Metadata")?.getCell("B1").text.trim() ?? "";
-  if (version !== CLIENT_IMPORT_TEMPLATE_VERSION) return null;
+  if (!["2.0.0", CLIENT_IMPORT_TEMPLATE_VERSION].includes(version)) return null;
   const legacy = new ExcelJS.Workbook();
   const metadata = legacy.addWorksheet("Metadata", { state: "veryHidden" });
   metadata.addRows([
@@ -915,12 +926,12 @@ async function normalizeClientWorkbook(
       row <= CLIENT_TEMPLATE_LAST_DATA_ROW;
       row += 1
     ) {
-      const values = definition.columns.map((column) =>
-        mapCell(
-          source.getCell(row, header.columns.get(column.key)!).value,
-          column.valueMap,
-        ),
-      );
+      const values = definition.columns.map((column) => {
+        const sourceColumn = header.columns.get(column.key);
+        return sourceColumn
+          ? mapCell(source.getCell(row, sourceColumn).value, column.valueMap)
+          : null;
+      });
       if (
         values.some((value) => value != null && String(value).trim() !== "")
       ) {

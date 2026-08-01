@@ -42,6 +42,7 @@ const SUBJECTS = [
   ["DEJ", "Dějepis", ""],
   ["ZEM", "Zeměpis", ""],
   ["PRI", "Přírodopis", ""],
+  ["CH", "Chemie", ""],
   ["OV", "Občanská výchova", ""],
   ["HV", "Hudební výchova", ""],
   ["VV", "Výtvarná výchova", ""],
@@ -60,6 +61,7 @@ interface TeacherDefinition {
 interface AssignmentDefinition {
   code: string;
   classCode: string;
+  additionalClassCodes: string[];
   subjectCode: string;
   teacherCode: string;
   group: "Celá třída" | "Skupina 1" | "Skupina 2";
@@ -105,6 +107,7 @@ interface StoredAssignment {
   id: string;
   assignmentCode: string;
   classId: string;
+  additionalClassIds: string[];
   subjectId: string;
   teacherId: string;
   group: "WHOLE" | "GROUP_1" | "GROUP_2";
@@ -197,6 +200,9 @@ const TEACHER_POOLS = {
   PRI: TEACHERS.filter((teacher) => teacher.code.startsWith("PR")).map(
     (teacher) => teacher.code,
   ),
+  CH: TEACHERS.filter((teacher) => teacher.code.startsWith("FY")).map(
+    (teacher) => teacher.code,
+  ),
   OV: ["OV1"],
   HV: ["HV1"],
   VV: ["VV1"],
@@ -215,6 +221,7 @@ const GENERAL_SUBJECTS = [
   "DEJ",
   "ZEM",
   "PRI",
+  "CH",
   "OV",
   "HV",
   "VV",
@@ -250,13 +257,14 @@ function writeRows(
 function buildAssignments(): AssignmentDefinition[] {
   const assignments: AssignmentDefinition[] = [];
 
-  CLASSES.forEach(([classCode], classIndex) => {
+  CLASSES.forEach(([classCode, grade], classIndex) => {
     SPLIT_SUBJECTS.forEach((subjectCode) => {
       const pool = TEACHER_POOLS[subjectCode];
       for (const groupNumber of [1, 2] as const) {
         assignments.push({
           code: `${classCode}-${subjectCode}-S${groupNumber}`,
           classCode,
+          additionalClassCodes: [],
           subjectCode,
           teacherCode: pool[(classIndex * 2 + groupNumber - 1) % pool.length]!,
           group: `Skupina ${groupNumber}`,
@@ -274,6 +282,7 @@ function buildAssignments(): AssignmentDefinition[] {
     assignments.push({
       code: `${classCode}-INF`,
       classCode,
+      additionalClassCodes: [],
       subjectCode: "INF",
       teacherCode: "KAD",
       group: "Celá třída",
@@ -286,29 +295,34 @@ function buildAssignments(): AssignmentDefinition[] {
       minDayGap: 0,
     });
 
-    const kadTeachesPe = classCode === "9A" || classCode === "9C";
-    assignments.push({
-      code: `${classCode}-TV`,
-      classCode,
-      subjectCode: "TV",
-      teacherCode: kadTeachesPe
-        ? "KAD"
-        : TEACHER_POOLS.TV[classIndex % TEACHER_POOLS.TV.length]!,
-      group: "Celá třída",
-      weeklyPeriods: 2,
-      shape: kadTeachesPe ? "Dvojhodiny" : "Jednotlivé hodiny",
-      doublePeriodsCount: 0,
-      requiredRoom: null,
-      requiredRoomType: "TĚLOCVIČNA",
-      maxPerDay: 2,
-      minDayGap: 0,
-    });
+    if (classCode !== "9C") {
+      const sharedKadPe = classCode === "9A";
+      assignments.push({
+        code: sharedKadPe ? "9A-9C-TV-KAD" : `${classCode}-TV`,
+        classCode,
+        additionalClassCodes: sharedKadPe ? ["9C"] : [],
+        subjectCode: "TV",
+        teacherCode: sharedKadPe
+          ? "KAD"
+          : TEACHER_POOLS.TV[classIndex % TEACHER_POOLS.TV.length]!,
+        group: "Celá třída",
+        weeklyPeriods: sharedKadPe ? 4 : 2,
+        shape: sharedKadPe ? "Dvojhodiny" : "Jednotlivé hodiny",
+        doublePeriodsCount: 0,
+        requiredRoom: null,
+        requiredRoomType: "TĚLOCVIČNA",
+        maxPerDay: 2,
+        minDayGap: 0,
+      });
+    }
 
     GENERAL_SUBJECTS.forEach((subjectCode) => {
+      if (subjectCode === "CH" && grade < 8) return;
       const pool = TEACHER_POOLS[subjectCode];
       assignments.push({
         code: `${classCode}-${subjectCode}`,
         classCode,
+        additionalClassCodes: [],
         subjectCode,
         teacherCode: pool[classIndex % pool.length]!,
         group: "Celá třída",
@@ -327,7 +341,7 @@ function buildAssignments(): AssignmentDefinition[] {
 }
 
 function buildTeacherRows(assignments: AssignmentDefinition[]) {
-  const classOrder = new Map(
+  const classOrder = new Map<string, number>(
     CLASSES.map(([classCode], index) => [classCode, index]),
   );
   const stats = new Map(
@@ -344,6 +358,9 @@ function buildTeacherRows(assignments: AssignmentDefinition[]) {
     teacher.load += assignment.weeklyPeriods;
     teacher.subjects.add(assignment.subjectCode);
     teacher.classes.add(assignment.classCode);
+    assignment.additionalClassCodes.forEach((classCode) =>
+      teacher.classes.add(classCode),
+    );
   });
 
   return TEACHERS.map((teacher) => {
@@ -432,7 +449,7 @@ async function createRealisticSchoolWorkbook(): Promise<{
   clearDataRows(classes, 3);
   clearDataRows(subjects, 3);
   clearDataRows(rooms, 4);
-  clearDataRows(assignmentsSheet, 12);
+  clearDataRows(assignmentsSheet, 13);
   clearDataRows(availability, 7);
   clearDataRows(fixedLessons, 7);
 
@@ -440,7 +457,7 @@ async function createRealisticSchoolWorkbook(): Promise<{
   const teacherRows = buildTeacherRows(assignments);
   const kadRow = teacherRows.find((row) => row[0] === "KAD");
   expect(TEACHERS).toHaveLength(40);
-  expect(assignments).toHaveLength(234);
+  expect(assignments).toHaveLength(239);
   expect(kadRow?.[3]).toBe(17);
 
   writeRows(settings, [["2026/2027", 8, 8, 8, 8, 7]]);
@@ -460,6 +477,7 @@ async function createRealisticSchoolWorkbook(): Promise<{
     assignments.map((assignment) => [
       assignment.code,
       assignment.classCode,
+      assignment.additionalClassCodes.join(","),
       assignment.subjectCode,
       assignment.teacherCode,
       assignment.group,
@@ -555,7 +573,10 @@ function assertAvailabilityRespected(
       const matchesEntity =
         (rule.entityType === "TEACHER" &&
           lesson.teacher_id === rule.entityId) ||
-        (rule.entityType === "CLASS" && lesson.class_id === rule.entityId) ||
+        (rule.entityType === "CLASS" &&
+          [lesson.class_id, ...(lesson.additional_class_ids ?? [])].includes(
+            rule.entityId,
+          )) ||
         (rule.entityType === "ROOM" && lesson.room_id === rule.entityId);
       return (
         matchesEntity &&
@@ -674,21 +695,24 @@ test("school leadership can import 40 teachers, generate the complete second-sta
   const kadPhysicalEducation = kadAssignments.filter(
     (assignment) => assignment.subjectId === physicalEducation!.id,
   );
+  expect(kadPhysicalEducation).toHaveLength(1);
+  const sharedPeAssignment = kadPhysicalEducation[0]!;
+  expect(classById.get(sharedPeAssignment.classId)?.code).toBe("9A");
   expect(
-    kadPhysicalEducation
-      .map((assignment) => classById.get(assignment.classId)?.code)
-      .sort(),
-  ).toEqual(["9A", "9C"]);
-  kadPhysicalEducation.forEach((assignment) => {
-    expect(assignment.group).toBe("WHOLE");
-    expect(assignment.weeklyPeriods).toBe(2);
-    expect(assignment.lessonShape).toBe("DOUBLE");
-  });
+    sharedPeAssignment.additionalClassIds.map(
+      (classId) => classById.get(classId)?.code,
+    ),
+  ).toEqual(["9C"]);
+  expect(sharedPeAssignment.group).toBe("WHOLE");
+  expect(sharedPeAssignment.weeklyPeriods).toBe(4);
+  expect(sharedPeAssignment.lessonShape).toBe("DOUBLE");
 
   for (const [classCode] of CLASSES) {
     const schoolClass = classByCode.get(classCode)!;
     const classAssignments = imported.assignments.filter(
-      (assignment) => assignment.classId === schoolClass.id,
+      (assignment) =>
+        assignment.classId === schoolClass.id ||
+        assignment.additionalClassIds.includes(schoolClass.id),
     );
     expect(
       [
@@ -698,7 +722,11 @@ test("school leadership can import 40 teachers, generate the complete second-sta
           ),
         ),
       ].sort(),
-    ).toEqual(SUBJECTS.map(([subjectCode]) => subjectCode).sort());
+    ).toEqual(
+      SUBJECTS.map(([subjectCode]) => subjectCode)
+        .filter((subjectCode) => subjectCode !== "CH" || schoolClass.grade >= 8)
+        .sort(),
+    );
 
     for (const subjectCode of SPLIT_SUBJECTS) {
       const subject = subjectByCode.get(subjectCode)!;
@@ -759,7 +787,15 @@ test("school leadership can import 40 teachers, generate the complete second-sta
     (lesson) => lesson.subject_id === physicalEducation!.id,
   );
   expect(generatedKadPe).toHaveLength(2);
-  generatedKadPe.forEach((lesson) => expect(lesson.duration).toBe(2));
+  generatedKadPe.forEach((lesson) => {
+    expect(lesson.duration).toBe(2);
+    expect(classById.get(lesson.class_id)?.code).toBe("9A");
+    expect(
+      (lesson.additional_class_ids ?? []).map(
+        (classId) => classById.get(classId)?.code,
+      ),
+    ).toEqual(["9C"]);
+  });
 
   const kadUnavailable = generated.availability.find(
     (rule) => rule.entityId === kad!.id && rule.kind === "UNAVAILABLE",

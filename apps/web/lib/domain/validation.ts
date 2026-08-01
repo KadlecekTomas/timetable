@@ -7,6 +7,7 @@ import {
   type TimetableMove,
   type ValidationIssue,
 } from "./contracts";
+import { lessonClassIds, parallelAssignmentPairs } from "./class-groups";
 import {
   crossesLunchBreak,
   MIN_LUNCH_BREAK_MINUTES,
@@ -102,6 +103,8 @@ export function validateSchedule(
     if (
       lesson.teacher_id !== assignment.teacher_id ||
       lesson.class_id !== assignment.class_id ||
+      JSON.stringify(lesson.additional_class_ids ?? []) !==
+        JSON.stringify(assignment.additional_class_ids ?? []) ||
       lesson.subject_id !== assignment.subject_id ||
       lesson.group !== assignment.group
     ) {
@@ -232,7 +235,9 @@ export function validateSchedule(
       const unavailableEntities: Array<["TEACHER" | "CLASS" | "ROOM", string]> =
         [
           ["TEACHER", lesson.teacher_id],
-          ["CLASS", lesson.class_id],
+          ...lessonClassIds(lesson).map(
+            (classId) => ["CLASS", classId] as ["CLASS", string],
+          ),
         ];
       if (lesson.room_id) unavailableEntities.push(["ROOM", lesson.room_id]);
       for (const [entityType, entityId] of unavailableEntities) {
@@ -282,22 +287,58 @@ export function validateSchedule(
         }
       }
 
-      const classKey = `${lesson.class_id}:${lesson.day}:${period}`;
-      const existingLessons = classSlots.get(classKey) ?? [];
-      for (const existing of existingLessons) {
-        if (groupsConflict(existing.group, lesson.group)) {
-          pushIssue(
-            issues,
-            "CLASS_COLLISION",
-            `Třída ${lesson.class_id} má současně bloky ${existing.block_id} a ${lesson.block_id}.`,
-            [lesson.class_id, existing.block_id, lesson.block_id],
-            lesson.day,
-            period,
-          );
+      for (const classId of lessonClassIds(lesson)) {
+        const classKey = `${classId}:${lesson.day}:${period}`;
+        const existingLessons = classSlots.get(classKey) ?? [];
+        for (const existing of existingLessons) {
+          if (groupsConflict(existing.group, lesson.group)) {
+            pushIssue(
+              issues,
+              "CLASS_COLLISION",
+              `Třída ${classId} má současně bloky ${existing.block_id} a ${lesson.block_id}.`,
+              [classId, existing.block_id, lesson.block_id],
+              lesson.day,
+              period,
+            );
+          }
         }
+        classSlots.set(classKey, [...existingLessons, lesson]);
       }
-      classSlots.set(classKey, [...existingLessons, lesson]);
     }
+  }
+
+  const lessonsByAssignment = new Map<string, ScheduledLesson[]>();
+  for (const lesson of lessons) {
+    lessonsByAssignment.set(lesson.assignment_id, [
+      ...(lessonsByAssignment.get(lesson.assignment_id) ?? []),
+      lesson,
+    ]);
+  }
+  for (const [left, right] of parallelAssignmentPairs(snapshot.assignments)) {
+    const leftLessons = [...(lessonsByAssignment.get(left.id) ?? [])].sort(
+      (a, b) => a.block_id.localeCompare(b.block_id),
+    );
+    const rightLessons = [...(lessonsByAssignment.get(right.id) ?? [])].sort(
+      (a, b) => a.block_id.localeCompare(b.block_id),
+    );
+    if (leftLessons.length !== rightLessons.length) continue;
+    leftLessons.forEach((leftLesson, index) => {
+      const rightLesson = rightLessons[index]!;
+      if (
+        leftLesson.day !== rightLesson.day ||
+        leftLesson.period !== rightLesson.period ||
+        leftLesson.duration !== rightLesson.duration
+      ) {
+        pushIssue(
+          issues,
+          "PARALLEL_GROUP_DESYNCHRONIZED",
+          "Obě poloviny dělené výuky musí probíhat současně.",
+          [leftLesson.block_id, rightLesson.block_id],
+          leftLesson.day,
+          leftLesson.period,
+        );
+      }
+    });
   }
 
   return issues.sort((left, right) => {
