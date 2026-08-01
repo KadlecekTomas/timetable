@@ -1,0 +1,35 @@
+name: Fix school-scale availability fixture
+
+on:
+  push:
+    branches: [feat/client-friendly-excel-template]
+    paths:
+      - .github/workflows/fix-school-scale-availability.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/client-friendly-excel-template
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: python .github/scripts/fix_school_scale_availability.py
+      - run: npx prettier --write apps/web/e2e/school-scale.spec.ts
+      - name: Commit fix and remove one-shot files
+        run: |
+          rm -f \
+            .github/scripts/fix_school_scale_availability.py \
+            .github/workflows/fix-school-scale-availability.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "test: keep availability inside each school day"
+          git push origin HEAD:feat/client-friendly-excel-template
