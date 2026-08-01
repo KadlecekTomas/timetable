@@ -42,4 +42,4 @@ Stejných 16 předmětů je předvyplněno také v klientské importní šablon�
 
 ## Finální ověření
 
-CI run `30713413990` prošel celý bez retry. Plný browserový scénář v něm ověřil všech 13 tříd, všech pět pracovních dnů, kompletní 122hodinový model, přesnou mapu 16 školních předmětů a výsledný Excel. Artefakt byl po stažení nezávisle otevřen a u všech tříd měl řádek `1. hodina · 8:00` obsazený od pondělí do pátku.
+Implementační HEAD `3932c34a2c19d72d2793adedbfd3bf59959af2d8` prošel v CI runu `30713413990` celý bez retry. Plný browserový scénář ověřil všech 13 tříd, všech pět pracovních dnů, kompletní 122hodinový model, přesnou mapu 16 školních předmětů a výsledný Excel. Artefakt byl po stažení nezávisle otevřen a u všech tříd měl řádek `1. hodina · 8:00` obsazený od pondělí do pátku.
