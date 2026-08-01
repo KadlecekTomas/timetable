@@ -47,6 +47,7 @@ class Assignment(BaseModel):
     id: str
     teacher_id: str
     class_id: str
+    additional_class_ids: list[str] = Field(default_factory=list)
     subject_id: str
     group: TeachingGroup = TeachingGroup.WHOLE
     weekly_periods: int = Field(ge=1, le=40)
@@ -59,6 +60,10 @@ class Assignment(BaseModel):
 
     @model_validator(mode="after")
     def validate_shape(self) -> "Assignment":
+        if self.class_id in self.additional_class_ids:
+            raise ValueError("Primary class cannot also be an additional class")
+        if len(self.additional_class_ids) != len(set(self.additional_class_ids)):
+            raise ValueError("Additional class ids must be unique")
         if self.double_periods_count * 2 > self.weekly_periods:
             raise ValueError("double_periods_count * 2 cannot exceed weekly_periods")
         if self.lesson_shape == LessonShape.SINGLE and self.double_periods_count != 0:
@@ -96,7 +101,9 @@ class SolverWeights(BaseModel):
 
 class SolveRequest(BaseModel):
     contract_version: str = "1.0"
-    periods_per_day: list[int] = Field(default_factory=lambda: [8, 8, 8, 8, 7], min_length=1, max_length=7)
+    periods_per_day: list[int] = Field(
+        default_factory=lambda: [8, 8, 8, 8, 7], min_length=1, max_length=7
+    )
     assignments: list[Assignment]
     rooms: list[Room] = Field(default_factory=list)
     availability: list[AvailabilityRule] = Field(default_factory=list)
@@ -126,14 +133,18 @@ class SolveRequest(BaseModel):
         for item in [*self.fixed_lessons, *self.locked_lessons]:
             assignment = assignments_by_id.get(item.assignment_id)
             if assignment is None:
-                raise ValueError(f"Fixed lesson references unknown assignment {item.assignment_id}")
+                raise ValueError(
+                    f"Fixed lesson references unknown assignment {item.assignment_id}"
+                )
             if item.block_index >= len(assignment.block_durations()):
                 raise ValueError(
                     f"Fixed lesson block index {item.block_index} is outside assignment {item.assignment_id}"
                 )
             key = (item.assignment_id, item.block_index)
             if key in fixed_keys:
-                raise ValueError(f"Block {item.assignment_id}:{item.block_index} is fixed more than once")
+                raise ValueError(
+                    f"Block {item.assignment_id}:{item.block_index} is fixed more than once"
+                )
             fixed_keys.add(key)
         return self
 
@@ -143,6 +154,7 @@ class ScheduledLesson(BaseModel):
     assignment_id: str
     teacher_id: str
     class_id: str
+    additional_class_ids: list[str] = Field(default_factory=list)
     subject_id: str
     group: TeachingGroup
     room_id: str | None
