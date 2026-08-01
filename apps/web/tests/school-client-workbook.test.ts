@@ -30,7 +30,7 @@ function filledRows(
   return rows;
 }
 
-test("school client template prefills split subjects, whole-class informatics and PE organization", async () => {
+test("school client template prefills complete subjects and split informatics except 8.B", async () => {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load((await createSchoolClientImportTemplate()) as never);
 
@@ -85,112 +85,69 @@ test("school client template prefills split subjects, whole-class informatics an
   assert.ok(assignments);
   const assignmentRows = filledRows(assignments, 13);
   assert.deepEqual(
-    assignmentRows.slice(0, 9).map((row) => row.slice(0, 8)),
+    assignmentRows.slice(0, 10).map((row) => row.slice(0, 8)),
     [
       ["6A-CJ-S1", "6A", "", "CJ", "", "Skupina 1", "", "Jednotlivé hodiny"],
       ["6A-CJ-S2", "6A", "", "CJ", "", "Skupina 2", "", "Jednotlivé hodiny"],
       ["6A-M-S1", "6A", "", "M", "", "Skupina 1", "", "Jednotlivé hodiny"],
       ["6A-M-S2", "6A", "", "M", "", "Skupina 2", "", "Jednotlivé hodiny"],
-      [
-        "6A-JAZ1-S1",
-        "6A",
-        "",
-        "JAZ1",
-        "",
-        "Skupina 1",
-        "",
-        "Jednotlivé hodiny",
-      ],
-      [
-        "6A-JAZ1-S2",
-        "6A",
-        "",
-        "JAZ1",
-        "",
-        "Skupina 2",
-        "",
-        "Jednotlivé hodiny",
-      ],
-      [
-        "6A-JAZ2-S1",
-        "6A",
-        "",
-        "JAZ2",
-        "",
-        "Skupina 1",
-        "",
-        "Jednotlivé hodiny",
-      ],
-      [
-        "6A-JAZ2-S2",
-        "6A",
-        "",
-        "JAZ2",
-        "",
-        "Skupina 2",
-        "",
-        "Jednotlivé hodiny",
-      ],
-      ["6A-INF", "6A", "", "INF", "", "Celá třída", "1", "Jednotlivé hodiny"],
+      ["6A-JAZ1-S1", "6A", "", "JAZ1", "", "Skupina 1", "", "Jednotlivé hodiny"],
+      ["6A-JAZ1-S2", "6A", "", "JAZ1", "", "Skupina 2", "", "Jednotlivé hodiny"],
+      ["6A-JAZ2-S1", "6A", "", "JAZ2", "", "Skupina 1", "", "Jednotlivé hodiny"],
+      ["6A-JAZ2-S2", "6A", "", "JAZ2", "", "Skupina 2", "", "Jednotlivé hodiny"],
+      ["6A-INF-S1", "6A", "", "INF", "", "Skupina 1", "1", "Jednotlivé hodiny"],
+      ["6A-INF-S2", "6A", "", "INF", "", "Skupina 2", "1", "Jednotlivé hodiny"],
     ],
   );
 
   const informaticsRows = assignmentRows.filter((row) => row[3] === "INF");
-  assert.equal(informaticsRows.length, 13);
-  assert.deepEqual(
-    informaticsRows.map((row) => [
-      row[0],
-      row[1],
-      row[5],
-      row[6],
-      row[7],
-      row[8],
-      row[10],
-      row[11],
-      row[12],
-    ]),
-    [
-      "6A",
-      "6B",
-      "6C",
-      "6D",
-      "7A",
-      "7B",
-      "7C",
-      "8A",
-      "8B",
-      "8C",
-      "9A",
-      "9B",
-      "9C",
-    ].map((classCode) => [
-      `${classCode}-INF`,
-      classCode,
-      "Celá třída",
-      "1",
-      "Jednotlivé hodiny",
-      "0",
-      "POČÍTAČOVÁ UČEBNA",
-      "1",
-      "0",
-    ]),
-  );
-  assert.equal(
-    assignmentRows.some((row) => row[0].endsWith("-INF-S2")),
-    false,
-  );
-  assert.match(assignments.getCell("A2").text, /Informatika je jednou týdně/);
+  assert.equal(informaticsRows.length, 25);
+
+  const classCodes = [
+    "6A",
+    "6B",
+    "6C",
+    "6D",
+    "7A",
+    "7B",
+    "7C",
+    "8A",
+    "8B",
+    "8C",
+    "9A",
+    "9B",
+    "9C",
+  ];
+  for (const classCode of classCodes) {
+    const rows = informaticsRows.filter((row) => row[1] === classCode);
+    if (classCode === "8B") {
+      assert.deepEqual(
+        rows.map((row) => [row[0], row[5], row[6]]),
+        [["8B-INF", "Celá třída", "1"]],
+      );
+      continue;
+    }
+    assert.deepEqual(
+      rows.map((row) => [row[0], row[5], row[6]]),
+      [
+        [`${classCode}-INF-S1`, "Skupina 1", "1"],
+        [`${classCode}-INF-S2`, "Skupina 2", "1"],
+      ],
+    );
+  }
+
+  assert.match(assignments.getCell("A2").text, /8\.B zůstává pro celou třídu/);
 
   const organization = workbook.getWorksheet("8. Organizační pravidla");
   assert.ok(organization);
-  assert.equal(organization.getCell("B6").text, "9.A + 9.C");
-  assert.equal(organization.getCell("C6").text, "Společná výuka");
-  assert.equal(organization.getCell("D7").text, "8.B + 9.B");
-  assert.equal(organization.getCell("D8").text, "7.B + 8.B");
-  assert.equal(organization.getCell("A9").text, "Informatika");
-  assert.match(organization.getCell("C9").text, /1 hodina týdně/);
+  assert.match(organization.getCell("B6").text, /Všechny třídy kromě 8\.B/);
+  assert.match(organization.getCell("C6").text, /KAD.*VAS/);
+  assert.match(organization.getCell("B7").text, /12 hodin týdně/);
+  assert.match(organization.getCell("C7").text, /úterý a ve středu/);
+  assert.equal(organization.getCell("B8").text, "9.A + 9.C");
+  assert.equal(organization.getCell("C8").text, "Společná výuka");
   assert.match(
-    organization.getCell("A10").text,
+    organization.getCell("A12").text,
     /9A a další společná třída 9C/,
   );
 });
