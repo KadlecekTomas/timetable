@@ -31,24 +31,24 @@ app = FastAPI(title="Timetable Solver", version="0.3.0")
 
 AFTERNOON_START_PERIOD = 5
 SUBJECT_LATE_WEIGHTS = {
-    "CJ": 450,
-    "M": 450,
-    "INF": 425,
-    "JAZ1": 375,
-    "JAZ2": 375,
-    "FY": 300,
-    "CH": 300,
-    "DEJ": 160,
-    "ZEM": 160,
-    "PRI": 160,
-    "OV": 80,
-    "VZ": 80,
-    "HV": 20,
+    "CJ": 3_500,
+    "M": 4_000,
+    "INF": 3_500,
+    "JAZ1": 3_000,
+    "JAZ2": 3_000,
+    "FY": 1_800,
+    "CH": 1_800,
+    "DEJ": 500,
+    "ZEM": 500,
+    "PRI": 500,
+    "OV": 150,
+    "VZ": 150,
+    "HV": 0,
     "TV": 0,
     "VV": 0,
     "PC": 0,
 }
-DEFAULT_SUBJECT_LATE_WEIGHT = 120
+DEFAULT_SUBJECT_LATE_WEIGHT = 300
 
 
 @dataclass(frozen=True)
