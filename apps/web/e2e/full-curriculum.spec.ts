@@ -604,6 +604,12 @@ test("vedení školy vytvoří a exportuje plný rozvrh druhého stupně se 122 
     page.getByRole("heading", { name: "Náhled je připraven k uložení" }),
   ).toBeVisible({ timeout: 60_000 });
   await page.getByRole("button", { name: "Bezpečně uložit změny" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Data byla bezpečně uložena" }),
+  ).toBeVisible();
+  await expect
+    .poll(async () => (await readProject(page)).teachers.length)
+    .toBe(40);
 
   const imported = await readProject(page);
   expect(imported.teachers).toHaveLength(40);
