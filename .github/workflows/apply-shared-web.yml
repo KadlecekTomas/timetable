@@ -24,6 +24,7 @@ jobs:
           python .github/scripts/patch_shared_import.py
           python .github/scripts/patch_shared_local.py
           python .github/scripts/patch_school_scale_shared.py
+          python .github/scripts/patch_shared_template_tests.py
       - run: npx prettier --write apps/web
       - run: npm run typecheck --workspace @timetable/web
       - run: npm run test --workspace @timetable/web
