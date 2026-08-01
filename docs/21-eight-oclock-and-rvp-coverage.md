@@ -39,3 +39,7 @@ RVP vymezuje vzdělávací obory, zatímco konkrétní školní předměty a jej
 `VZ` je tedy v modelu samostatně a není skryté pouze v tělesné nebo občanské výchově. Osobnostní a sociální výchova je v tomto konkrétním ŠVP modelu integrovaná s výchovou k občanství, aby se nezvyšovala celková týdenní dotace nad 122 hodin.
 
 Stejných 16 předmětů je předvyplněno také v klientské importní šabloně. Automatický test kontroluje zejména přítomnost Výchovy ke zdraví a bezpečí, osobnostní a sociální výchovy a polytechnické výchovy.
+
+## Finální ověření
+
+CI run `30713413990` prošel celý bez retry. Plný browserový scénář v něm ověřil všech 13 tříd, všech pět pracovních dnů, kompletní 122hodinový model, přesnou mapu 16 školních předmětů a výsledný Excel. Artefakt byl po stažení nezávisle otevřen a u všech tříd měl řádek `1. hodina · 8:00` obsazený od pondělí do pátku.
