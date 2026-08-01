@@ -24,7 +24,7 @@ replace(
 replace(
     path,
     "          [\"CLASS\", lesson.class_id],\n        ];",
-    "          ...lessonClassIds(lesson).map(\n            (classId) => [\"CLASS\", classId] as const,\n          ),\n        ];",
+    "          ...lessonClassIds(lesson).map(\n            (classId) => [\"CLASS\", classId] as [\"CLASS\", string],\n          ),\n        ];",
 )
 replace(
     path,
@@ -34,5 +34,5 @@ replace(
 replace(
     path,
     "  return issues.sort((left, right) => {",
-    "  const lessonsByAssignment = new Map<string, ScheduledLesson[]>();\n  for (const lesson of lessons) {\n    lessonsByAssignment.set(lesson.assignment_id, [\n      ...(lessonsByAssignment.get(lesson.assignment_id) ?? []),\n      lesson,\n    ]);\n  }\n  for (const [left, right] of parallelAssignmentPairs(snapshot.assignments)) {\n    const leftLessons = [...(lessonsByAssignment.get(left.id) ?? [])].sort(\n      (a, b) => a.block_id.localeCompare(b.block_id),\n    );\n    const rightLessons = [...(lessonsByAssignment.get(right.id) ?? [])].sort(\n      (a, b) => a.block_id.localeCompare(b.block_id),\n    );\n    if (leftLessons.length != rightLessons.length) continue;\n    leftLessons.forEach((leftLesson, index) => {\n      const rightLesson = rightLessons[index]!;\n      if (\n        leftLesson.day !== rightLesson.day ||\n        leftLesson.period !== rightLesson.period ||\n        leftLesson.duration !== rightLesson.duration\n      ) {\n        pushIssue(\n          issues,\n          \"PARALLEL_GROUP_DESYNCHRONIZED\",\n          \"Obě poloviny dělené výuky musí probíhat současně.\",\n          [leftLesson.block_id, rightLesson.block_id],\n          leftLesson.day,\n          leftLesson.period,\n        );\n      }\n    });\n  }\n\n  return issues.sort((left, right) => {",
+    "  const lessonsByAssignment = new Map<string, ScheduledLesson[]>();\n  for (const lesson of lessons) {\n    lessonsByAssignment.set(lesson.assignment_id, [\n      ...(lessonsByAssignment.get(lesson.assignment_id) ?? []),\n      lesson,\n    ]);\n  }\n  for (const [left, right] of parallelAssignmentPairs(snapshot.assignments)) {\n    const leftLessons = [...(lessonsByAssignment.get(left.id) ?? [])].sort(\n      (a, b) => a.block_id.localeCompare(b.block_id),\n    );\n    const rightLessons = [...(lessonsByAssignment.get(right.id) ?? [])].sort(\n      (a, b) => a.block_id.localeCompare(b.block_id),\n    );\n    if (leftLessons.length !== rightLessons.length) continue;\n    leftLessons.forEach((leftLesson, index) => {\n      const rightLesson = rightLessons[index]!;\n      if (\n        leftLesson.day !== rightLesson.day ||\n        leftLesson.period !== rightLesson.period ||\n        leftLesson.duration !== rightLesson.duration\n      ) {\n        pushIssue(\n          issues,\n          \"PARALLEL_GROUP_DESYNCHRONIZED\",\n          \"Obě poloviny dělené výuky musí probíhat současně.\",\n          [leftLesson.block_id, rightLesson.block_id],\n          leftLesson.day,\n          leftLesson.period,\n        );\n      }\n    });\n  }\n\n  return issues.sort((left, right) => {",
 )
