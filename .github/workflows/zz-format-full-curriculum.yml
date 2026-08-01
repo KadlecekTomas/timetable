@@ -1,0 +1,32 @@
+name: Format full curriculum test
+
+on:
+  push:
+    branches:
+      - feat/client-friendly-excel-template
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/client-friendly-excel-template
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npx prettier --write apps/web/e2e/full-curriculum.spec.ts
+      - run: rm .github/workflows/zz-format-full-curriculum.yml scripts/.format-full-curriculum-trigger
+      - name: Commit formatted test
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/e2e/full-curriculum.spec.ts .github/workflows/zz-format-full-curriculum.yml scripts/.format-full-curriculum-trigger
+          git commit -m "style: format full curriculum release gate"
+          git push origin HEAD:feat/client-friendly-excel-template
