@@ -92,7 +92,8 @@ export function createEmptyStaffingPlan(): StaffingPlan {
 
 export function assignedWeeklyLoad(teacher: StaffingTeacher): number {
   return teacher.subjectLoads.reduce(
-    (total, item) => total + (Number.isFinite(item.weeklyPeriods) ? item.weeklyPeriods : 0),
+    (total, item) =>
+      total + (Number.isFinite(item.weeklyPeriods) ? item.weeklyPeriods : 0),
     0,
   );
 }
@@ -120,7 +121,9 @@ export function validateStaffingTeacher(
       continue;
     }
     if (!Number.isInteger(item.weeklyPeriods) || item.weeklyPeriods <= 0) {
-      messages.push(`U předmětu ${item.subjectCode} zadejte kladný počet hodin.`);
+      messages.push(
+        `U předmětu ${item.subjectCode} zadejte kladný počet hodin.`,
+      );
     }
     if (usedSubjects.has(item.subjectCode)) {
       messages.push(`Předmět ${item.subjectCode} je uveden vícekrát.`);
@@ -150,19 +153,22 @@ export function validateStaffingTeacher(
 
 export function validateStaffingPlan(plan: StaffingPlan): string[] {
   const messages: string[] = [];
-  if (plan.teachers.length === 0) messages.push("Přidejte alespoň jednoho učitele.");
+  if (plan.teachers.length === 0)
+    messages.push("Přidejte alespoň jednoho učitele.");
 
   const names = new Set<string>();
   for (const teacher of plan.teachers) {
     const validation = validateStaffingTeacher(teacher);
     messages.push(
       ...validation.messages.map(
-        (message) => `${teacher.lastName || "Učitel"} ${teacher.firstName}: ${message}`,
+        (message) =>
+          `${teacher.lastName || "Učitel"} ${teacher.firstName}: ${message}`,
       ),
     );
-    const key = `${teacher.lastName.trim()}|${teacher.firstName.trim()}`.toLocaleLowerCase(
-      "cs-CZ",
-    );
+    const key =
+      `${teacher.lastName.trim()}|${teacher.firstName.trim()}`.toLocaleLowerCase(
+        "cs-CZ",
+      );
     if (key !== "|" && names.has(key)) {
       messages.push(
         `${teacher.lastName} ${teacher.firstName}: učitel je uveden vícekrát.`,
@@ -186,7 +192,8 @@ function normalizePlan(value: unknown): StaffingPlan {
         ? candidate.updatedAt
         : new Date().toISOString(),
     teachers: candidate.teachers.map((teacher) => ({
-      id: typeof teacher.id === "string" ? teacher.id : newId("staffing-teacher"),
+      id:
+        typeof teacher.id === "string" ? teacher.id : newId("staffing-teacher"),
       firstName: typeof teacher.firstName === "string" ? teacher.firstName : "",
       lastName: typeof teacher.lastName === "string" ? teacher.lastName : "",
       targetWeeklyLoad: Number.isFinite(teacher.targetWeeklyLoad)
@@ -269,7 +276,8 @@ export function teacherCodesForPlan(plan: StaffingPlan): Map<string, string> {
       "X",
     );
     let candidate = base;
-    if (used.has(candidate)) candidate = `${base}${firstName.slice(0, 1) || "X"}`;
+    if (used.has(candidate))
+      candidate = `${base}${firstName.slice(0, 1) || "X"}`;
     let suffix = 2;
     while (used.has(candidate)) {
       candidate = `${base}${suffix}`;
