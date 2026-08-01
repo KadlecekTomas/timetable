@@ -29,6 +29,27 @@ from app.validator import validate_schedule
 
 app = FastAPI(title="Timetable Solver", version="0.3.0")
 
+AFTERNOON_START_PERIOD = 5
+SUBJECT_LATE_WEIGHTS = {
+    "CJ": 450,
+    "M": 450,
+    "INF": 425,
+    "JAZ1": 375,
+    "JAZ2": 375,
+    "FY": 300,
+    "CH": 300,
+    "DEJ": 160,
+    "ZEM": 160,
+    "PRI": 160,
+    "OV": 80,
+    "VZ": 80,
+    "HV": 20,
+    "TV": 0,
+    "VV": 0,
+    "PC": 0,
+}
+DEFAULT_SUBJECT_LATE_WEIGHT = 120
+
 
 @dataclass(frozen=True)
 class Block:
@@ -278,6 +299,37 @@ def _fixed_conflict_diagnostics(
     return diagnostics
 
 
+def _subject_code(payload: SolveRequest, subject_id: str) -> str:
+    subject = next(
+        (item for item in payload.subjects if item.id == subject_id),
+        None,
+    )
+    if subject is not None:
+        return subject.code.strip().upper()
+    return subject_id.rsplit(":", 1)[-1].strip().upper()
+
+
+def _subject_late_cost(
+    payload: SolveRequest,
+    assignment: Assignment,
+    candidate: CandidateKey,
+    duration: int,
+) -> int:
+    latest_period = candidate.period + duration - 1
+    afternoon_distance = max(
+        0,
+        latest_period - AFTERNOON_START_PERIOD + 1,
+    )
+    if afternoon_distance == 0:
+        return 0
+    subject_code = _subject_code(payload, assignment.subject_id)
+    weight = SUBJECT_LATE_WEIGHTS.get(
+        subject_code,
+        DEFAULT_SUBJECT_LATE_WEIGHT,
+    )
+    return afternoon_distance * weight
+
+
 def _availability_cost(
     payload: SolveRequest,
     assignment: Assignment,
@@ -285,6 +337,12 @@ def _availability_cost(
     duration: int,
 ) -> int:
     coefficient = candidate.period * payload.weights.late_period
+    coefficient += _subject_late_cost(
+        payload,
+        assignment,
+        candidate,
+        duration,
+    )
     for rule in payload.availability:
         occupies_rule_period = (
             candidate.period <= rule.period < candidate.period + duration
@@ -843,6 +901,13 @@ def solve(payload: SolveRequest) -> SolveResponse:
                 "message": (
                     "Pravidelné třídy mají každý den souvislou výuku "
                     "od 8:00 bez vnitřních oken."
+                ),
+            },
+            {
+                "code": "PEDAGOGICAL_AFTERNOON_PRIORITY",
+                "message": (
+                    "Pozdní hodiny přednostně využívají pohybové, výtvarné "
+                    "a praktické předměty před matematikou, jazyky a informatikou."
                 ),
             },
             search_diagnostic,
