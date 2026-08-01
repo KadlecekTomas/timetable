@@ -90,13 +90,32 @@ class FixedLesson(BaseModel):
     locked: bool = True
 
 
+COMPACTNESS_MINIMUMS = {
+    "teacher_gap": 1_000,
+    "class_gap": 2_000,
+    "discouraged_slot": 25,
+    "preferred_slot_bonus": 3,
+    "same_day_concentration": 50,
+    "late_period": 10,
+}
+
+
 class SolverWeights(BaseModel):
-    teacher_gap: int = Field(default=20, ge=0, le=10_000)
-    class_gap: int = Field(default=25, ge=0, le=10_000)
-    discouraged_slot: int = Field(default=8, ge=0, le=10_000)
+    teacher_gap: int = Field(default=1_000, ge=0, le=10_000)
+    class_gap: int = Field(default=2_000, ge=0, le=10_000)
+    discouraged_slot: int = Field(default=25, ge=0, le=10_000)
     preferred_slot_bonus: int = Field(default=3, ge=0, le=10_000)
-    same_day_concentration: int = Field(default=6, ge=0, le=10_000)
-    late_period: int = Field(default=1, ge=0, le=10_000)
+    same_day_concentration: int = Field(default=50, ge=0, le=10_000)
+    late_period: int = Field(default=10, ge=0, le=10_000)
+
+    @model_validator(mode="after")
+    def enforce_compactness_first_profile(self) -> "SolverWeights":
+        """Prevent weak client defaults from trading timetable gaps for small bonuses."""
+        for field_name, minimum in COMPACTNESS_MINIMUMS.items():
+            current = getattr(self, field_name)
+            if current < minimum:
+                setattr(self, field_name, minimum)
+        return self
 
 
 class SolveRequest(BaseModel):
