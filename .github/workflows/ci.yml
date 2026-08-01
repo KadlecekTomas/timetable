@@ -98,7 +98,14 @@ jobs:
           cat /tmp/web.log || true
           exit 1
       - name: Run database-free browser workflows
-        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/local-first-backup.spec.ts e2e/timetable-export.spec.ts e2e/staffing.spec.ts --retries=0
+        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/local-first-backup.spec.ts e2e/timetable-export.spec.ts e2e/staffing.spec.ts e2e/teaching-plan.spec.ts --retries=0
+      - name: Upload detailed teaching-plan screenshots and Excel
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: teaching-plan-ui-screenshots-and-workbook
+          path: apps/web/test-results/teaching-plan-screenshots
+          if-no-files-found: warn
       - name: Run realistic 40-teacher school workflow
         run: npm run e2e --workspace @timetable/web -- e2e/school-scale.spec.ts --retries=0
       - name: Run full 122-hour curriculum and leadership export
