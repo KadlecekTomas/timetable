@@ -1,0 +1,269 @@
+name: Apply shared class scheduling support
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Patch shared classes and parallel groups
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str, count: int = -1) -> None:
+              file = Path(path)
+              text = file.read_text()
+              if old not in text:
+                  raise SystemExit(f"Missing expected text in {path}: {old[:100]!r}")
+              file.write_text(text.replace(old, new, count))
+
+          # Python solver models
+          replace(
+              "apps/solver/app/models.py",
+              "    class_id: str\n    subject_id: str",
+              "    class_id: str\n    additional_class_ids: list[str] = Field(default_factory=list)\n    subject_id: str",
+              1,
+          )
+          replace(
+              "apps/solver/app/models.py",
+              "    def validate_shape(self) -> \"Assignment\":\n        if self.double_periods_count * 2 > self.weekly_periods:",
+              "    def validate_shape(self) -> \"Assignment\":\n        if self.class_id in self.additional_class_ids:\n            raise ValueError(\"Primary class cannot also be an additional class\")\n        if len(self.additional_class_ids) != len(set(self.additional_class_ids)):\n            raise ValueError(\"Additional class ids must be unique\")\n        if self.double_periods_count * 2 > self.weekly_periods:",
+          )
+          replace(
+              "apps/solver/app/models.py",
+              "    class_id: str\n    subject_id: str\n    group: TeachingGroup",
+              "    class_id: str\n    additional_class_ids: list[str] = Field(default_factory=list)\n    subject_id: str\n    group: TeachingGroup",
+              1,
+          )
+
+          # Python solver main
+          replace(
+              "apps/solver/app/main.py",
+              "from app.models import (",
+              "from app.class_groups import (\n    assignment_class_ids,\n    parallel_assignment_pairs,\n)\nfrom app.models import (",
+          )
+          replace(
+              "apps/solver/app/main.py",
+              "            (AvailabilityEntityType.CLASS, assignment.class_id),\n        ]",
+              "            *(\n                (AvailabilityEntityType.CLASS, class_id)\n                for class_id in assignment_class_ids(assignment)\n            ),\n        ]",
+          )
+          replace(
+              "apps/solver/app/main.py",
+              "            class_conflict = left_assignment.class_id == right_assignment.class_id and (\n                left_assignment.group == TeachingGroup.WHOLE\n                or right_assignment.group == TeachingGroup.WHOLE\n                or left_assignment.group == right_assignment.group\n            )",
+              "            class_conflict = bool(\n                set(assignment_class_ids(left_assignment))\n                & set(assignment_class_ids(right_assignment))\n            ) and (\n                left_assignment.group == TeachingGroup.WHOLE\n                or right_assignment.group == TeachingGroup.WHOLE\n                or left_assignment.group == right_assignment.group\n            )",
+          )
+          replace(
+              "apps/solver/app/main.py",
+              "                class_all_slots[\n                    (block.assignment.class_id, candidate.day, period)\n                ].append(variable)\n                if block.assignment.group == TeachingGroup.WHOLE:\n                    class_whole_slots[\n                        (block.assignment.class_id, candidate.day, period)\n                    ].append(variable)\n                elif block.assignment.group == TeachingGroup.GROUP_1:\n                    class_group_1_slots[\n                        (block.assignment.class_id, candidate.day, period)\n                    ].append(variable)\n                else:\n                    class_group_2_slots[\n                        (block.assignment.class_id, candidate.day, period)\n                    ].append(variable)",
+              "                for class_id in assignment_class_ids(block.assignment):\n                    class_all_slots[(class_id, candidate.day, period)].append(variable)\n                    if block.assignment.group == TeachingGroup.WHOLE:\n                        class_whole_slots[(class_id, candidate.day, period)].append(variable)\n                    elif block.assignment.group == TeachingGroup.GROUP_1:\n                        class_group_1_slots[(class_id, candidate.day, period)].append(variable)\n                    else:\n                        class_group_2_slots[(class_id, candidate.day, period)].append(variable)",
+          )
+          replace(
+              "apps/solver/app/main.py",
+              "    for assignment in payload.assignments:\n        assignment_blocks = blocks_by_assignment[assignment.id]",
+              "    for left, right in parallel_assignment_pairs(payload.assignments):\n        left_blocks = sorted(blocks_by_assignment[left.id], key=lambda item: item.index)\n        right_blocks = sorted(blocks_by_assignment[right.id], key=lambda item: item.index)\n        if [item.duration for item in left_blocks] != [item.duration for item in right_blocks]:\n            raise HTTPException(\n                status_code=422,\n                detail={\n                    \"code\": \"PARALLEL_GROUP_SHAPE_MISMATCH\",\n                    \"message\": \"Dvě poloviny stejné výuky musí mít stejné rozložení hodin.\",\n                    \"causes\": [{\"entityIds\": [left.id, right.id]}],\n                },\n            )\n        for left_block, right_block in zip(left_blocks, right_blocks, strict=True):\n            positions = {\n                (candidate.day, candidate.period)\n                for candidate, _variable in variables[left_block.id]\n            } | {\n                (candidate.day, candidate.period)\n                for candidate, _variable in variables[right_block.id]\n            }\n            for day, period in positions:\n                left_at_position = [\n                    variable\n                    for candidate, variable in variables[left_block.id]\n                    if candidate.day == day and candidate.period == period\n                ]\n                right_at_position = [\n                    variable\n                    for candidate, variable in variables[right_block.id]\n                    if candidate.day == day and candidate.period == period\n                ]\n                model.add(sum(left_at_position) == sum(right_at_position))\n\n    for assignment in payload.assignments:\n        assignment_blocks = blocks_by_assignment[assignment.id]",
+          )
+          replace(
+              "apps/solver/app/main.py",
+              "        {assignment.class_id for assignment in payload.assignments},",
+              "        {\n            class_id\n            for assignment in payload.assignments\n            for class_id in assignment_class_ids(assignment)\n        },",
+          )
+          replace(
+              "apps/solver/app/main.py",
+              "                class_id=block.assignment.class_id,\n                subject_id=block.assignment.subject_id,",
+              "                class_id=block.assignment.class_id,\n                additional_class_ids=block.assignment.additional_class_ids,\n                subject_id=block.assignment.subject_id,",
+          )
+
+          # Python validator
+          replace(
+              "apps/solver/app/validator.py",
+              "from app.models import (",
+              "from app.class_groups import (\n    assignment_class_ids,\n    lesson_class_ids,\n    parallel_assignment_pairs,\n)\nfrom app.models import (",
+          )
+          replace(
+              "apps/solver/app/validator.py",
+              "            or lesson.class_id != assignment.class_id\n            or lesson.subject_id != assignment.subject_id",
+              "            or lesson.class_id != assignment.class_id\n            or lesson.additional_class_ids != assignment.additional_class_ids\n            or lesson.subject_id != assignment.subject_id",
+          )
+          replace(
+              "apps/solver/app/validator.py",
+              "                (AvailabilityEntityType.CLASS, lesson.class_id),\n            ]",
+              "                *(\n                    (AvailabilityEntityType.CLASS, class_id)\n                    for class_id in lesson_class_ids(lesson)\n                ),\n            ]",
+          )
+          replace(
+              "apps/solver/app/validator.py",
+              "            class_key = (lesson.class_id, lesson.day, period)\n            for existing in class_slots[class_key]:\n                if _groups_conflict(existing.group, lesson.group):\n                    issues.append(\n                        ValidationIssue(\n                            code=\"CLASS_COLLISION\",\n                            message=(\n                                f\"Třída {lesson.class_id} má současně bloky \"\n                                f\"{existing.block_id} a {lesson.block_id}.\"\n                            ),\n                            entity_ids=[lesson.class_id, existing.block_id, lesson.block_id],\n                            day=lesson.day,\n                            period=period,\n                        )\n                    )\n            class_slots[class_key].append(lesson)",
+              "            for class_id in lesson_class_ids(lesson):\n                class_key = (class_id, lesson.day, period)\n                for existing in class_slots[class_key]:\n                    if _groups_conflict(existing.group, lesson.group):\n                        issues.append(\n                            ValidationIssue(\n                                code=\"CLASS_COLLISION\",\n                                message=(\n                                    f\"Třída {class_id} má současně bloky \"\n                                    f\"{existing.block_id} a {lesson.block_id}.\"\n                                ),\n                                entity_ids=[class_id, existing.block_id, lesson.block_id],\n                                day=lesson.day,\n                                period=period,\n                            )\n                        )\n                class_slots[class_key].append(lesson)",
+          )
+          replace(
+              "apps/solver/app/validator.py",
+              "    return sorted(\n        issues,",
+              "    lessons_by_assignment: dict[str, list[ScheduledLesson]] = defaultdict(list)\n    for lesson in lessons:\n        lessons_by_assignment[lesson.assignment_id].append(lesson)\n    for left, right in parallel_assignment_pairs(payload.assignments):\n        left_lessons = sorted(\n            lessons_by_assignment[left.id], key=lambda item: item.block_id\n        )\n        right_lessons = sorted(\n            lessons_by_assignment[right.id], key=lambda item: item.block_id\n        )\n        if len(left_lessons) != len(right_lessons):\n            continue\n        for left_lesson, right_lesson in zip(left_lessons, right_lessons, strict=True):\n            if (\n                left_lesson.day != right_lesson.day\n                or left_lesson.period != right_lesson.period\n                or left_lesson.duration != right_lesson.duration\n            ):\n                issues.append(\n                    ValidationIssue(\n                        code=\"PARALLEL_GROUP_DESYNCHRONIZED\",\n                        message=\"Obě poloviny dělené výuky musí probíhat současně.\",\n                        entity_ids=[left_lesson.block_id, right_lesson.block_id],\n                        day=left_lesson.day,\n                        period=left_lesson.period,\n                    )\n                )\n\n    return sorted(\n        issues,",
+          )
+
+          # TypeScript contracts
+          replace(
+              "apps/web/lib/domain/contracts.ts",
+              "  class_id: string;\n  subject_id: string;",
+              "  class_id: string;\n  additional_class_ids?: string[];\n  subject_id: string;",
+              1,
+          )
+          replace(
+              "apps/web/lib/domain/contracts.ts",
+              "  class_id: string;\n  subject_id: string;\n  group: TeachingGroup;",
+              "  class_id: string;\n  additional_class_ids?: string[];\n  subject_id: string;\n  group: TeachingGroup;",
+              1,
+          )
+
+          # TypeScript validator
+          replace(
+              "apps/web/lib/domain/validation.ts",
+              'import { crossesLunchBreak, MIN_LUNCH_BREAK_MINUTES, MORNING_PERIOD_LIMIT } from "./school-day";',
+              'import { assignmentClassIds, lessonClassIds, parallelAssignmentPairs } from "./class-groups";\nimport { crossesLunchBreak, MIN_LUNCH_BREAK_MINUTES, MORNING_PERIOD_LIMIT } from "./school-day";',
+          )
+          replace(
+              "apps/web/lib/domain/validation.ts",
+              "      lesson.class_id !== assignment.class_id ||\n      lesson.subject_id !== assignment.subject_id",
+              "      lesson.class_id !== assignment.class_id ||\n      JSON.stringify(lesson.additional_class_ids ?? []) !==\n        JSON.stringify(assignment.additional_class_ids ?? []) ||\n      lesson.subject_id !== assignment.subject_id",
+          )
+          replace(
+              "apps/web/lib/domain/validation.ts",
+              "          [\"CLASS\", lesson.class_id],\n        ];",
+              "          ...lessonClassIds(lesson).map(\n            (classId) => [\"CLASS\", classId] as const,\n          ),\n        ];",
+          )
+          replace(
+              "apps/web/lib/domain/validation.ts",
+              "      const classKey = `${lesson.class_id}:${lesson.day}:${period}`;\n      const existingLessons = classSlots.get(classKey) ?? [];\n      for (const existing of existingLessons) {\n        if (groupsConflict(existing.group, lesson.group)) {\n          pushIssue(\n            issues,\n            \"CLASS_COLLISION\",\n            `Třída ${lesson.class_id} má současně bloky ${existing.block_id} a ${lesson.block_id}.`,\n            [lesson.class_id, existing.block_id, lesson.block_id],\n            lesson.day,\n            period,\n          );\n        }\n      }\n      classSlots.set(classKey, [...existingLessons, lesson]);",
+              "      for (const classId of lessonClassIds(lesson)) {\n        const classKey = `${classId}:${lesson.day}:${period}`;\n        const existingLessons = classSlots.get(classKey) ?? [];\n        for (const existing of existingLessons) {\n          if (groupsConflict(existing.group, lesson.group)) {\n            pushIssue(\n              issues,\n              \"CLASS_COLLISION\",\n              `Třída ${classId} má současně bloky ${existing.block_id} a ${lesson.block_id}.`,\n              [classId, existing.block_id, lesson.block_id],\n              lesson.day,\n              period,\n            );\n          }\n        }\n        classSlots.set(classKey, [...existingLessons, lesson]);\n      }",
+          )
+          replace(
+              "apps/web/lib/domain/validation.ts",
+              "  return issues.sort((left, right) => {",
+              "  const lessonsByAssignment = new Map<string, ScheduledLesson[]>();\n  for (const lesson of lessons) {\n    lessonsByAssignment.set(lesson.assignment_id, [\n      ...(lessonsByAssignment.get(lesson.assignment_id) ?? []),\n      lesson,\n    ]);\n  }\n  for (const [left, right] of parallelAssignmentPairs(snapshot.assignments)) {\n    const leftLessons = [...(lessonsByAssignment.get(left.id) ?? [])].sort(\n      (a, b) => a.block_id.localeCompare(b.block_id),\n    );\n    const rightLessons = [...(lessonsByAssignment.get(right.id) ?? [])].sort(\n      (a, b) => a.block_id.localeCompare(b.block_id),\n    );\n    if (leftLessons.length !== rightLessons.length) continue;\n    leftLessons.forEach((leftLesson, index) => {\n      const rightLesson = rightLessons[index]!;\n      if (\n        leftLesson.day !== rightLesson.day ||\n        leftLesson.period !== rightLesson.period ||\n        leftLesson.duration !== rightLesson.duration\n      ) {\n        pushIssue(\n          issues,\n          \"PARALLEL_GROUP_DESYNCHRONIZED\",\n          \"Obě poloviny dělené výuky musí probíhat současně.\",\n          [leftLesson.block_id, rightLesson.block_id],\n          leftLesson.day,\n          leftLesson.period,\n        );\n      }\n    });\n  }\n\n  return issues.sort((left, right) => {",
+          )
+
+          # Import contracts and parser
+          replace(
+              "apps/web/lib/import/contracts.ts",
+              "  class_code: string;\n  subject_code: string;",
+              "  class_code: string;\n  additional_class_codes: string[];\n  subject_code: string;",
+          )
+          replace(
+              "apps/web/lib/import/workbook.ts",
+              "      subject_code: requiredText(\n        values.subject_code ?? \"\",",
+              "      additional_class_codes: (values.additional_class_codes ?? \"\")\n        .split(/[;,]/)\n        .map((value) => value.trim())\n        .filter(Boolean),\n      subject_code: requiredText(\n        values.subject_code ?? \"\",",
+          )
+          replace(
+              "apps/web/lib/import/workbook.ts",
+              "    for (const [exists, column, value, noun] of references) {",
+              "    assignment.additional_class_codes.forEach((classCode) => {\n      if (classCode === assignment.class_code || !classCodes.has(classCode)) {\n        issues.push(\n          issue(\n            \"ERROR\",\n            SHEETS.assignments,\n            sourceRow,\n            \"additional_class_codes\",\n            \"REFERENCE_NOT_FOUND\",\n            `Společná třída ${classCode} neexistuje nebo je stejná jako hlavní třída.`,\n            classCode,\n          ),\n        );\n      }\n    });\n    for (const [exists, column, value, noun] of references) {",
+          )
+
+          # Client workbook column and backwards-compatible normalization
+          replace(
+              "apps/web/lib/import/client-workbook.ts",
+              'export const CLIENT_IMPORT_TEMPLATE_VERSION = "2.0.0" as const;',
+              'export const CLIENT_IMPORT_TEMPLATE_VERSION = "2.1.0" as const;',
+          )
+          replace(
+              "apps/web/lib/import/client-workbook.ts",
+              '      col("class_code", "Třída *", true, 14, "Zkratka z listu 2. Třídy."),\n      col(',
+              '      col("class_code", "Třída *", true, 14, "Zkratka z listu 2. Třídy."),\n      col(\n        "additional_class_codes",\n        "Další společné třídy",\n        false,\n        24,\n        "Pro společnou výuku více tříd, například 9C. Více kódů oddělte čárkou.",\n      ),\n      col(',
+          )
+          replace(
+              "apps/web/lib/import/client-workbook.ts",
+              "    if (definition.columns.every((column) => found.has(column.key)))",
+              "    if (\n      definition.columns\n        .filter((column) => column.key !== \"additional_class_codes\")\n        .every((column) => found.has(column.key))\n    )",
+          )
+          replace(
+              "apps/web/lib/import/client-workbook.ts",
+              "  if (version !== CLIENT_IMPORT_TEMPLATE_VERSION) return null;",
+              '  if (!["2.0.0", CLIENT_IMPORT_TEMPLATE_VERSION].includes(version)) return null;',
+          )
+          replace(
+              "apps/web/lib/import/client-workbook.ts",
+              "      const values = definition.columns.map((column) =>\n        mapCell(\n          source.getCell(row, header.columns.get(column.key)!).value,\n          column.valueMap,\n        ),\n      );",
+              "      const values = definition.columns.map((column) => {\n        const sourceColumn = header.columns.get(column.key);\n        return sourceColumn\n          ? mapCell(source.getCell(row, sourceColumn).value, column.valueMap)\n          : null;\n      });",
+          )
+
+          # Local IndexedDB model
+          replace(
+              "apps/web/lib/local/api.ts",
+              "  classId: string;\n  subjectId: string;",
+              "  classId: string;\n  additionalClassIds: string[];\n  subjectId: string;",
+          )
+          replace(
+              "apps/web/lib/local/api.ts",
+              "      class_id: assignment.classId,\n      subject_id: assignment.subjectId,",
+              "      class_id: assignment.classId,\n      additional_class_ids: assignment.additionalClassIds,\n      subject_id: assignment.subjectId,",
+          )
+          replace(
+              "apps/web/lib/local/api.ts",
+              "    schoolClass: project.classes.find((item) => item.id === assignment.classId),\n    subject:",
+              "    schoolClass: project.classes.find((item) => item.id === assignment.classId),\n    schoolClasses: [assignment.classId, ...assignment.additionalClassIds]\n      .map((classId) => project.classes.find((item) => item.id === classId))\n      .filter(Boolean),\n    subject:",
+          )
+          replace(
+              "apps/web/lib/local/api.ts",
+              "        classId,\n        subjectId,",
+              "        classId,\n        additionalClassIds: Array.isArray(body.additionalClassIds)\n          ? body.additionalClassIds.filter(\n              (item): item is string =>\n                typeof item === \"string\" &&\n                item !== classId &&\n                project.classes.some((schoolClass) => schoolClass.id === item),\n            )\n          : [],\n        subjectId,",
+          )
+          replace(
+              "apps/web/lib/local/api.ts",
+              "      project.assignments.some((item) => item.classId === id)",
+              "      project.assignments.some(\n        (item) => item.classId === id || item.additionalClassIds.includes(id),\n      )",
+          )
+          replace(
+              "apps/web/lib/local/api.ts",
+              "    classId: classByCode.get(item.class_code)!,\n    subjectId:",
+              "    classId: classByCode.get(item.class_code)!,\n    additionalClassIds: item.additional_class_codes.map(\n      (classCode) => classByCode.get(classCode)!,\n    ),\n    subjectId:",
+          )
+          replace(
+              "apps/web/lib/local/api.ts",
+              "      return view === \"class\"\n        ? assignment?.classId === entityId",
+              "      return view === \"class\"\n        ? assignment != null &&\n            [assignment.classId, ...assignment.additionalClassIds].includes(entityId)",
+          )
+          replace(
+              "apps/web/lib/local/api.ts",
+              "      const schoolClass = project.classes.find(\n        (item) => item.id === assignment?.classId,\n      );",
+              "      const schoolClass = project.classes.find(\n        (item) => item.id === assignment?.classId,\n      );\n      const schoolClasses = assignment\n        ? [assignment.classId, ...assignment.additionalClassIds]\n            .map((classId) => project.classes.find((item) => item.id === classId))\n            .filter((item): item is LocalClass => Boolean(item))\n        : [];",
+          )
+          replace(
+              "apps/web/lib/local/api.ts",
+              "        schoolClass: schoolClass\n          ? {",
+              "        schoolClasses: schoolClasses.map((item) => ({\n          id: item.id,\n          code: item.code,\n          name: item.name,\n        })),\n        schoolClass: schoolClass\n          ? {",
+          )
+
+          # Timetable UI displays shared classes
+          replace(
+              "apps/web/app/timetable/page.tsx",
+              "  schoolClass?: EntityView;\n  subject?:",
+              "  schoolClass?: EntityView;\n  schoolClasses?: EntityView[];\n  subject?:",
+          )
+          replace(
+              "apps/web/app/timetable/page.tsx",
+              '                                : lesson.schoolClass?.code}',
+              '                                : lesson.schoolClasses?.map((item) => item.code).join(" + ") ??\n                                  lesson.schoolClass?.code}',
+          )
+          PY
+      - run: npx prettier --write apps/web apps/solver
+      - name: Commit shared class support
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web apps/solver
+          git commit -m "feat: support shared classes and synchronized split groups"
+          git push origin HEAD:${{ github.head_ref }}
