@@ -272,18 +272,41 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
             if weekly_periods < len(payload.periods_per_day):
                 continue
             for day, periods in enumerate(payload.periods_per_day):
-                if periods <= 0 or class_slots.get((class_id, day, 0)):
+                if periods <= 0:
                     continue
-                issues.append(
-                    ValidationIssue(
-                        code="CLASS_DOES_NOT_START_AT_EIGHT",
-                        message=f"Třída {class_id} musí každý vyučovací den začínat první hodinou v 8:00.",
-                        entity_ids=[class_id],
-                        day=day,
-                        period=0,
-                        details={"requiredStartTime": "8:00"},
+                if not class_slots.get((class_id, day, 0)):
+                    issues.append(
+                        ValidationIssue(
+                            code="CLASS_DOES_NOT_START_AT_EIGHT",
+                            message=f"Třída {class_id} musí každý vyučovací den začínat první hodinou v 8:00.",
+                            entity_ids=[class_id],
+                            day=day,
+                            period=0,
+                            details={"requiredStartTime": "8:00"},
+                        )
                     )
-                )
+
+                occupied_periods = [
+                    period
+                    for period in range(periods)
+                    if class_slots.get((class_id, day, period))
+                ]
+                if len(occupied_periods) <= 1:
+                    continue
+                for period in range(1, max(occupied_periods)):
+                    if class_slots.get((class_id, day, period)):
+                        continue
+                    issues.append(
+                        ValidationIssue(
+                            code="CLASS_HAS_INTERNAL_GAP",
+                            message=f"Třída {class_id} má uvnitř vyučovacího dne volnou hodinu.",
+                            entity_ids=[class_id],
+                            day=day,
+                            period=period,
+                            details={"requiredShape": "continuousFromEight"},
+                        )
+                    )
+                    break
 
     lessons_by_assignment: dict[str, list[ScheduledLesson]] = defaultdict(list)
     for lesson in lessons:
