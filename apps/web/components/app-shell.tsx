@@ -19,9 +19,9 @@ import { cn } from "@/lib/utils";
 
 const navigation = [
   { label: "Přehled", icon: LayoutDashboard, href: "/" },
-  { label: "Učitelé a úvazky", icon: UsersRound, href: "/staffing" },
-  { label: "Školní data", icon: Database, href: "/data" },
-  { label: "Výukové vazby", icon: BookOpen, href: "/data?section=assignments" },
+  { label: "1. Učitelé a úvazky", icon: UsersRound, href: "/staffing" },
+  { label: "2. Výuka tříd", icon: BookOpen, href: "/teaching-plan" },
+  { label: "Pokročilá školní data", icon: Database, href: "/data" },
   { label: "Pokročilý import", icon: Upload, href: "/import" },
   { label: "Tvorba rozvrhu", icon: ClipboardCheck, href: "/generate" },
   { label: "Rozvrh", icon: CalendarDays, href: "/timetable" },
