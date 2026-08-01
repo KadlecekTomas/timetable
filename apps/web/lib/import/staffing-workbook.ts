@@ -132,7 +132,10 @@ export async function createStaffingWorkbookTemplate(): Promise<Uint8Array> {
     pattern: "solid",
     fgColor: { argb: COLORS.blue },
   };
-  worksheet.getCell("A1").alignment = { vertical: "middle", horizontal: "left" };
+  worksheet.getCell("A1").alignment = {
+    vertical: "middle",
+    horizontal: "left",
+  };
   worksheet.getRow(1).height = 34;
 
   worksheet.mergeCells("A2:T2");
@@ -210,11 +213,7 @@ export async function createStaffingWorkbookTemplate(): Promise<Uint8Array> {
 
   const firstDayColumn = 4 + MAX_SUBJECTS_PER_TEACHER * 2;
   STAFFING_DAYS.forEach((_day, index) =>
-    addListValidation(
-      worksheet,
-      firstDayColumn + index,
-      '"Ne,Ano"',
-    ),
+    addListValidation(worksheet, firstDayColumn + index, '"Ne,Ano"'),
   );
 
   for (let row = FIRST_DATA_ROW; row <= LAST_DATA_ROW; row += 1) {
@@ -302,10 +301,7 @@ export async function createStaffingWorkbookTemplate(): Promise<Uint8Array> {
   });
 
   const example = workbook.addWorksheet("Příklad");
-  example.columns = [
-    { width: 22 },
-    { width: 18 },
-  ];
+  example.columns = [{ width: 22 }, { width: 18 }];
   example.addRows([
     ["Položka", "Hodnota"],
     ["Jméno", "Jana"],
@@ -348,8 +344,8 @@ function normalizedSubject(value: string): string | null {
     .toLocaleUpperCase("cs-CZ")
     .replace(/\s+/g, "");
   const aliases: Record<string, string> = {
-    "ČJ": "CJ",
-    "ČJL": "CJ",
+    ČJ: "CJ",
+    ČJL: "CJ",
     AJ: "JAZ1",
     NJ: "JAZ2",
     "2.NJ": "JAZ2",
@@ -360,7 +356,9 @@ function normalizedSubject(value: string): string | null {
     VKZ: "VZ",
   };
   const code = aliases[normalized] ?? normalized;
-  return STAFFING_SUBJECTS.some((subject) => subject.code === code) ? code : null;
+  return STAFFING_SUBJECTS.some((subject) => subject.code === code)
+    ? code
+    : null;
 }
 
 function yesValue(value: string): boolean | null {
@@ -372,9 +370,12 @@ function yesValue(value: string): boolean | null {
 }
 
 function rowHasTeacherData(worksheet: Worksheet, row: number): boolean {
-  return [1, 2, 3, ...subjectColumns().flatMap(({ subject, hours }) => [subject, hours])].some(
-    (column) => text(worksheet.getCell(row, column)) !== "",
-  );
+  return [
+    1,
+    2,
+    3,
+    ...subjectColumns().flatMap(({ subject, hours }) => [subject, hours]),
+  ].some((column) => text(worksheet.getCell(row, column)) !== "");
 }
 
 export async function analyzeStaffingWorkbook(
@@ -407,7 +408,10 @@ export async function analyzeStaffingWorkbook(
     };
   }
 
-  const lastRow = Math.min(Math.max(worksheet.actualRowCount, FIRST_DATA_ROW), LAST_DATA_ROW);
+  const lastRow = Math.min(
+    Math.max(worksheet.actualRowCount, FIRST_DATA_ROW),
+    LAST_DATA_ROW,
+  );
   for (let row = FIRST_DATA_ROW; row <= lastRow; row += 1) {
     if (!rowHasTeacherData(worksheet, row)) continue;
 
@@ -417,7 +421,12 @@ export async function analyzeStaffingWorkbook(
     const subjectLoads: StaffingSubjectLoad[] = [];
 
     if (!firstName) {
-      issues.push({ severity: "ERROR", row, field: "Jméno", message: "Doplňte jméno." });
+      issues.push({
+        severity: "ERROR",
+        row,
+        field: "Jméno",
+        message: "Doplňte jméno.",
+      });
     }
     if (!lastName) {
       issues.push({
@@ -494,11 +503,7 @@ export async function analyzeStaffingWorkbook(
     };
     const validation = validateStaffingTeacher(teacher);
     for (const message of validation.messages) {
-      if (
-        issues.some(
-          (item) => item.row === row && item.message === message,
-        )
-      ) {
+      if (issues.some((item) => item.row === row && item.message === message)) {
         continue;
       }
       issues.push({ severity: "ERROR", row, field: null, message });
@@ -508,7 +513,9 @@ export async function analyzeStaffingWorkbook(
 
   const seenNames = new Set<string>();
   for (const teacher of plan.teachers) {
-    const key = `${teacher.lastName}|${teacher.firstName}`.toLocaleLowerCase("cs-CZ");
+    const key = `${teacher.lastName}|${teacher.firstName}`.toLocaleLowerCase(
+      "cs-CZ",
+    );
     if (seenNames.has(key)) {
       issues.push({
         severity: "ERROR",
