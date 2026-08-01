@@ -13,10 +13,10 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
-import { localApiFetch } from "@/lib/local/api";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { ReadinessReport } from "@/lib/domain/contracts";
+import { localApiFetch } from "@/lib/local/api";
 import { generationStatusLabels } from "@/lib/ui-labels";
 
 interface RunView {
@@ -49,7 +49,7 @@ export default function GeneratePage() {
   const schoolYearId = searchParams.get("schoolYearId");
   const [readiness, setReadiness] = useState<ReadinessReport | null>(null);
   const [runs, setRuns] = useState<RunView[]>([]);
-  const [timeLimitSeconds, setTimeLimitSeconds] = useState(60);
+  const [timeLimitSeconds, setTimeLimitSeconds] = useState(180);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -210,11 +210,14 @@ export default function GeneratePage() {
             }
             className="mt-2 h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
-            <option value={30}>30 sekund</option>
-            <option value={60}>1 minuta</option>
-            <option value={180}>3 minuty</option>
-            <option value={300}>5 minut</option>
+            <option value={30}>30 sekund · rychlý náhled</option>
+            <option value={60}>1 minuta · orientační návrh</option>
+            <option value={180}>3 minuty · doporučeno pro celou školu</option>
+            <option value={300}>5 minut · nejlepší dostupná optimalizace</option>
           </select>
+          <p className="mt-2 text-xs text-text-muted">
+            Delší výpočet výrazně pomáhá omezit mezery tříd a učitelů.
+          </p>
           <Button
             className="mt-4 w-full"
             onClick={() => void start()}
