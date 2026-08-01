@@ -5,7 +5,6 @@ export const runtime = "nodejs";
 export const maxDuration = 360;
 
 const MAX_SOLVER_REQUEST_MS = 330_000;
-const FORWARDED_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 type RouteContext = {
   params: Promise<{ path: string[] }>;
@@ -17,7 +16,9 @@ function solverBaseUrl(): string {
 
 function upstreamUrl(request: NextRequest, path: string[]): string {
   const source = new URL(request.url);
-  const encodedPath = path.map((segment) => encodeURIComponent(segment)).join("/");
+  const encodedPath = path
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
   return `${solverBaseUrl()}/${encodedPath}${source.search}`;
 }
 
@@ -56,7 +57,12 @@ async function proxySolver(
   const { path } = await context.params;
   if (!path.length) {
     return Response.json(
-      { error: { code: "SOLVER_PATH_MISSING", message: "Chybí cesta solveru." } },
+      {
+        error: {
+          code: "SOLVER_PATH_MISSING",
+          message: "Chybí cesta solveru.",
+        },
+      },
       { status: 400 },
     );
   }
@@ -81,7 +87,8 @@ async function proxySolver(
       headers: responseHeaders(upstream),
     });
   } catch (cause) {
-    const message = cause instanceof Error ? cause.message : "Neznámá chyba proxy.";
+    const message =
+      cause instanceof Error ? cause.message : "Neznámá chyba proxy.";
     return Response.json(
       {
         error: {
@@ -100,5 +107,3 @@ export const POST = proxySolver;
 export const PUT = proxySolver;
 export const PATCH = proxySolver;
 export const DELETE = proxySolver;
-
-void FORWARDED_METHODS;
