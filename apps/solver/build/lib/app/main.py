@@ -70,7 +70,10 @@ def _blocks(payload: SolveRequest) -> list[Block]:
 
 
 def _fixed_by_block(payload: SolveRequest) -> dict[str, FixedLesson]:
-    return {f"{item.assignment_id}:{item.block_index}": item for item in [*payload.fixed_lessons, *payload.locked_lessons]}
+    return {
+        f"{item.assignment_id}:{item.block_index}": item
+        for item in [*payload.fixed_lessons, *payload.locked_lessons]
+    }
 
 
 def _matches_unavailable(
@@ -90,11 +93,17 @@ def _matches_unavailable(
     for occupied_period in range(period, period + duration):
         entities = [
             (AvailabilityEntityType.TEACHER, assignment.teacher_id),
-            *((AvailabilityEntityType.CLASS, class_id) for class_id in assignment_class_ids(assignment)),
+            *(
+                (AvailabilityEntityType.CLASS, class_id)
+                for class_id in assignment_class_ids(assignment)
+            ),
         ]
         if room_id:
             entities.append((AvailabilityEntityType.ROOM, room_id))
-        if any((entity_type, entity_id, day, occupied_period) in unavailable for entity_type, entity_id in entities):
+        if any(
+            (entity_type, entity_id, day, occupied_period) in unavailable
+            for entity_type, entity_id in entities
+        ):
             return True
     return False
 
@@ -104,7 +113,11 @@ def _room_candidates(payload: SolveRequest, assignment: Assignment) -> list[str 
     if assignment.required_room_id:
         return [assignment.required_room_id] if assignment.required_room_id in rooms_by_id else []
     if assignment.required_room_type_id:
-        return sorted(room.id for room in payload.rooms if room.room_type_id == assignment.required_room_type_id)
+        return sorted(
+            room.id
+            for room in payload.rooms
+            if room.room_type_id == assignment.required_room_type_id
+        )
     return [None]
 
 
@@ -116,7 +129,10 @@ def _candidate_keys(
     room_ids = _room_candidates(payload, block.assignment)
     if fixed and fixed.room_id is not None:
         room_ids = [room_id for room_id in room_ids if room_id == fixed.room_id]
-        has_no_room_requirement = block.assignment.required_room_id is None and block.assignment.required_room_type_id is None
+        has_no_room_requirement = (
+            block.assignment.required_room_id is None
+            and block.assignment.required_room_type_id is None
+        )
         if not room_ids and has_no_room_requirement:
             known_room_ids = {room.id for room in payload.rooms}
             room_ids = [fixed.room_id] if fixed.room_id in known_room_ids else []
@@ -161,7 +177,11 @@ def _preflight_diagnostics(
             )
 
     for teacher_id in sorted({item.teacher_id for item in payload.assignments}):
-        required = sum(item.weekly_periods for item in payload.assignments if item.teacher_id == teacher_id)
+        required = sum(
+            item.weekly_periods
+            for item in payload.assignments
+            if item.teacher_id == teacher_id
+        )
         unavailable = {
             (rule.day, rule.period)
             for rule in payload.availability
@@ -174,7 +194,10 @@ def _preflight_diagnostics(
             diagnostics.append(
                 {
                     "code": "TEACHER_CAPACITY_EXCEEDED",
-                    "message": (f"Učitel {teacher_id} potřebuje {required} hodin, ale má pouze {available} dostupných slotů."),
+                    "message": (
+                        f"Učitel {teacher_id} potřebuje {required} hodin, "
+                        f"ale má pouze {available} dostupných slotů."
+                    ),
                     "entityIds": [teacher_id],
                     "details": {"required": required, "available": available},
                 }
@@ -195,10 +218,16 @@ def _fixed_conflict_diagnostics(payload: SolveRequest) -> list[dict[str, Any]]:
             right_duration = right_assignment.block_durations()[right.block_index]
             if left.day != right.day:
                 continue
-            overlaps = left.period < right.period + right_duration and right.period < left.period + left_duration
+            overlaps = (
+                left.period < right.period + right_duration
+                and right.period < left.period + left_duration
+            )
             if not overlaps:
                 continue
-            class_conflict = bool(set(assignment_class_ids(left_assignment)) & set(assignment_class_ids(right_assignment))) and (
+            class_conflict = bool(
+                set(assignment_class_ids(left_assignment))
+                & set(assignment_class_ids(right_assignment))
+            ) and (
                 left_assignment.group == TeachingGroup.WHOLE
                 or right_assignment.group == TeachingGroup.WHOLE
                 or left_assignment.group == right_assignment.group
@@ -206,7 +235,11 @@ def _fixed_conflict_diagnostics(payload: SolveRequest) -> list[dict[str, Any]]:
             shares_resource = (
                 left_assignment.teacher_id == right_assignment.teacher_id
                 or class_conflict
-                or (left.room_id is not None and right.room_id is not None and left.room_id == right.room_id)
+                or (
+                    left.room_id is not None
+                    and right.room_id is not None
+                    and left.room_id == right.room_id
+                )
             )
             if shares_resource:
                 diagnostics.append(
@@ -238,9 +271,15 @@ def _availability_cost(
         if not occupies_rule_period or rule.day != candidate.day:
             continue
         matches = (
-            (rule.entity_type == AvailabilityEntityType.TEACHER and rule.entity_id == assignment.teacher_id)
-            or (rule.entity_type == AvailabilityEntityType.CLASS and rule.entity_id == assignment.class_id)
-            or (rule.entity_type == AvailabilityEntityType.ROOM and candidate.room_id is not None and rule.entity_id == candidate.room_id)
+            rule.entity_type == AvailabilityEntityType.TEACHER
+            and rule.entity_id == assignment.teacher_id
+        ) or (
+            rule.entity_type == AvailabilityEntityType.CLASS
+            and rule.entity_id == assignment.class_id
+        ) or (
+            rule.entity_type == AvailabilityEntityType.ROOM
+            and candidate.room_id is not None
+            and rule.entity_id == candidate.room_id
         )
         if not matches:
             continue
@@ -267,7 +306,9 @@ def _add_gap_objective(
         for day, periods in enumerate(periods_per_day):
             occupancy: list[cp_model.IntVar] = []
             for period in range(periods):
-                occupied = model.new_bool_var(f"{prefix}_occupied_{entity_id}_{day}_{period}")
+                occupied = model.new_bool_var(
+                    f"{prefix}_occupied_{entity_id}_{day}_{period}"
+                )
                 sources = occupancy_sources.get((entity_id, day, period), [])
                 if sources:
                     source_sum = sum(sources)
@@ -278,8 +319,12 @@ def _add_gap_objective(
                 occupancy.append(occupied)
 
             for period in range(1, periods - 1):
-                before = model.new_bool_var(f"{prefix}_before_{entity_id}_{day}_{period}")
-                after = model.new_bool_var(f"{prefix}_after_{entity_id}_{day}_{period}")
+                before = model.new_bool_var(
+                    f"{prefix}_before_{entity_id}_{day}_{period}"
+                )
+                after = model.new_bool_var(
+                    f"{prefix}_after_{entity_id}_{day}_{period}"
+                )
                 before_sum = sum(occupancy[:period])
                 after_sum = sum(occupancy[period + 1 :])
                 model.add(before_sum >= before)
@@ -287,11 +332,15 @@ def _add_gap_objective(
                 model.add(after_sum >= after)
                 model.add(after_sum <= (periods - period - 1) * after)
 
-                gap = model.new_bool_var(f"{prefix}_gap_{entity_id}_{day}_{period}")
+                gap = model.new_bool_var(
+                    f"{prefix}_gap_{entity_id}_{day}_{period}"
+                )
                 model.add(gap <= before)
                 model.add(gap <= after)
                 model.add(gap + occupancy[period] <= 1)
-                model.add(gap >= before + after - occupancy[period] - 1)
+                model.add(
+                    gap >= before + after - occupancy[period] - 1
+                )
                 objective_terms.append(gap * weight)
 
 
@@ -324,7 +373,11 @@ def solve(payload: SolveRequest) -> SolveResponse:
         candidates: list[tuple[CandidateKey, cp_model.IntVar]] = []
         for candidate in _candidate_keys(payload, block, fixed.get(block.id)):
             room_token = candidate.room_id or "none"
-            variable = model.new_bool_var(f"place_{block.assignment.id}_{block.index}_{candidate.day}_{candidate.period}_{room_token}")
+            variable = model.new_bool_var(
+                "place_"
+                f"{block.assignment.id}_{block.index}_{candidate.day}_"
+                f"{candidate.period}_{room_token}"
+            )
             candidates.append((candidate, variable))
             objective_terms.append(
                 variable
@@ -337,7 +390,9 @@ def solve(payload: SolveRequest) -> SolveResponse:
             )
 
             for period in range(candidate.period, candidate.period + block.duration):
-                teacher_slots[(block.assignment.teacher_id, candidate.day, period)].append(variable)
+                teacher_slots[
+                    (block.assignment.teacher_id, candidate.day, period)
+                ].append(variable)
                 for class_id in assignment_class_ids(block.assignment):
                     class_all_slots[(class_id, candidate.day, period)].append(variable)
                     if block.assignment.group == TeachingGroup.WHOLE:
@@ -357,7 +412,9 @@ def solve(payload: SolveRequest) -> SolveResponse:
     for slot_variables in room_slots.values():
         model.add(sum(slot_variables) <= 1)
 
-    class_slot_keys = set(class_whole_slots) | set(class_group_1_slots) | set(class_group_2_slots)
+    class_slot_keys = (
+        set(class_whole_slots) | set(class_group_1_slots) | set(class_group_2_slots)
+    )
     for key in class_slot_keys:
         whole = class_whole_slots.get(key, [])
         group_1 = class_group_1_slots.get(key, [])
@@ -382,15 +439,23 @@ def solve(payload: SolveRequest) -> SolveResponse:
                 },
             )
         for left_block, right_block in zip(left_blocks, right_blocks, strict=True):
-            positions = {(candidate.day, candidate.period) for candidate, _variable in variables[left_block.id]} | {
-                (candidate.day, candidate.period) for candidate, _variable in variables[right_block.id]
+            positions = {
+                (candidate.day, candidate.period)
+                for candidate, _variable in variables[left_block.id]
+            } | {
+                (candidate.day, candidate.period)
+                for candidate, _variable in variables[right_block.id]
             }
             for day, period in positions:
                 left_at_position = [
-                    variable for candidate, variable in variables[left_block.id] if candidate.day == day and candidate.period == period
+                    variable
+                    for candidate, variable in variables[left_block.id]
+                    if candidate.day == day and candidate.period == period
                 ]
                 right_at_position = [
-                    variable for candidate, variable in variables[right_block.id] if candidate.day == day and candidate.period == period
+                    variable
+                    for candidate, variable in variables[right_block.id]
+                    if candidate.day == day and candidate.period == period
                 ]
                 model.add(sum(left_at_position) == sum(right_at_position))
 
@@ -398,7 +463,12 @@ def solve(payload: SolveRequest) -> SolveResponse:
         assignment_blocks = blocks_by_assignment[assignment.id]
         day_used: list[cp_model.IntVar] = []
         for day in range(len(payload.periods_per_day)):
-            day_variables = [variable for block in assignment_blocks for candidate, variable in variables[block.id] if candidate.day == day]
+            day_variables = [
+                variable
+                for block in assignment_blocks
+                for candidate, variable in variables[block.id]
+                if candidate.day == day
+            ]
             count = model.new_int_var(
                 0,
                 len(assignment_blocks),
@@ -416,7 +486,9 @@ def solve(payload: SolveRequest) -> SolveResponse:
                 f"excess_{assignment.id}_{day}",
             )
             model.add(excess >= count - 1)
-            objective_terms.append(excess * payload.weights.same_day_concentration)
+            objective_terms.append(
+                excess * payload.weights.same_day_concentration
+            )
 
             if assignment.max_per_day is not None:
                 period_terms = [
@@ -432,10 +504,18 @@ def solve(payload: SolveRequest) -> SolveResponse:
                 for right_day in range(left_day + 1, len(day_used)):
                     if right_day - left_day > assignment.min_day_gap:
                         continue
-                    both = model.new_bool_var(f"close_days_{assignment.id}_{left_day}_{right_day}")
-                    model.add_bool_and([day_used[left_day], day_used[right_day]]).only_enforce_if(both)
-                    model.add_bool_or([day_used[left_day].Not(), day_used[right_day].Not()]).only_enforce_if(both.Not())
-                    objective_terms.append(both * payload.weights.same_day_concentration)
+                    both = model.new_bool_var(
+                        f"close_days_{assignment.id}_{left_day}_{right_day}"
+                    )
+                    model.add_bool_and(
+                        [day_used[left_day], day_used[right_day]]
+                    ).only_enforce_if(both)
+                    model.add_bool_or(
+                        [day_used[left_day].Not(), day_used[right_day].Not()]
+                    ).only_enforce_if(both.Not())
+                    objective_terms.append(
+                        both * payload.weights.same_day_concentration
+                    )
 
     _add_gap_objective(
         model,
@@ -450,7 +530,11 @@ def solve(payload: SolveRequest) -> SolveResponse:
         model,
         objective_terms,
         class_all_slots,
-        {class_id for assignment in payload.assignments for class_id in assignment_class_ids(assignment)},
+        {
+            class_id
+            for assignment in payload.assignments
+            for class_id in assignment_class_ids(assignment)
+        },
         payload.periods_per_day,
         payload.weights.class_gap,
         "class",
@@ -480,11 +564,19 @@ def solve(payload: SolveRequest) -> SolveResponse:
             },
         )
 
-    fixed_rule_blocks = {f"{item.assignment_id}:{item.block_index}" for item in payload.fixed_lessons}
-    locked_blocks = {f"{item.assignment_id}:{item.block_index}" for item in payload.locked_lessons}
+    fixed_rule_blocks = {
+        f"{item.assignment_id}:{item.block_index}" for item in payload.fixed_lessons
+    }
+    locked_blocks = {
+        f"{item.assignment_id}:{item.block_index}" for item in payload.locked_lessons
+    }
     lessons: list[ScheduledLesson] = []
     for block in blocks:
-        selected = next(candidate for candidate, variable in variables[block.id] if solver.value(variable) == 1)
+        selected = next(
+            candidate
+            for candidate, variable in variables[block.id]
+            if solver.value(variable) == 1
+        )
         if block.id in fixed_rule_blocks:
             origin = "FIXED_RULE"
         elif block.id in locked_blocks:
@@ -504,7 +596,9 @@ def solve(payload: SolveRequest) -> SolveResponse:
                 day=selected.day,
                 period=selected.period,
                 duration=block.duration,
-                locked=(block.id in fixed_rule_blocks or block.id in locked_blocks),
+                locked=(
+                    block.id in fixed_rule_blocks or block.id in locked_blocks
+                ),
                 origin=origin,
             )
         )
@@ -516,7 +610,10 @@ def solve(payload: SolveRequest) -> SolveResponse:
             status_code=500,
             detail={
                 "code": "POST_SOLVE_VALIDATION_FAILED",
-                "message": ("Výsledek solveru neprošel nezávislou kontrolou tvrdých omezení."),
+                "message": (
+                    "Výsledek solveru neprošel nezávislou kontrolou "
+                    "tvrdých omezení."
+                ),
                 "issues": [issue.model_dump() for issue in hard_issues],
             },
         )
@@ -531,7 +628,9 @@ def solve(payload: SolveRequest) -> SolveResponse:
         diagnostics=[
             {
                 "code": "HARD_CONSTRAINTS_VALIDATED",
-                "message": ("Výsledek prošel nezávislou kontrolou tvrdých omezení."),
+                "message": (
+                    "Výsledek prošel nezávislou kontrolou tvrdých omezení."
+                ),
             },
             {
                 "code": "DETERMINISTIC_TEST_MODE",

@@ -33,10 +33,7 @@ def test_solver_returns_conflict_free_schedule() -> None:
     payload = response.json()
     assert payload["status"] in {"FEASIBLE", "OPTIMAL"}
     assert len(payload["lessons"]) == 4
-    slots = {
-        (item["class_id"], item["day"], item["period"])
-        for item in payload["lessons"]
-    }
+    slots = {(item["class_id"], item["day"], item["period"]) for item in payload["lessons"]}
     assert len(slots) == 4
     assert payload["score"]["valid"] is True
     assert sum(payload["score"]["categories"].values()) == payload["score"]["total"]

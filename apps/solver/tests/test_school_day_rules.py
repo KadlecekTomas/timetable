@@ -31,9 +31,7 @@ def double_lesson_payload(allowed_periods: set[int]) -> dict[str, object]:
                 "lesson_shape": "DOUBLE",
             }
         ],
-        "availability": unavailable_periods(
-            [period for period in range(8) if period not in allowed_periods]
-        ),
+        "availability": unavailable_periods([period for period in range(8) if period not in allowed_periods]),
     }
 
 

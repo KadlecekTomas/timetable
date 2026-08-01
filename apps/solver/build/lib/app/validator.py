@@ -115,7 +115,10 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
             issues.append(
                 ValidationIssue(
                     code="LUNCH_BREAK_CROSSED",
-                    message=(f"Blok {lesson.block_id} nesmí spojit dopolední a odpolední vyučování přes obědovou přestávku."),
+                    message=(
+                        f"Blok {lesson.block_id} nesmí spojit dopolední a "
+                        "odpolední vyučování přes obědovou přestávku."
+                    ),
                     entity_ids=[lesson.block_id, lesson.class_id],
                     day=lesson.day,
                     period=lesson.period,
@@ -191,7 +194,10 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
 
             unavailable_entities = [
                 (AvailabilityEntityType.TEACHER, lesson.teacher_id),
-                *((AvailabilityEntityType.CLASS, class_id) for class_id in lesson_class_ids(lesson)),
+                *(
+                    (AvailabilityEntityType.CLASS, class_id)
+                    for class_id in lesson_class_ids(lesson)
+                ),
             ]
             if lesson.room_id:
                 unavailable_entities.append((AvailabilityEntityType.ROOM, lesson.room_id))
@@ -214,7 +220,8 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
                     ValidationIssue(
                         code="TEACHER_COLLISION",
                         message=(
-                            f"Učitel {lesson.teacher_id} má současně bloky {conflicting_teacher_lesson.block_id} a {lesson.block_id}."
+                            f"Učitel {lesson.teacher_id} má současně bloky "
+                            f"{conflicting_teacher_lesson.block_id} a {lesson.block_id}."
                         ),
                         entity_ids=[
                             lesson.teacher_id,
@@ -236,7 +243,8 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
                         ValidationIssue(
                             code="ROOM_COLLISION",
                             message=(
-                                f"Učebna {lesson.room_id} je současně použita bloky {conflicting_room_lesson.block_id} a {lesson.block_id}."
+                                f"Učebna {lesson.room_id} je současně použita bloky "
+                                f"{conflicting_room_lesson.block_id} a {lesson.block_id}."
                             ),
                             entity_ids=[
                                 lesson.room_id,
@@ -257,7 +265,10 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
                         issues.append(
                             ValidationIssue(
                                 code="CLASS_COLLISION",
-                                message=(f"Třída {class_id} má současně bloky {existing.block_id} a {lesson.block_id}."),
+                                message=(
+                                    f"Třída {class_id} má současně bloky "
+                                    f"{existing.block_id} a {lesson.block_id}."
+                                ),
                                 entity_ids=[class_id, existing.block_id, lesson.block_id],
                                 day=lesson.day,
                                 period=period,
@@ -269,8 +280,12 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
     for lesson in lessons:
         lessons_by_assignment[lesson.assignment_id].append(lesson)
     for left, right in parallel_assignment_pairs(payload.assignments):
-        left_lessons = sorted(lessons_by_assignment[left.id], key=lambda item: item.block_id)
-        right_lessons = sorted(lessons_by_assignment[right.id], key=lambda item: item.block_id)
+        left_lessons = sorted(
+            lessons_by_assignment[left.id], key=lambda item: item.block_id
+        )
+        right_lessons = sorted(
+            lessons_by_assignment[right.id], key=lambda item: item.block_id
+        )
         if len(left_lessons) != len(right_lessons):
             continue
         for left_lesson, right_lesson in zip(left_lessons, right_lessons, strict=True):
