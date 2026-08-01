@@ -40,6 +40,6 @@ RVP vymezuje vzdělávací obory, zatímco konkrétní školní předměty a jej
 
 Stejných 16 předmětů je předvyplněno také v klientské importní šabloně. Automatický test kontroluje zejména přítomnost Výchovy ke zdraví a bezpečí, osobnostní a sociální výchovy a polytechnické výchovy.
 
-## Finální ověření
+## Ověřovací kritérium
 
-Implementační HEAD `3932c34a2c19d72d2793adedbfd3bf59959af2d8` prošel v CI runu `30713413990` celý bez retry. Plný browserový scénář ověřil všech 13 tříd, všech pět pracovních dnů, kompletní 122hodinový model, přesnou mapu 16 školních předmětů a výsledný Excel. Artefakt byl po stažení nezávisle otevřen a u všech tříd měl řádek `1. hodina · 8:00` obsazený od pondělí do pátku.
+Plný browserový scénář musí bez retry ověřit všech 13 tříd, všech pět pracovních dnů, kompletní 122hodinový model, přesnou mapu 16 školních předmětů a výsledný Excel. Artefakt se po stažení znovu otevírá a u všech tříd se kontroluje obsazený řádek `1. hodina · 8:00` od pondělí do pátku.
