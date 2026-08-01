@@ -258,6 +258,28 @@ def _availability_cost(
     return coefficient
 
 
+def _occupancy_variables(
+    model: cp_model.CpModel,
+    occupancy_sources: dict[tuple[str, int, int], list[cp_model.IntVar]],
+    entity_id: str,
+    day: int,
+    periods: int,
+    prefix: str,
+) -> list[cp_model.IntVar]:
+    occupancy: list[cp_model.IntVar] = []
+    for period in range(periods):
+        occupied = model.new_bool_var(f"{prefix}_occupied_{entity_id}_{day}_{period}")
+        sources = occupancy_sources.get((entity_id, day, period), [])
+        if sources:
+            source_sum = sum(sources)
+            model.add(source_sum >= occupied)
+            model.add(source_sum <= len(sources) * occupied)
+        else:
+            model.add(occupied == 0)
+        occupancy.append(occupied)
+    return occupancy
+
+
 def _add_gap_objective(
     model: cp_model.CpModel,
     objective_terms: list[cp_model.LinearExpr],
@@ -269,18 +291,14 @@ def _add_gap_objective(
 ) -> None:
     for entity_id in sorted(entity_ids):
         for day, periods in enumerate(periods_per_day):
-            occupancy: list[cp_model.IntVar] = []
-            for period in range(periods):
-                occupied = model.new_bool_var(f"{prefix}_occupied_{entity_id}_{day}_{period}")
-                sources = occupancy_sources.get((entity_id, day, period), [])
-                if sources:
-                    source_sum = sum(sources)
-                    model.add(source_sum >= occupied)
-                    model.add(source_sum <= len(sources) * occupied)
-                else:
-                    model.add(occupied == 0)
-                occupancy.append(occupied)
-
+            occupancy = _occupancy_variables(
+                model,
+                occupancy_sources,
+                entity_id,
+                day,
+                periods,
+                prefix,
+            )
             for period in range(1, periods - 1):
                 before = model.new_bool_var(f"{prefix}_before_{entity_id}_{day}_{period}")
                 after = model.new_bool_var(f"{prefix}_after_{entity_id}_{day}_{period}")
@@ -297,6 +315,30 @@ def _add_gap_objective(
                 model.add(gap + occupancy[period] <= 1)
                 model.add(gap >= before + after - occupancy[period] - 1)
                 objective_terms.append(gap * weight)
+
+
+def _forbid_regular_class_gaps(
+    model: cp_model.CpModel,
+    class_slots: dict[tuple[str, int, int], list[cp_model.IntVar]],
+    required_periods_by_class: dict[str, int],
+    periods_per_day: list[int],
+) -> None:
+    if len(periods_per_day) < 5:
+        return
+    for class_id, weekly_periods in sorted(required_periods_by_class.items()):
+        if weekly_periods < len(periods_per_day):
+            continue
+        for day, periods in enumerate(periods_per_day):
+            occupancy = _occupancy_variables(
+                model,
+                class_slots,
+                class_id,
+                day,
+                periods,
+                "class_contiguous",
+            )
+            for period in range(periods - 1):
+                model.add(occupancy[period + 1] <= occupancy[period])
 
 
 @app.post("/solve", response_model=SolveResponse)
@@ -378,6 +420,12 @@ def solve(payload: SolveRequest) -> SolveResponse:
                 if periods <= 0:
                     continue
                 model.add(sum(class_all_slots.get((class_id, day, 0), [])) >= 1)
+    _forbid_regular_class_gaps(
+        model,
+        class_all_slots,
+        required_periods_by_class,
+        payload.periods_per_day,
+    )
 
     blocks_by_assignment: dict[str, list[Block]] = defaultdict(list)
     for block in blocks:
@@ -546,6 +594,10 @@ def solve(payload: SolveRequest) -> SolveResponse:
             {
                 "code": "HARD_CONSTRAINTS_VALIDATED",
                 "message": ("Výsledek prošel nezávislou kontrolou tvrdých omezení."),
+            },
+            {
+                "code": "CLASS_DAYS_ARE_CONTIGUOUS",
+                "message": "Pravidelné třídy mají každý den souvislou výuku od 8:00 bez vnitřních oken.",
             },
             {
                 "code": "DETERMINISTIC_TEST_MODE",
