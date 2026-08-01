@@ -210,7 +210,16 @@ const SPLIT_WEEKLY_PERIODS = {
   JAZ2: 1,
 } as const;
 
-const GENERAL_SUBJECTS = ["FY", "DEJ", "ZEM", "PRI", "OV", "HV", "VV", "PC"] as const;
+const GENERAL_SUBJECTS = [
+  "FY",
+  "DEJ",
+  "ZEM",
+  "PRI",
+  "OV",
+  "HV",
+  "VV",
+  "PC",
+] as const;
 
 function clearDataRows(worksheet: Worksheet, columnCount: number) {
   for (
@@ -330,7 +339,8 @@ function buildTeacherRows(assignments: AssignmentDefinition[]) {
 
   assignments.forEach((assignment) => {
     const teacher = stats.get(assignment.teacherCode);
-    if (!teacher) throw new Error(`Neznámý testovací učitel ${assignment.teacherCode}.`);
+    if (!teacher)
+      throw new Error(`Neznámý testovací učitel ${assignment.teacherCode}.`);
     teacher.load += assignment.weeklyPeriods;
     teacher.subjects.add(assignment.subjectCode);
     teacher.classes.add(assignment.classCode);
@@ -479,7 +489,9 @@ async function readStoredProject(page: Page): Promise<StoredProject> {
         openRequest.onsuccess = () => {
           const database = openRequest.result;
           const transaction = database.transaction("state", "readonly");
-          const request = transaction.objectStore("state").get("active-project");
+          const request = transaction
+            .objectStore("state")
+            .get("active-project");
           request.onerror = () => reject(request.error);
           request.onsuccess = () => resolve(request.result as StoredProject);
           transaction.oncomplete = () => database.close();
@@ -489,7 +501,8 @@ async function readStoredProject(page: Page): Promise<StoredProject> {
 }
 
 function currentVersion(project: StoredProject): StoredTimetableVersion {
-  const version = project.timetableVersions[project.timetableVersions.length - 1];
+  const version =
+    project.timetableVersions[project.timetableVersions.length - 1];
   if (!version) throw new Error("Testovací projekt neobsahuje návrh rozvrhu.");
   return version;
 }
@@ -508,7 +521,8 @@ function findValidMove(
 
   for (const lesson of candidates) {
     for (let day = 0; day < version.snapshot.periods_per_day.length; day += 1) {
-      const latestStart = version.snapshot.periods_per_day[day]! - lesson.duration;
+      const latestStart =
+        version.snapshot.periods_per_day[day]! - lesson.duration;
       for (let period = 0; period <= latestStart; period += 1) {
         if (day === lesson.day && period === lesson.period) continue;
         const move: TimetableMove = {
@@ -525,7 +539,9 @@ function findValidMove(
     }
   }
 
-  throw new Error("Pro testovací hodinu informatiky nebyl nalezen platný přesun.");
+  throw new Error(
+    "Pro testovací hodinu informatiky nebyl nalezen platný přesun.",
+  );
 }
 
 function assertAvailabilityRespected(
@@ -537,7 +553,8 @@ function assertAvailabilityRespected(
   )) {
     const collisions = lessons.filter((lesson) => {
       const matchesEntity =
-        (rule.entityType === "TEACHER" && lesson.teacher_id === rule.entityId) ||
+        (rule.entityType === "TEACHER" &&
+          lesson.teacher_id === rule.entityId) ||
         (rule.entityType === "CLASS" && lesson.class_id === rule.entityId) ||
         (rule.entityType === "ROOM" && lesson.room_id === rule.entityId);
       return (
@@ -645,9 +662,9 @@ test("school leadership can import 40 teachers, generate the complete second-sta
     (assignment) => assignment.subjectId === informatics!.id,
   );
   expect(kadInformatics).toHaveLength(13);
-  expect(new Set(kadInformatics.map((assignment) => assignment.classId)).size).toBe(
-    13,
-  );
+  expect(
+    new Set(kadInformatics.map((assignment) => assignment.classId)).size,
+  ).toBe(13);
   kadInformatics.forEach((assignment) => {
     expect(assignment.group).toBe("WHOLE");
     expect(assignment.weeklyPeriods).toBe(1);
@@ -674,7 +691,13 @@ test("school leadership can import 40 teachers, generate the complete second-sta
       (assignment) => assignment.classId === schoolClass.id,
     );
     expect(
-      [...new Set(classAssignments.map((assignment) => subjectById.get(assignment.subjectId)?.code))].sort(),
+      [
+        ...new Set(
+          classAssignments.map(
+            (assignment) => subjectById.get(assignment.subjectId)?.code,
+          ),
+        ),
+      ].sort(),
     ).toEqual(SUBJECTS.map(([subjectCode]) => subjectCode).sort());
 
     for (const subjectCode of SPLIT_SUBJECTS) {
@@ -683,12 +706,12 @@ test("school leadership can import 40 teachers, generate the complete second-sta
         (assignment) => assignment.subjectId === subject.id,
       );
       expect(splitAssignments).toHaveLength(2);
-      expect(splitAssignments.map((assignment) => assignment.group).sort()).toEqual([
-        "GROUP_1",
-        "GROUP_2",
-      ]);
       expect(
-        new Set(splitAssignments.map((assignment) => assignment.weeklyPeriods)).size,
+        splitAssignments.map((assignment) => assignment.group).sort(),
+      ).toEqual(["GROUP_1", "GROUP_2"]);
+      expect(
+        new Set(splitAssignments.map((assignment) => assignment.weeklyPeriods))
+          .size,
       ).toBe(1);
     }
 
@@ -716,9 +739,9 @@ test("school leadership can import 40 teachers, generate the complete second-sta
 
   const generated = await readStoredProject(page);
   const generatedVersion = currentVersion(generated);
-  expect(validateSchedule(generatedVersion.snapshot, generatedVersion.lessons)).toEqual(
-    [],
-  );
+  expect(
+    validateSchedule(generatedVersion.snapshot, generatedVersion.lessons),
+  ).toEqual([]);
   assertAvailabilityRespected(generated, generatedVersion.lessons);
 
   const generatedKadLessons = generatedVersion.lessons.filter(
@@ -745,21 +768,23 @@ test("school leadership can import 40 teachers, generate the complete second-sta
   const availabilityProbe = generatedKadLessons.find(
     (lesson) => lesson.subject_id === informatics!.id,
   )!;
-  const invalidMove = validateMove(generatedVersion.snapshot, generatedVersion.lessons, {
-    lesson_id: availabilityProbe.id ?? availabilityProbe.block_id,
-    target_day: kadUnavailable!.dayOfWeek,
-    target_period: kadUnavailable!.period,
-    target_room_id: availabilityProbe.room_id,
-    expected_version: generatedVersion.revision,
-  });
-  expect(invalidMove.valid).toBe(false);
-  expect(invalidMove.issues.map((issue) => issue.code)).toContain("UNAVAILABLE_SLOT");
-
-  const validMove = findValidMove(
-    generatedVersion,
-    kad!.id,
-    informatics!.id,
+  const invalidMove = validateMove(
+    generatedVersion.snapshot,
+    generatedVersion.lessons,
+    {
+      lesson_id: availabilityProbe.id ?? availabilityProbe.block_id,
+      target_day: kadUnavailable!.dayOfWeek,
+      target_period: kadUnavailable!.period,
+      target_room_id: availabilityProbe.room_id,
+      expected_version: generatedVersion.revision,
+    },
   );
+  expect(invalidMove.valid).toBe(false);
+  expect(invalidMove.issues.map((issue) => issue.code)).toContain(
+    "UNAVAILABLE_SLOT",
+  );
+
+  const validMove = findValidMove(generatedVersion, kad!.id, informatics!.id);
   const movedClass = classById.get(validMove.lesson.class_id)!;
 
   await page.getByRole("button", { name: "Učitelé" }).click();
@@ -792,7 +817,9 @@ test("school leadership can import 40 teachers, generate the complete second-sta
   expect(movedLesson?.day).toBe(validMove.move.target_day);
   expect(movedLesson?.period).toBe(validMove.move.target_period);
   expect(movedLesson?.manually_changed).toBe(true);
-  expect(validateSchedule(movedVersion.snapshot, movedVersion.lessons)).toEqual([]);
+  expect(validateSchedule(movedVersion.snapshot, movedVersion.lessons)).toEqual(
+    [],
+  );
 
   await page.getByRole("button", { name: "Vrátit změnu" }).click();
   await expect

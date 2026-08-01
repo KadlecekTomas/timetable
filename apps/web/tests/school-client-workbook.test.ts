@@ -21,8 +21,9 @@ function filledRows(
   ) {
     if (!worksheet.getCell(rowNumber, 1).text.trim()) continue;
     rows.push(
-      Array.from({ length: columnCount }, (_, columnIndex) =>
-        worksheet.getCell(rowNumber, columnIndex + 1).text,
+      Array.from(
+        { length: columnCount },
+        (_, columnIndex) => worksheet.getCell(rowNumber, columnIndex + 1).text,
       ),
     );
   }

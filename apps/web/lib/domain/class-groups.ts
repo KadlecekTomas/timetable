@@ -4,14 +4,19 @@ import type {
   TeachingGroup,
 } from "./contracts";
 
-export function assignmentClassIds(
-  assignment: SnapshotAssignment,
-): string[] {
-  return [...new Set([assignment.class_id, ...(assignment.additional_class_ids ?? [])])];
+export function assignmentClassIds(assignment: SnapshotAssignment): string[] {
+  return [
+    ...new Set([
+      assignment.class_id,
+      ...(assignment.additional_class_ids ?? []),
+    ]),
+  ];
 }
 
 export function lessonClassIds(lesson: ScheduledLesson): string[] {
-  return [...new Set([lesson.class_id, ...(lesson.additional_class_ids ?? [])])];
+  return [
+    ...new Set([lesson.class_id, ...(lesson.additional_class_ids ?? [])]),
+  ];
 }
 
 export function parallelAssignmentPairs(
