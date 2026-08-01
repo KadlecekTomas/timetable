@@ -1,0 +1,47 @@
+name: Fix staffing accessibility once
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-a11y:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Add explicit accessible day label
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("apps/web/app/staffing/page.tsx")
+          content = path.read_text()
+          old = '''                          type="button"
+                          aria-pressed={selected}
+          '''
+          new = '''                          type="button"
+                          aria-label={`${day.shortLabel} ${selected ? "nemůže" : "může"}`}
+                          aria-pressed={selected}
+          '''
+          if old not in content:
+              raise SystemExit("Staffing day button anchor not found")
+          path.write_text(content.replace(old, new, 1))
+          PY
+      - run: npx prettier --write apps/web/app/staffing/page.tsx
+      - name: Commit accessibility fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/app/staffing/page.tsx
+          git commit -m "fix(staffing): label whole-day availability controls"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
