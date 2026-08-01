@@ -25,3 +25,5 @@ Tento dokument popisuje konkrétní ŠVP model použitý v plné Playwright akce
 Český jazyk, matematika, anglický jazyk a další cizí jazyk jsou rozdělené do dvou souběžných skupin. Jejich hodinová dotace se proto do třídního součtu započítává jednou, nikoli dvakrát.
 
 Třídy 9.A a 9.C mají společnou tělesnou výchovu v rozsahu čtyř hodin týdně jako dvě dvojhodiny. Učitel KAD má vedle této TV jednu hodinu informatiky ve všech 13 třídách, tedy celkem přesně 17 hodin.
+
+Akceptační test po importu čeká na potvrzení dokončené IndexedDB transakce a následně polluje uložený počet učitelů. Kontrola solveru proto nezačíná nad prázdným nebo částečně zapsaným projektem.
