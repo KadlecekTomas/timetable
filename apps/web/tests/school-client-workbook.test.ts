@@ -65,8 +65,7 @@ test("school template splits informatics except 8.B", async () => {
   assert.equal(subjectRows.length, 16);
   assert.ok(
     subjectRows.some(
-      ([code, name]) =>
-        code === "VZ" && name === "Výchova ke zdraví a bezpečí",
+      ([code, name]) => code === "VZ" && name === "Výchova ke zdraví a bezpečí",
     ),
   );
   assert.ok(
@@ -78,8 +77,7 @@ test("school template splits informatics except 8.B", async () => {
   assert.ok(
     subjectRows.some(
       ([code, name]) =>
-        code === "PC" &&
-        name === "Polytechnická výchova a praktické činnosti",
+        code === "PC" && name === "Polytechnická výchova a praktické činnosti",
     ),
   );
 
@@ -119,10 +117,7 @@ test("school template splits informatics except 8.B", async () => {
     ]);
   }
 
-  assert.match(
-    assignments.getCell("A2").text,
-    /8\.B zůstává pro celou třídu/,
-  );
+  assert.match(assignments.getCell("A2").text, /8\.B zůstává pro celou třídu/);
 
   const organization = workbook.getWorksheet("8. Organizační pravidla");
   assert.ok(organization);
