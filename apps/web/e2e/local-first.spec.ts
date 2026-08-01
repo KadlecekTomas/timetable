@@ -108,7 +108,7 @@ test("entire project survives backup, deletion and restore without a server data
   ).toBeVisible();
 
   const workbookBuffer = await createSchoolWorkbook();
-  await page.getByRole("link", { name: "Načtení dat" }).click();
+  await page.getByRole("link", { name: "Pokročilý import" }).click();
   await page.locator("#import-file").setInputFiles({
     name: "lokalni-skola.xlsx",
     mimeType:

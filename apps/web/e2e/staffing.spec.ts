@@ -23,8 +23,11 @@ test("beginner staffing flow records exact subject load and a whole unavailable 
   await page.getByLabel("Příjmení").fill("Nováková");
   await page.getByLabel("Úvazek týdně").fill("22");
 
-  await page.getByLabel("Předmět").nth(0).selectOption("TV");
-  await page.getByLabel("Počet hodin předmětu").nth(0).fill("10");
+  await page.locator('select[aria-label="Předmět"]').nth(0).selectOption("TV");
+  await page
+    .locator('input[aria-label="Počet hodin předmětu"]')
+    .nth(0)
+    .fill("10");
 
   for (const [subject, hours] of [
     ["M", "2"],
@@ -32,9 +35,11 @@ test("beginner staffing flow records exact subject load and a whole unavailable 
     ["JAZ2", "6"],
   ] as const) {
     await page.getByRole("button", { name: "Přidat další předmět" }).click();
-    const index = (await page.getByLabel("Předmět").count()) - 1;
-    await page.getByLabel("Předmět").nth(index).selectOption(subject);
-    await page.getByLabel("Počet hodin předmětu").nth(index).fill(hours);
+    const subjectSelects = page.locator('select[aria-label="Předmět"]');
+    const hourInputs = page.locator('input[aria-label="Počet hodin předmětu"]');
+    const index = (await subjectSelects.count()) - 1;
+    await subjectSelects.nth(index).selectOption(subject);
+    await hourInputs.nth(index).fill(hours);
   }
 
   await expect(page.getByText("22 / 22 h", { exact: true })).toBeVisible();
