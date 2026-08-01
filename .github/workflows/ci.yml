@@ -20,15 +20,6 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm run format:check
-      - name: Upload canonical staffing files
-        uses: actions/upload-artifact@v4
-        with:
-          name: canonical-staffing-files
-          path: |
-            apps/web/app/staffing/page.tsx
-            apps/web/lib/import/staffing-workbook.ts
-            apps/web/lib/local/staffing-plan.ts
-          if-no-files-found: error
       - run: npm run lint --workspace @timetable/web
       - run: npm run typecheck --workspace @timetable/web
       - run: npm run test --workspace @timetable/web
