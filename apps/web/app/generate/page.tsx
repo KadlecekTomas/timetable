@@ -213,7 +213,9 @@ export default function GeneratePage() {
             <option value={30}>30 sekund · rychlý náhled</option>
             <option value={60}>1 minuta · orientační návrh</option>
             <option value={180}>3 minuty · doporučeno pro celou školu</option>
-            <option value={300}>5 minut · nejlepší dostupná optimalizace</option>
+            <option value={300}>
+              5 minut · nejlepší dostupná optimalizace
+            </option>
           </select>
           <p className="mt-2 text-xs text-text-muted">
             Delší výpočet výrazně pomáhá omezit mezery tříd a učitelů.
