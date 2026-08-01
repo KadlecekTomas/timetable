@@ -16,9 +16,7 @@ test("beginner staffing flow records exact subject load and a whole unavailable 
   await expect(
     page.getByRole("heading", { name: "Učitelé a úvazky" }),
   ).toBeVisible();
-  await expect(
-    page.getByText("Zatím tu není žádný učitel"),
-  ).toBeVisible();
+  await expect(page.getByText("Zatím tu není žádný učitel")).toBeVisible();
 
   await page.getByRole("button", { name: "Přidat učitele ručně" }).click();
   await page.getByLabel("Jméno").fill("Jana");
@@ -36,10 +34,7 @@ test("beginner staffing flow records exact subject load and a whole unavailable 
     await page.getByRole("button", { name: "Přidat další předmět" }).click();
     const index = (await page.getByLabel("Předmět").count()) - 1;
     await page.getByLabel("Předmět").nth(index).selectOption(subject);
-    await page
-      .getByLabel("Počet hodin předmětu")
-      .nth(index)
-      .fill(hours);
+    await page.getByLabel("Počet hodin předmětu").nth(index).fill(hours);
   }
 
   await expect(page.getByText("22 / 22 h", { exact: true })).toBeVisible();
@@ -51,17 +46,16 @@ test("beginner staffing flow records exact subject load and a whole unavailable 
   const monday = page.getByRole("button", { name: "Po může" });
   await expect(monday).toBeVisible();
   await monday.click();
-  await expect(
-    page.getByRole("button", { name: "Po nemůže" }),
-  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Po nemůže" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 
   await page
     .getByRole("button", { name: "Uložit učitele do projektu" })
     .click();
   await expect(
-    page.getByText(
-      "Hotovo. Uloženo 1 učitelů včetně celých nedostupných dnů.",
-    ),
+    page.getByText("Hotovo. Uloženo 1 učitelů včetně celých nedostupných dnů."),
   ).toBeVisible();
 
   const stored = await page.evaluate(
