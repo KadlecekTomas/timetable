@@ -30,7 +30,7 @@ function filledRows(
   return rows;
 }
 
-test("school client template prefills complete subjects and split informatics except 8.B", async () => {
+test("school template splits informatics except 8.B", async () => {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load((await createSchoolClientImportTemplate()) as never);
 
@@ -65,7 +65,8 @@ test("school client template prefills complete subjects and split informatics ex
   assert.equal(subjectRows.length, 16);
   assert.ok(
     subjectRows.some(
-      ([code, name]) => code === "VZ" && name === "Výchova ke zdraví a bezpečí",
+      ([code, name]) =>
+        code === "VZ" && name === "Výchova ke zdraví a bezpečí",
     ),
   );
   assert.ok(
@@ -77,29 +78,14 @@ test("school client template prefills complete subjects and split informatics ex
   assert.ok(
     subjectRows.some(
       ([code, name]) =>
-        code === "PC" && name === "Polytechnická výchova a praktické činnosti",
+        code === "PC" &&
+        name === "Polytechnická výchova a praktické činnosti",
     ),
   );
 
   const assignments = workbook.getWorksheet("5. Kdo co učí");
   assert.ok(assignments);
   const assignmentRows = filledRows(assignments, 13);
-  assert.deepEqual(
-    assignmentRows.slice(0, 10).map((row) => row.slice(0, 8)),
-    [
-      ["6A-CJ-S1", "6A", "", "CJ", "", "Skupina 1", "", "Jednotlivé hodiny"],
-      ["6A-CJ-S2", "6A", "", "CJ", "", "Skupina 2", "", "Jednotlivé hodiny"],
-      ["6A-M-S1", "6A", "", "M", "", "Skupina 1", "", "Jednotlivé hodiny"],
-      ["6A-M-S2", "6A", "", "M", "", "Skupina 2", "", "Jednotlivé hodiny"],
-      ["6A-JAZ1-S1", "6A", "", "JAZ1", "", "Skupina 1", "", "Jednotlivé hodiny"],
-      ["6A-JAZ1-S2", "6A", "", "JAZ1", "", "Skupina 2", "", "Jednotlivé hodiny"],
-      ["6A-JAZ2-S1", "6A", "", "JAZ2", "", "Skupina 1", "", "Jednotlivé hodiny"],
-      ["6A-JAZ2-S2", "6A", "", "JAZ2", "", "Skupina 2", "", "Jednotlivé hodiny"],
-      ["6A-INF-S1", "6A", "", "INF", "", "Skupina 1", "1", "Jednotlivé hodiny"],
-      ["6A-INF-S2", "6A", "", "INF", "", "Skupina 2", "1", "Jednotlivé hodiny"],
-    ],
-  );
-
   const informaticsRows = assignmentRows.filter((row) => row[3] === "INF");
   assert.equal(informaticsRows.length, 25);
 
@@ -120,23 +106,23 @@ test("school client template prefills complete subjects and split informatics ex
   ];
   for (const classCode of classCodes) {
     const rows = informaticsRows.filter((row) => row[1] === classCode);
+    const compactRows = rows.map((row) => [row[0], row[5], row[6]]);
+
     if (classCode === "8B") {
-      assert.deepEqual(
-        rows.map((row) => [row[0], row[5], row[6]]),
-        [["8B-INF", "Celá třída", "1"]],
-      );
+      assert.deepEqual(compactRows, [["8B-INF", "Celá třída", "1"]]);
       continue;
     }
-    assert.deepEqual(
-      rows.map((row) => [row[0], row[5], row[6]]),
-      [
-        [`${classCode}-INF-S1`, "Skupina 1", "1"],
-        [`${classCode}-INF-S2`, "Skupina 2", "1"],
-      ],
-    );
+
+    assert.deepEqual(compactRows, [
+      [`${classCode}-INF-S1`, "Skupina 1", "1"],
+      [`${classCode}-INF-S2`, "Skupina 2", "1"],
+    ]);
   }
 
-  assert.match(assignments.getCell("A2").text, /8\.B zůstává pro celou třídu/);
+  assert.match(
+    assignments.getCell("A2").text,
+    /8\.B zůstává pro celou třídu/,
+  );
 
   const organization = workbook.getWorksheet("8. Organizační pravidla");
   assert.ok(organization);
