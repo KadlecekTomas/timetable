@@ -28,6 +28,11 @@ class AvailabilityKind(StrEnum):
     DISCOURAGED = "DISCOURAGED"
 
 
+class Subject(BaseModel):
+    id: str
+    code: str
+
+
 class Room(BaseModel):
     id: str
     room_type_id: str | None = None
@@ -121,6 +126,7 @@ class SolverWeights(BaseModel):
 class SolveRequest(BaseModel):
     contract_version: str = "1.0"
     periods_per_day: list[int] = Field(default_factory=lambda: [8, 8, 8, 8, 7], min_length=1, max_length=7)
+    subjects: list[Subject] = Field(default_factory=list)
     assignments: list[Assignment]
     rooms: list[Room] = Field(default_factory=list)
     availability: list[AvailabilityRule] = Field(default_factory=list)
@@ -136,6 +142,10 @@ class SolveRequest(BaseModel):
             raise ValueError("Unsupported contract version")
         if any(periods < 1 or periods > 12 for periods in self.periods_per_day):
             raise ValueError("periods_per_day values must be between 1 and 12")
+
+        subject_ids = [subject.id for subject in self.subjects]
+        if len(subject_ids) != len(set(subject_ids)):
+            raise ValueError("Subject ids must be unique")
 
         assignment_ids = [assignment.id for assignment in self.assignments]
         if len(assignment_ids) != len(set(assignment_ids)):
