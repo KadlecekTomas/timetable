@@ -13,7 +13,7 @@
     "typecheck": "npm run typecheck --workspace @timetable/web",
     "test": "npm run test --workspace @timetable/web",
     "format": "prettier --write package.json apps/web apps/solver .github/workflows compose.yaml vercel.json",
-    "format:check": "prettier --write apps/web/lib/import/school-staffing-overrides.ts && cat apps/web/lib/import/school-staffing-overrides.ts && exit 1"
+    "format:check": "prettier --check package.json apps/web apps/solver .github/workflows compose.yaml vercel.json"
   },
   "devDependencies": {
     "prettier": "3.6.2"
