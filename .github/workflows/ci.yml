@@ -99,6 +99,7 @@ jobs:
           exit 1
       - name: Run database-free browser workflows
         run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/local-first-backup.spec.ts --retries=0
+      # Release gate: complete 40-teacher second-stage school workflow.
       - name: Run realistic 40-teacher school workflow
         run: npm run e2e --workspace @timetable/web -- e2e/school-scale.spec.ts --retries=0
       - name: Repeat critical local-first workflow three times
