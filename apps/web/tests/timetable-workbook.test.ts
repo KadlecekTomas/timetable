@@ -256,7 +256,10 @@ test("leadership export contains printable class and teacher schedules at school
   assert.match(overview.getCell(kadRow!, 5).text, /Otevřít rozvrh/);
 
   const kadTexts = textValues(teacherKad);
-  assert.equal(kadTexts.filter((value) => value.startsWith("INF ·")).length, 13);
+  assert.equal(
+    kadTexts.filter((value) => value.startsWith("INF ·")).length,
+    13,
+  );
   assert.equal(kadTexts.filter((value) => value.startsWith("TV ·")).length, 2);
   assert.equal(
     kadTexts.filter((value) => value.includes("pokračování TV")).length,
@@ -278,7 +281,9 @@ test("leadership export contains printable class and teacher schedules at school
     assert.equal(worksheet.pageSetup.fitToWidth, 1);
     assert.equal(worksheet.pageSetup.fitToHeight, 1);
     assert.ok(
-      textValues(worksheet).some((value) => value.includes("Obědová přestávka")),
+      textValues(worksheet).some((value) =>
+        value.includes("Obědová přestávka"),
+      ),
     );
   }
 

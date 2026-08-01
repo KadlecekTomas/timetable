@@ -57,12 +57,14 @@ export function PageHeader({
           { cache: "no-store" },
         ),
       ]);
-      const classPayload = (await classResponse.json()) as TimetableExportPayload & {
-        error?: { message?: string };
-      };
-      const teacherPayload = (await teacherResponse.json()) as TimetableExportPayload & {
-        error?: { message?: string };
-      };
+      const classPayload =
+        (await classResponse.json()) as TimetableExportPayload & {
+          error?: { message?: string };
+        };
+      const teacherPayload =
+        (await teacherResponse.json()) as TimetableExportPayload & {
+          error?: { message?: string };
+        };
       if (!classResponse.ok) {
         throw new Error(
           classPayload.error?.message ?? "Třídní rozvrhy nelze načíst.",

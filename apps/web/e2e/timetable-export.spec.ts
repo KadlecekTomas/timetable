@@ -166,18 +166,18 @@ test("school leadership downloads a readable Excel with class and teacher sheets
   expect(overview!.getCell("B5").text).toBe("2026/2027");
   expect(overview!.getCell("E4").value).toBe(1);
   expect(overview!.getCell("E5").value).toBe(2);
-  expect(worksheetTexts(classSheet!).some((value) => value.startsWith("M · NOV"))).toBe(
-    true,
-  );
-  expect(worksheetTexts(classSheet!).some((value) => value.startsWith("CJ · SVO"))).toBe(
-    true,
-  );
-  expect(worksheetTexts(teacherNov!).some((value) => value.startsWith("M · 6A"))).toBe(
-    true,
-  );
-  expect(worksheetTexts(teacherSvo!).some((value) => value.startsWith("CJ · 6A"))).toBe(
-    true,
-  );
+  expect(
+    worksheetTexts(classSheet!).some((value) => value.startsWith("M · NOV")),
+  ).toBe(true);
+  expect(
+    worksheetTexts(classSheet!).some((value) => value.startsWith("CJ · SVO")),
+  ).toBe(true);
+  expect(
+    worksheetTexts(teacherNov!).some((value) => value.startsWith("M · 6A")),
+  ).toBe(true);
+  expect(
+    worksheetTexts(teacherSvo!).some((value) => value.startsWith("CJ · 6A")),
+  ).toBe(true);
   expect(classSheet!.pageSetup.orientation).toBe("landscape");
   expect(classSheet!.pageSetup.fitToWidth).toBe(1);
   expect(classSheet!.pageSetup.fitToHeight).toBe(1);

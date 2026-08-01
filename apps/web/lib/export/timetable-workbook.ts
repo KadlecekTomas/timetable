@@ -5,13 +5,7 @@ import {
   MORNING_PERIOD_LIMIT,
 } from "../domain/school-day";
 
-const DAY_NAMES = [
-  "Pondělí",
-  "Úterý",
-  "Středa",
-  "Čtvrtek",
-  "Pátek",
-] as const;
+const DAY_NAMES = ["Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek"] as const;
 const GROUP_LABELS = {
   WHOLE: "Celá třída",
   GROUP_1: "Skupina 1",
@@ -164,7 +158,10 @@ function scheduledPeriods(
 }
 
 function sanitizeSheetName(value: string): string {
-  return value.replace(/[\\/:*?\[\]]/g, " ").replace(/\s+/g, " ").trim();
+  return value
+    .replace(/[\\/:*?\[\]]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function uniqueSheetName(desired: string, used: Set<string>): string {
@@ -210,9 +207,7 @@ function lessonText(lesson: TimetableExportLesson, view: ExportView): string {
   const counterpart =
     view === "class"
       ? (lesson.teacher?.code ?? "bez učitele")
-      : (lesson.schoolClasses
-          ?.map((item) => item.code)
-          .join(" + ") ??
+      : (lesson.schoolClasses?.map((item) => item.code).join(" + ") ??
         lesson.schoolClass?.code ??
         "bez třídy");
   const details = [
@@ -335,8 +330,7 @@ function createTimetableSheet(
 
   worksheet.mergeCells("A3:F3");
   const legend = worksheet.getCell("A3");
-  legend.value =
-    `Skupiny uvedené v jedné buňce probíhají současně. Mezi 6. a 7. hodinou je obědová přestávka nejméně ${MIN_LUNCH_BREAK_MINUTES} minut.`;
+  legend.value = `Skupiny uvedené v jedné buňce probíhají současně. Mezi 6. a 7. hodinou je obědová přestávka nejméně ${MIN_LUNCH_BREAK_MINUTES} minut.`;
   legend.fill = {
     type: "pattern",
     pattern: "solid",
@@ -594,8 +588,7 @@ export async function createTimetableExportWorkbook(
       footer: 0.2,
     },
   };
-  overview.headerFooter.oddFooter =
-    `&L${input.schoolName} · ${input.schoolYear}&CPřehled exportu&RStrana &P z &N`;
+  overview.headerFooter.oddFooter = `&L${input.schoolName} · ${input.schoolYear}&CPřehled exportu&RStrana &P z &N`;
 
   overview.mergeCells("A1:E2");
   const title = overview.getCell("A1");
@@ -619,10 +612,7 @@ export async function createTimetableExportWorkbook(
       "Stav",
       input.classTimetable.version.isCurrent ? "Přijatá verze" : "Návrh",
     ],
-    [
-      "Kvalita",
-      input.classTimetable.version.qualityScore ?? "Nehodnoceno",
-    ],
+    ["Kvalita", input.classTimetable.version.qualityScore ?? "Nehodnoceno"],
     ["Exportováno", formatExportedAt(exportedAt)],
   ];
   metadata.forEach(([label, value], index) => {
