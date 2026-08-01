@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const artifactDirectory = path.join(
   process.cwd(),
@@ -9,12 +9,7 @@ const artifactDirectory = path.join(
   "teaching-plan-screenshots",
 );
 
-async function screenshot(
-  page: Parameters<typeof test>[0] extends never
-    ? never
-    : import("@playwright/test").Page,
-  name: string,
-) {
+async function screenshot(page: Page, name: string) {
   await mkdir(artifactDirectory, { recursive: true });
   await page.screenshot({
     path: path.join(artifactDirectory, name),
