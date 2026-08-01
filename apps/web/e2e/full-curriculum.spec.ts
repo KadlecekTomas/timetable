@@ -315,7 +315,7 @@ function buildAssignments(): AssignmentDefinition[] {
 }
 
 function buildTeacherRows(assignments: AssignmentDefinition[]) {
-  const classOrder = new Map(
+  const classOrder = new Map<string, number>(
     CLASSES.map(([classCode], index) => [classCode, index]),
   );
   const stats = new Map(
