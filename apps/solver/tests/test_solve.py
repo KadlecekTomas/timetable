@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
-from app.main import app
-from app.models import SolverWeights
+from app.main import _search_workers, app
+from app.models import SolveRequest, SolverWeights
 
 client = TestClient(app)
 
@@ -34,10 +34,16 @@ def test_solver_returns_conflict_free_schedule() -> None:
     payload = response.json()
     assert payload["status"] in {"FEASIBLE", "OPTIMAL"}
     assert len(payload["lessons"]) == 4
-    slots = {(item["class_id"], item["day"], item["period"]) for item in payload["lessons"]}
+    slots = {
+        (item["class_id"], item["day"], item["period"])
+        for item in payload["lessons"]
+    }
     assert len(slots) == 4
     assert payload["score"]["valid"] is True
-    assert sum(payload["score"]["categories"].values()) == payload["score"]["total"]
+    assert (
+        sum(payload["score"]["categories"].values())
+        == payload["score"]["total"]
+    )
 
 
 def test_split_groups_can_run_in_parallel() -> None:
@@ -74,7 +80,9 @@ def test_split_groups_can_run_in_parallel() -> None:
 
     assert response.status_code == 200, response.text
     lessons = response.json()["lessons"]
-    assert {(lesson["day"], lesson["period"]) for lesson in lessons} == {(0, 0)}
+    assert {(lesson["day"], lesson["period"]) for lesson in lessons} == {
+        (0, 0)
+    }
 
 
 def test_solver_respects_unavailable_slots() -> None:
@@ -204,7 +212,10 @@ def test_conflicting_fixed_lessons_return_verifiable_cause() -> None:
     assert response.status_code == 422
     detail = response.json()["detail"]
     assert detail["code"] == "INFEASIBLE"
-    assert any(cause["code"] == "FIXED_LESSON_CONFLICT" for cause in detail["causes"])
+    assert any(
+        cause["code"] == "FIXED_LESSON_CONFLICT"
+        for cause in detail["causes"]
+    )
 
 
 def test_weak_client_weights_are_upgraded_to_compactness_first_profile() -> None:
@@ -265,4 +276,27 @@ def test_compactness_profile_keeps_simple_class_day_without_gaps() -> None:
     )
 
     assert response.status_code == 200, response.text
-    assert {lesson["period"] for lesson in response.json()["lessons"]} == {0, 1, 2}
+    assert {
+        lesson["period"] for lesson in response.json()["lessons"]
+    } == {0, 1, 2}
+
+
+def test_full_school_time_limit_uses_parallel_search() -> None:
+    quick = SolveRequest.model_validate(
+        {
+            "assignments": [
+                {
+                    "id": "lesson",
+                    "teacher_id": "teacher",
+                    "class_id": "class",
+                    "subject_id": "subject",
+                    "weekly_periods": 1,
+                }
+            ],
+            "time_limit_seconds": 30,
+        }
+    )
+    full_school = quick.model_copy(update={"time_limit_seconds": 180})
+
+    assert _search_workers(quick) == 1
+    assert _search_workers(full_school) == 8
