@@ -45,6 +45,9 @@ Playwright musí projít stejným workflow jako vedení školy:
 8. exportovat rozvrh přes uživatelské tlačítko;
 9. znovu otevřít stažený `.xlsx`;
 10. ověřit 13 třídních a 40 učitelských listů;
-11. ověřit 30–32 obsazených hodin na každém třídním listu a 17 hodin na listu učitele KAD.
+11. ověřit 30–32 obsazených hodin na každém třídním listu a 17 hodin na listu učitele KAD;
+12. ověřit stejné hodnoty 30–32 také v souhrnném listu, přičemž souběžné skupiny se třídě započítají pouze jednou.
+
+Souhrn rozlišuje obsazené hodiny tříd od odučených hodin učitelů. Půlená výuka tedy nezvyšuje počet hodin žáka, ale správně se promítne do pracovního zatížení obou učitelů.
 
 Test běží bez retry. Menší fixture může zůstat jako rychlý technický test, ale nesmí být označena za realistickou akceptaci exportu pro vedení školy.
