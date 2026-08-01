@@ -79,3 +79,8 @@ replace(
     "      row[4],\n      row[5],\n      row[6],\n      row[7],\n      row[9],\n      row[10],\n      row[11],",
     "      row[5],\n      row[6],\n      row[7],\n      row[8],\n      row[10],\n      row[11],\n      row[12],",
 )
+replace(
+    school_test,
+    'assert.match(organization.getCell("A10").text, /automaticky nevynucuje/);',
+    'assert.match(organization.getCell("A10").text, /automaticky umístí/);',
+)
