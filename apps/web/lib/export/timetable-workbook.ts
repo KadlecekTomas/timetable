@@ -1,8 +1,17 @@
 import ExcelJS, { type Cell, type Worksheet } from "exceljs";
 
-import { MIN_LUNCH_BREAK_MINUTES, MORNING_PERIOD_LIMIT } from "../domain/school-day";
+import {
+  MIN_LUNCH_BREAK_MINUTES,
+  MORNING_PERIOD_LIMIT,
+} from "../domain/school-day";
 
-const DAY_NAMES = ["Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek"] as const;
+const DAY_NAMES = [
+  "Pondělí",
+  "Úterý",
+  "Středa",
+  "Čtvrtek",
+  "Pátek",
+] as const;
 const GROUP_LABELS = {
   WHOLE: "Celá třída",
   GROUP_1: "Skupina 1",
@@ -14,7 +23,6 @@ const COLORS = {
   blueLight: "FFEAF1FF",
   green: "FF2E7D32",
   greenLight: "FFE8F5E9",
-  yellow: "FFFFD966",
   yellowLight: "FFFFF4CC",
   gray: "FF667085",
   grayLight: "FFF3F5F7",
@@ -116,7 +124,10 @@ export function timetableExportFileName(input: {
   return `rozvrh-${school}-${year}-${version}-r${input.revision}.xlsx`;
 }
 
-function compareEntities(left: TimetableExportEntity, right: TimetableExportEntity) {
+function compareEntities(
+  left: TimetableExportEntity,
+  right: TimetableExportEntity,
+) {
   return left.code.localeCompare(right.code, "cs-CZ", {
     numeric: true,
     sensitivity: "base",
@@ -156,10 +167,7 @@ function sanitizeSheetName(value: string): string {
   return value.replace(/[\\/:*?\[\]]/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function uniqueSheetName(
-  desired: string,
-  used: Set<string>,
-): string {
+function uniqueSheetName(desired: string, used: Set<string>): string {
   const base = sanitizeSheetName(desired).slice(0, 31) || "Rozvrh";
   let candidate = base;
   let suffix = 2;
@@ -218,34 +226,34 @@ function lessonText(lesson: TimetableExportLesson, view: ExportView): string {
 }
 
 function continuationText(lessons: TimetableExportLesson[]): string {
-  const subjects = [...new Set(lessons.map((lesson) => lesson.subject?.code ?? "?"))];
+  const subjects = [
+    ...new Set(lessons.map((lesson) => lesson.subject?.code ?? "?")),
+  ];
   return `↳ pokračování ${subjects.join(" + ")}`;
 }
 
 function styleTimetableHeader(worksheet: Worksheet) {
-  const header = worksheet.getRange("A4:F4");
-  header.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: COLORS.blue },
-  };
-  header.font = { bold: true, color: { argb: COLORS.white } };
-  header.alignment = {
-    horizontal: "center",
-    vertical: "middle",
-    wrapText: true,
-  };
-  worksheet.getRow(4).height = 28;
   for (let column = 1; column <= 6; column += 1) {
-    applyThinBorder(worksheet.getCell(4, column));
+    const cell = worksheet.getCell(4, column);
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: COLORS.blue },
+    };
+    cell.font = { bold: true, color: { argb: COLORS.white } };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true,
+    };
+    applyThinBorder(cell);
   }
+  worksheet.getRow(4).height = 28;
 }
 
 function timetableRows(maximumPeriods: number) {
-  const rows: Array<
-    | { kind: "period"; period: number }
-    | { kind: "lunch" }
-  > = [];
+  const rows: Array<{ kind: "period"; period: number } | { kind: "lunch" }> =
+    [];
   for (let period = 0; period < maximumPeriods; period += 1) {
     if (period === MORNING_PERIOD_LIMIT) rows.push({ kind: "lunch" });
     rows.push({ kind: "period", period });
@@ -262,7 +270,9 @@ function createTimetableSheet(
   input: TimetableWorkbookInput,
 ) {
   const worksheet = workbook.addWorksheet(sheetName, {
-    properties: { tabColor: { argb: view === "class" ? COLORS.green : COLORS.blue } },
+    properties: {
+      tabColor: { argb: view === "class" ? COLORS.green : COLORS.blue },
+    },
   });
   worksheet.views = [
     { state: "frozen", xSplit: 1, ySplit: 4, showGridLines: false },
@@ -316,7 +326,11 @@ function createTimetableSheet(
     fgColor: { argb: COLORS.blueLight },
   };
   subtitle.font = { color: { argb: COLORS.text } };
-  subtitle.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  subtitle.alignment = {
+    horizontal: "center",
+    vertical: "middle",
+    wrapText: true,
+  };
   worksheet.getRow(2).height = 26;
 
   worksheet.mergeCells("A3:F3");
@@ -328,7 +342,11 @@ function createTimetableSheet(
     pattern: "solid",
     fgColor: { argb: COLORS.yellowLight },
   };
-  legend.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  legend.alignment = {
+    horizontal: "center",
+    vertical: "middle",
+    wrapText: true,
+  };
   worksheet.getRow(3).height = 30;
 
   worksheet.getRow(4).values = ["Hodina", ...DAY_NAMES];
@@ -365,13 +383,21 @@ function createTimetableSheet(
       pattern: "solid",
       fgColor: { argb: COLORS.grayLight },
     };
-    hourCell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    hourCell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true,
+    };
     applyThinBorder(hourCell);
 
     for (let day = 0; day < DAY_NAMES.length; day += 1) {
       const cell = worksheet.getCell(rowNumber, day + 2);
       applyThinBorder(cell);
-      cell.alignment = { horizontal: "left", vertical: "top", wrapText: true };
+      cell.alignment = {
+        horizontal: "left",
+        vertical: "top",
+        wrapText: true,
+      };
       if (period >= (payload.periodsPerDay[day] ?? 0)) {
         cell.value = "—";
         cell.fill = {
@@ -394,7 +420,9 @@ function createTimetableSheet(
           lesson.period + lesson.duration > period,
       );
       if (starting.length) {
-        cell.value = starting.map((lesson) => lessonText(lesson, view)).join("\n\n");
+        cell.value = starting
+          .map((lesson) => lessonText(lesson, view))
+          .join("\n\n");
         cell.fill = {
           type: "pattern",
           pattern: "solid",
@@ -409,7 +437,11 @@ function createTimetableSheet(
           fgColor: { argb: subjectFill(continuing[0]?.subject?.code ?? "?") },
         };
         cell.font = { italic: true, size: 9, color: { argb: COLORS.gray } };
-        cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+        cell.alignment = {
+          horizontal: "center",
+          vertical: "middle",
+          wrapText: true,
+        };
       }
     }
     worksheet.getRow(rowNumber).height = 58;
@@ -421,18 +453,22 @@ function createTimetableSheet(
 }
 
 function styleOverviewHeader(worksheet: Worksheet, row: number) {
-  const range = worksheet.getRange(`A${row}:E${row}`);
-  range.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: COLORS.blue },
-  };
-  range.font = { bold: true, color: { argb: COLORS.white } };
-  range.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  worksheet.getRow(row).height = 28;
   for (let column = 1; column <= 5; column += 1) {
-    applyThinBorder(worksheet.getCell(row, column));
+    const cell = worksheet.getCell(row, column);
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: COLORS.blue },
+    };
+    cell.font = { bold: true, color: { argb: COLORS.white } };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true,
+    };
+    applyThinBorder(cell);
   }
+  worksheet.getRow(row).height = 28;
 }
 
 function addEntityIndex(
@@ -473,7 +509,11 @@ function addEntityIndex(
     );
     worksheet.getCell(row, 1).value = entity.code;
     worksheet.getCell(row, 2).value = entity.name;
-    worksheet.getCell(row, 3).value = scheduledPeriods(payload.lessons, view, entity.id);
+    worksheet.getCell(row, 3).value = scheduledPeriods(
+      payload.lessons,
+      view,
+      entity.id,
+    );
     worksheet.getCell(row, 4).value = entityLessons.length;
     const targetSheet = sheetNames.get(entity.id)!;
     worksheet.getCell(row, 5).value = {
@@ -575,8 +615,14 @@ export async function createTimetableExportWorkbook(
     ["Školní rok", input.schoolYear],
     ["Verze", input.classTimetable.version.name],
     ["Revize", input.classTimetable.version.revision],
-    ["Stav", input.classTimetable.version.isCurrent ? "Přijatá verze" : "Návrh"],
-    ["Kvalita", input.classTimetable.version.qualityScore ?? "Nehodnoceno"],
+    [
+      "Stav",
+      input.classTimetable.version.isCurrent ? "Přijatá verze" : "Návrh",
+    ],
+    [
+      "Kvalita",
+      input.classTimetable.version.qualityScore ?? "Nehodnoceno",
+    ],
     ["Exportováno", formatExportedAt(exportedAt)],
   ];
   metadata.forEach(([label, value], index) => {
