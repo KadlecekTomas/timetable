@@ -812,6 +812,7 @@ export default function StaffingPage() {
                         <button
                           key={day.code}
                           type="button"
+                          aria-label={`${day.shortLabel} ${selected ? "nemůže" : "může"}`}
                           aria-pressed={selected}
                           onClick={() =>
                             updateTeacher(teacher.id, (current) => ({
