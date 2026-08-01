@@ -702,12 +702,22 @@ test("vedení školy vytvoří a exportuje plný rozvrh druhého stupně se 122 
   const exported = new ExcelJS.Workbook();
   await exported.xlsx.readFile(artifactPath);
   expect(exported.worksheets).toHaveLength(54);
+  const overview = exported.getWorksheet("Přehled")!;
+  expect(overview).toBeDefined();
   for (const [classCode, grade] of CLASSES) {
     const worksheet = exported.getWorksheet(`Třída ${classCode}`)!;
     expect(worksheet).toBeDefined();
-    expect(occupiedExportCells(worksheet)).toBe(
-      expectedClassWeeklyPeriods(classCode, grade),
-    );
+    const expectedWeeklyPeriods = expectedClassWeeklyPeriods(classCode, grade);
+    expect(occupiedExportCells(worksheet)).toBe(expectedWeeklyPeriods);
+    let overviewRow: number | null = null;
+    for (let row = 1; row <= overview.rowCount; row += 1) {
+      if (overview.getCell(row, 1).text === classCode) {
+        overviewRow = row;
+        break;
+      }
+    }
+    expect(overviewRow).not.toBeNull();
+    expect(overview.getCell(overviewRow!, 3).value).toBe(expectedWeeklyPeriods);
   }
   const kadSheet = exported.getWorksheet("Učitel KAD")!;
   expect(kadSheet.getCell("A1").text).toContain("Tomáš Kadleček");

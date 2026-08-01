@@ -152,9 +152,35 @@ function scheduledPeriods(
   view: ExportView,
   entityId: string,
 ): number {
-  return lessons
-    .filter((lesson) => belongsTo(lesson, view, entityId))
-    .reduce((total, lesson) => total + lesson.duration, 0);
+  const entityLessons = lessons.filter((lesson) =>
+    belongsTo(lesson, view, entityId),
+  );
+  if (view === "teacher") {
+    return entityLessons.reduce((total, lesson) => total + lesson.duration, 0);
+  }
+  const occupiedSlots = new Set<string>();
+  for (const lesson of entityLessons) {
+    for (let offset = 0; offset < lesson.duration; offset += 1) {
+      occupiedSlots.add(`${lesson.day}:${lesson.period + offset}`);
+    }
+  }
+  return occupiedSlots.size;
+}
+
+function scheduledBlocks(
+  lessons: TimetableExportLesson[],
+  view: ExportView,
+  entityId: string,
+): number {
+  const entityLessons = lessons.filter((lesson) =>
+    belongsTo(lesson, view, entityId),
+  );
+  if (view === "teacher") return entityLessons.length;
+  return new Set(
+    entityLessons.map(
+      (lesson) => `${lesson.day}:${lesson.period}:${lesson.duration}`,
+    ),
+  ).size;
 }
 
 function sanitizeSheetName(value: string): string {
@@ -495,8 +521,8 @@ function addEntityIndex(
   worksheet.getRow(headerRow).values = [
     "Kód",
     "Název",
-    "Výukových hodin",
-    "Počet bloků",
+    view === "class" ? "Obsazených hodin" : "Odučených hodin",
+    view === "class" ? "Rozvrhových bloků" : "Počet bloků",
     "Otevřít list",
   ];
   styleOverviewHeader(worksheet, headerRow);
@@ -513,7 +539,11 @@ function addEntityIndex(
       view,
       entity.id,
     );
-    worksheet.getCell(row, 4).value = entityLessons.length;
+    worksheet.getCell(row, 4).value = scheduledBlocks(
+      payload.lessons,
+      view,
+      entity.id,
+    );
     const targetSheet = sheetNames.get(entity.id)!;
     worksheet.getCell(row, 5).value = {
       text: "Otevřít rozvrh",
@@ -639,11 +669,25 @@ export async function createTimetableExportWorkbook(
   const counts: Array<[string, number]> = [
     ["Třídy", classes.length],
     ["Učitelé", teachers.length],
-    ["Výukové bloky", input.classTimetable.lessons.length],
     [
-      "Výukové hodiny",
-      input.classTimetable.lessons.reduce(
-        (total, lesson) => total + lesson.duration,
+      "Hodiny tříd týdně",
+      classes.reduce(
+        (total, entity) =>
+          total +
+          scheduledPeriods(input.classTimetable.lessons, "class", entity.id),
+        0,
+      ),
+    ],
+    [
+      "Odučené hodiny učitelů",
+      teachers.reduce(
+        (total, entity) =>
+          total +
+          scheduledPeriods(
+            input.teacherTimetable.lessons,
+            "teacher",
+            entity.id,
+          ),
         0,
       ),
     ],

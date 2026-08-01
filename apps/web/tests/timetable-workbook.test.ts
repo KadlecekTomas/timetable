@@ -250,6 +250,31 @@ test("leadership export contains printable class and teacher schedules at school
   assert.equal(overview.getCell("E4").value, 13);
   assert.equal(overview.getCell("E5").value, 40);
 
+  const class6ARow = findRowByFirstCell(overview, "6A");
+  assert.notEqual(class6ARow, null);
+  const class6AOccupiedSlots = new Set<string>();
+  lessons
+    .filter((item) =>
+      item.schoolClasses?.some((schoolClass) => schoolClass.code === "6A"),
+    )
+    .forEach((item) => {
+      for (let offset = 0; offset < item.duration; offset += 1) {
+        class6AOccupiedSlots.add(`${item.day}:${item.period + offset}`);
+      }
+    });
+  assert.equal(
+    overview.getCell(class6ARow!, 3).value,
+    class6AOccupiedSlots.size,
+  );
+  assert.ok(
+    Number(overview.getCell(class6ARow!, 3).value) <
+      lessons
+        .filter((item) =>
+          item.schoolClasses?.some((schoolClass) => schoolClass.code === "6A"),
+        )
+        .reduce((total, item) => total + item.duration, 0),
+  );
+
   const kadRow = findRowByFirstCell(overview, "KAD");
   assert.notEqual(kadRow, null);
   assert.equal(overview.getCell(kadRow!, 3).value, 17);
