@@ -158,7 +158,7 @@ const TEACHERS: TeacherDefinition[] = [
   { code: "KAD", firstName: "Tomáš", lastName: "Kadleček" },
   { code: "VAS", firstName: "—", lastName: "Vašáková" },
   ...teacherPool("CJ", 6, "Čeština"),
-  ...teacherPool("M", 6, "Matematika"),
+  ...teacherPool("M", 4, "Matematika"),
   ...teacherPool("AJ", 5, "Angličtina"),
   ...teacherPool("NJ", 4, "Druhý jazyk"),
   ...teacherPool("TV", 5, "Tělesná výchova"),
@@ -392,6 +392,29 @@ function buildAvailabilityRows() {
     ["Učitel", "KAD", "Pátek", 2, "Nemůže", null, "Ranní povinnost"],
   ];
 
+  for (const day of ["Úterý", "Středa"] as const) {
+    for (const period of [7, 8] as const) {
+      rows.push([
+        "Učitel",
+        "KAD",
+        day,
+        period,
+        "Nemůže",
+        null,
+        "Nejvýše šest vyučovacích hodin denně",
+      ]);
+      rows.push([
+        "Učitel",
+        "VAS",
+        day,
+        period,
+        "Nemůže",
+        null,
+        "Nejvýše šest vyučovacích hodin denně",
+      ]);
+    }
+  }
+
   for (const [day, periods] of [
     ["Pondělí", 8],
     ["Čtvrtek", 8],
@@ -621,7 +644,13 @@ function occupiedExportCells(worksheet: Worksheet): number {
   return occupied;
 }
 
-test("vedení školy vytvoří plný rozvrh s Vašákovou pouze v úterý a ve středu", async ({
+function dailyLoad(lessons: ScheduledLesson[], day: number): number {
+  return lessons
+    .filter((lesson) => lesson.day === day)
+    .reduce((sum, lesson) => sum + lesson.duration, 0);
+}
+
+test("vedení školy vytvoří pedagogický rozvrh se čtyřmi matematikáři a INF 6 + 6", async ({
   page,
 }) => {
   test.setTimeout(600_000);
@@ -640,7 +669,7 @@ test("vedení školy vytvoří plný rozvrh s Vašákovou pouze v úterý a ve s
   await page.getByRole("button", { name: "Uložit nastavení" }).click();
 
   const workbook = await createFullCurriculumWorkbook();
-  expect(TEACHERS).toHaveLength(41);
+  expect(TEACHERS).toHaveLength(39);
   expect(workbook.assignments).toHaveLength(256);
   await page.getByRole("link", { name: "Načtení dat" }).click();
   await page.locator("#import-file").setInputFiles({
@@ -659,10 +688,10 @@ test("vedení školy vytvoří plný rozvrh s Vašákovou pouze v úterý a ve s
   ).toBeVisible();
   await expect
     .poll(async () => (await readProject(page)).teachers.length)
-    .toBe(41);
+    .toBe(39);
 
   const imported = await readProject(page);
-  expect(imported.teachers).toHaveLength(41);
+  expect(imported.teachers).toHaveLength(39);
   expect(imported.classes).toHaveLength(13);
   expect(imported.subjects).toHaveLength(16);
   expect(imported.assignments).toHaveLength(256);
@@ -689,6 +718,16 @@ test("vedení školy vytvoří plný rozvrh s Vašákovou pouze v úterý a ve s
   expect(vas.minWeeklyLoad).toBe(12);
   expect(vas.maxWeeklyLoad).toBe(12);
 
+  const mathTeachers = imported.teachers.filter((teacher) =>
+    /^M\d+$/.test(teacher.code),
+  );
+  expect(mathTeachers).toHaveLength(4);
+  expect(
+    mathTeachers
+      .map((teacher) => teacher.targetWeeklyLoad)
+      .sort((left, right) => left - right),
+  ).toEqual([26, 26, 30, 30]);
+
   const vasAssignments = imported.assignments.filter(
     (assignment) => assignment.teacherId === vas.id,
   );
@@ -705,10 +744,23 @@ test("vedení školy vytvoří plný rozvrh s Vašákovou pouze v úterý a ve s
   const vasUnavailable = imported.availability.filter(
     (rule) => rule.entityId === vas.id && rule.kind === "UNAVAILABLE",
   );
-  expect(vasUnavailable).toHaveLength(23);
-  expect(new Set(vasUnavailable.map((rule) => rule.dayOfWeek))).toEqual(
-    new Set([0, 3, 4]),
+  expect(vasUnavailable).toHaveLength(27);
+  expect(
+    vasUnavailable
+      .filter((rule) => [1, 2].includes(rule.dayOfWeek))
+      .map((rule) => `${rule.dayOfWeek}:${rule.period}`)
+      .sort(),
+  ).toEqual(["1:6", "1:7", "2:6", "2:7"]);
+
+  const kadUnavailable = imported.availability.filter(
+    (rule) => rule.entityId === kad.id && rule.kind === "UNAVAILABLE",
   );
+  expect(
+    kadUnavailable
+      .filter((rule) => [1, 2].includes(rule.dayOfWeek))
+      .map((rule) => `${rule.dayOfWeek}:${rule.period}`)
+      .sort(),
+  ).toEqual(["1:6", "1:7", "2:6", "2:7"]);
 
   for (const schoolClass of imported.classes) {
     const assignments = assignmentsForClass(imported, schoolClass);
@@ -805,11 +857,20 @@ test("vedení školy vytvoří plný rozvrh s Vašákovou pouze v úterý a ve s
     (lesson) => lesson.teacher_id === kad.id,
   );
   expect(kadLessons.reduce((sum, lesson) => sum + lesson.duration, 0)).toBe(17);
+  expect(dailyLoad(kadLessons, 1)).toBe(6);
+  expect(dailyLoad(kadLessons, 2)).toBe(6);
+  expect(
+    kadLessons
+      .filter((lesson) => [1, 2].includes(lesson.day))
+      .every((lesson) => subjectById.get(lesson.subject_id) === "INF"),
+  ).toBe(true);
 
   const vasLessons = version.lessons.filter(
     (lesson) => lesson.teacher_id === vas.id,
   );
   expect(vasLessons.reduce((sum, lesson) => sum + lesson.duration, 0)).toBe(12);
+  expect(dailyLoad(vasLessons, 1)).toBe(6);
+  expect(dailyLoad(vasLessons, 2)).toBe(6);
   expect(new Set(vasLessons.map((lesson) => lesson.day))).toEqual(
     new Set([1, 2]),
   );
@@ -828,10 +889,10 @@ test("vedení školy vytvoří plný rozvrh s Vašákovou pouze v úterý a ve s
   await copyFile(downloadPath!, artifactPath);
   const exported = new ExcelJS.Workbook();
   await exported.xlsx.readFile(artifactPath);
-  expect(exported.worksheets).toHaveLength(55);
+  expect(exported.worksheets).toHaveLength(53);
   const overview = exported.getWorksheet("Přehled")!;
   expect(overview).toBeDefined();
-  expect(overview.getCell("E5").value).toBe(41);
+  expect(overview.getCell("E5").value).toBe(39);
   expect(overview.getCell("E7").value).toBe(569);
 
   for (const [classCode, grade] of CLASSES) {
