@@ -425,7 +425,14 @@ function buildAvailabilityRows() {
     },
   );
 
-  return rows;
+  return rows.map((row) => {
+    if (row[2] === "Pátek" && typeof row[3] === "number" && row[3] > 7) {
+      const normalized = [...row];
+      normalized[3] = 7;
+      return normalized;
+    }
+    return row;
+  });
 }
 
 async function createRealisticSchoolWorkbook(): Promise<{
