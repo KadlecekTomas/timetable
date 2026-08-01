@@ -2,6 +2,9 @@ node_modules/
 .next/
 out/
 dist/
+build/
+*.egg-info/
+*.tsbuildinfo
 coverage/
 playwright-report/
 test-results/
