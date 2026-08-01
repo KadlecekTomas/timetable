@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Settings,
   Upload,
+  UsersRound,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -18,9 +19,10 @@ import { cn } from "@/lib/utils";
 
 const navigation = [
   { label: "Přehled", icon: LayoutDashboard, href: "/" },
+  { label: "Učitelé a úvazky", icon: UsersRound, href: "/staffing" },
   { label: "Školní data", icon: Database, href: "/data" },
   { label: "Výukové vazby", icon: BookOpen, href: "/data?section=assignments" },
-  { label: "Načtení dat", icon: Upload, href: "/import" },
+  { label: "Pokročilý import", icon: Upload, href: "/import" },
   { label: "Tvorba rozvrhu", icon: ClipboardCheck, href: "/generate" },
   { label: "Rozvrh", icon: CalendarDays, href: "/timetable" },
 ];
