@@ -1,15 +1,11 @@
 "use client";
 
 import { Download } from "lucide-react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  createTimetableExportWorkbook,
-  timetableExportFileName,
-  type TimetableExportPayload,
-} from "@/lib/export/timetable-workbook";
+import type { TimetableExportPayload } from "@/lib/export/timetable-workbook";
 import { getLocalProject, localApiFetch } from "@/lib/local/api";
 
 interface PageHeaderProps {
@@ -35,28 +31,34 @@ export function PageHeader({
   actions,
 }: PageHeaderProps) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const versionId = searchParams.get("versionId");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
-  const showTimetableExport = pathname === "/timetable" && Boolean(versionId);
+  const showTimetableExport = pathname === "/timetable";
 
   async function downloadTimetable() {
-    if (!versionId) return;
+    const versionId = new URLSearchParams(window.location.search).get(
+      "versionId",
+    );
+    if (!versionId) {
+      setExportError("Nejprve otevřete konkrétní verzi rozvrhu.");
+      return;
+    }
     setExporting(true);
     setExportError(null);
     try {
-      const [project, classResponse, teacherResponse] = await Promise.all([
-        getLocalProject(),
-        localApiFetch(
-          `/api/timetable-versions/${encodeURIComponent(versionId)}?view=class`,
-          { cache: "no-store" },
-        ),
-        localApiFetch(
-          `/api/timetable-versions/${encodeURIComponent(versionId)}?view=teacher`,
-          { cache: "no-store" },
-        ),
-      ]);
+      const [project, classResponse, teacherResponse, exportModule] =
+        await Promise.all([
+          getLocalProject(),
+          localApiFetch(
+            `/api/timetable-versions/${encodeURIComponent(versionId)}?view=class`,
+            { cache: "no-store" },
+          ),
+          localApiFetch(
+            `/api/timetable-versions/${encodeURIComponent(versionId)}?view=teacher`,
+            { cache: "no-store" },
+          ),
+          import("@/lib/export/timetable-workbook"),
+        ]);
       const classPayload =
         (await classResponse.json()) as TimetableExportPayload & {
           error?: { message?: string };
@@ -76,7 +78,7 @@ export function PageHeader({
         );
       }
 
-      const bytes = await createTimetableExportWorkbook({
+      const bytes = await exportModule.createTimetableExportWorkbook({
         schoolName: project.schoolName,
         schoolYear: project.label,
         classTimetable: classPayload,
@@ -88,7 +90,7 @@ export function PageHeader({
         new Blob([exportBytes.buffer], {
           type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         }),
-        timetableExportFileName({
+        exportModule.timetableExportFileName({
           schoolName: project.schoolName,
           schoolYear: project.label,
           versionName: classPayload.version.name,
