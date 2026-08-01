@@ -271,6 +271,12 @@ test("leadership export contains printable class and teacher schedules at school
 
   assert.ok(textValues(class9A).some((value) => value.startsWith("TV · KAD")));
   assert.ok(textValues(class9C).some((value) => value.startsWith("TV · KAD")));
+  assert.ok(
+    textValues(class9A).some((value) => value.includes("společně: 9A + 9C")),
+  );
+  assert.ok(
+    textValues(class9C).some((value) => value.includes("společně: 9A + 9C")),
+  );
   const splitCell = textValues(class6A).find(
     (value) => value.includes("Skupina 1") && value.includes("Skupina 2"),
   );

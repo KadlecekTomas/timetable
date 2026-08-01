@@ -210,7 +210,12 @@ function lessonText(lesson: TimetableExportLesson, view: ExportView): string {
       : (lesson.schoolClasses?.map((item) => item.code).join(" + ") ??
         lesson.schoolClass?.code ??
         "bez třídy");
+  const sharedClasses =
+    view === "class" && (lesson.schoolClasses?.length ?? 0) > 1
+      ? `společně: ${lesson.schoolClasses?.map((item) => item.code).join(" + ")}`
+      : null;
   const details = [
+    sharedClasses,
     lesson.group === "WHOLE" ? null : GROUP_LABELS[lesson.group],
     lesson.room?.code ?? "bez učebny",
     lesson.duration > 1 ? `${lesson.duration} hodiny` : null,
