@@ -671,7 +671,7 @@ test("vedení školy vytvoří pedagogický rozvrh se čtyřmi matematikáři a 
   const workbook = await createFullCurriculumWorkbook();
   expect(TEACHERS).toHaveLength(39);
   expect(workbook.assignments).toHaveLength(256);
-  await page.getByRole("link", { name: "Načtení dat" }).click();
+  await page.getByRole("link", { name: "Pokročilý import" }).click();
   await page.locator("#import-file").setInputFiles({
     name: "plny-druhy-stupen.xlsx",
     mimeType:

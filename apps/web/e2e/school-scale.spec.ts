@@ -627,7 +627,7 @@ test("school leadership can import 40 teachers, generate the complete second-sta
   ).toBeVisible();
 
   const workbook = await createRealisticSchoolWorkbook();
-  await page.getByRole("link", { name: "Načtení dat" }).click();
+  await page.getByRole("link", { name: "Pokročilý import" }).click();
   await page.locator("#import-file").setInputFiles({
     name: "druhy-stupen-40-ucitelu.xlsx",
     mimeType:
