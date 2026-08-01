@@ -1,0 +1,59 @@
+name: Canonicalize staffing files once
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  canonicalize:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Remove unsupported ExcelJS conditional rule
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("apps/web/lib/import/staffing-workbook.ts")
+          content = path.read_text()
+          unsupported = '''      {
+                type: "notContainsText",
+                operator: "notContainsText",
+                text: "SEDÍ",
+                priority: 2,
+                style: {
+                  fill: {
+                    type: "pattern",
+                    pattern: "solid",
+                    fgColor: { argb: COLORS.paleRed },
+                  },
+                  font: { color: { argb: COLORS.red }, bold: true },
+                },
+              },
+          '''
+          if unsupported not in content:
+              raise SystemExit("Unsupported formatting block not found")
+          path.write_text(content.replace(unsupported, ""))
+          PY
+      - run: npx prettier --write apps/web/app/staffing/page.tsx apps/web/lib/import/staffing-workbook.ts apps/web/lib/local/staffing-plan.ts
+      - name: Commit canonical files
+        run: |
+          if git diff --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/app/staffing/page.tsx apps/web/lib/import/staffing-workbook.ts apps/web/lib/local/staffing-plan.ts
+          git commit -m "style(staffing): canonicalize beginner workflow"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
