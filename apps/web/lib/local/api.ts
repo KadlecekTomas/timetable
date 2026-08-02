@@ -29,6 +29,7 @@ const DEFAULT_WEIGHTS = {
   preferred_slot_bonus: 3,
   same_day_concentration: 6,
   late_period: 1,
+  rotation_spread: 75,
 };
 
 type GenerationStatus =
@@ -64,6 +65,7 @@ interface LocalClass {
   code: string;
   grade: number;
   name: string;
+  profile: "REGULAR" | "SPORTS" | "CUSTOM";
 }
 
 interface LocalRoomType {
@@ -103,6 +105,10 @@ interface LocalAssignment {
   requiredRoomTypeId: string | null;
   maxPerDay: number | null;
   minDayGap: number | null;
+  parallelKey: string | null;
+  rotationKey: string | null;
+  rotationLeg: number | null;
+  rotationPlacement: "ADJACENT" | "SAME_DAY" | "FLEXIBLE" | null;
 }
 
 interface LocalAvailability {
@@ -301,9 +307,34 @@ async function writeStoredProject(project: LocalProject): Promise<void> {
   }
 }
 
+function normalizeStoredProject(project: LocalProject): LocalProject {
+  return {
+    ...project,
+    classes: project.classes.map((schoolClass) => ({
+      ...schoolClass,
+      profile: ["REGULAR", "SPORTS", "CUSTOM"].includes(
+        String(schoolClass.profile),
+      )
+        ? schoolClass.profile
+        : /\.(B|D)$/i.test(schoolClass.code)
+          ? "SPORTS"
+          : "REGULAR",
+    })),
+    assignments: project.assignments.map((assignment) => ({
+      ...assignment,
+      parallelKey: assignment.parallelKey ?? null,
+      rotationKey: assignment.rotationKey ?? null,
+      rotationLeg: assignment.rotationLeg ?? null,
+      rotationPlacement: assignment.rotationPlacement ?? null,
+    })),
+  };
+}
+
 export async function getLocalProject(): Promise<LocalProject> {
   const stored = await readStoredProject();
-  if (stored?.schemaVersion === 1) return stored;
+  if (stored?.schemaVersion === 1) {
+    return normalizeStoredProject(stored);
+  }
   const created = createDefaultProject();
   await writeStoredProject(created);
   return created;
@@ -406,6 +437,7 @@ function projectSnapshot(
       code: schoolClass.code,
       name: schoolClass.name,
       grade: schoolClass.grade,
+      profile: schoolClass.profile,
     })),
     subjects: project.subjects.map((subject) => ({
       id: subject.id,
@@ -435,6 +467,10 @@ function projectSnapshot(
       required_room_type_id: assignment.requiredRoomTypeId,
       max_per_day: assignment.maxPerDay,
       min_day_gap: assignment.minDayGap,
+      parallel_key: assignment.parallelKey,
+      rotation_key: assignment.rotationKey,
+      rotation_leg: assignment.rotationLeg,
+      rotation_placement: assignment.rotationPlacement,
     })),
     availability: project.availability.map((rule) => ({
       entity_type: rule.entityType,
@@ -595,6 +631,13 @@ async function createResource(
         code,
         grade: Number(body.grade),
         name: stringField(body, "name"),
+        profile: ["REGULAR", "SPORTS", "CUSTOM"].includes(
+          stringField(body, "profile"),
+        )
+          ? (stringField(body, "profile") as LocalClass["profile"])
+          : /\.(B|D)$/i.test(code)
+            ? "SPORTS"
+            : "REGULAR",
       });
     } else if (resource === "subjects") {
       const code = stringField(body, "code");
@@ -702,6 +745,19 @@ async function createResource(
         requiredRoomTypeId: null,
         maxPerDay: nullableNumber(body, "maxPerDay"),
         minDayGap: nullableNumber(body, "minDayGap"),
+        parallelKey: stringField(body, "parallelKey") || null,
+        rotationKey: stringField(body, "rotationKey") || null,
+        rotationLeg: [1, 2].includes(Number(body.rotationLeg))
+          ? Number(body.rotationLeg)
+          : null,
+        rotationPlacement: ["ADJACENT", "SAME_DAY", "FLEXIBLE"].includes(
+          stringField(body, "rotationPlacement"),
+        )
+          ? (stringField(
+              body,
+              "rotationPlacement",
+            ) as LocalAssignment["rotationPlacement"])
+          : null,
       });
     } else {
       const entityType = stringField(

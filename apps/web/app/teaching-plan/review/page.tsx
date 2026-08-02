@@ -33,6 +33,7 @@ import {
   classProfileLabel,
   humanBlockSummary,
   loadTeachingPlan,
+  rotationPlacementLabel,
   rotationSummary,
   rowClassPeriods,
   rowTeacherPeriods,
@@ -663,7 +664,9 @@ function ClassReviewStep({
                   >
                     {row.organization === "SPLIT"
                       ? "Dvě skupiny současně"
-                      : "Celá třída"}
+                      : row.organization === "ROTATION"
+                        ? `Výměna · ${rotationPlacementLabel(row.rotationPlacement)}`
+                        : "Celá třída"}
                   </StatusBadge>
                   <p className="mt-2 text-sm leading-5 text-text-secondary">
                     {rowTeachers(row, staffingPlan)}
@@ -754,7 +757,11 @@ function SpecialRulesReviewStep({
                 <StatusBadge
                   tone={row.organization === "SPLIT" ? "warning" : "neutral"}
                 >
-                  {row.organization === "SPLIT" ? "Dvě skupiny" : "Celá třída"}
+                  {row.organization === "SPLIT"
+                    ? "Dvě skupiny"
+                    : row.organization === "ROTATION"
+                      ? "Výměna předmětů"
+                      : "Celá třída"}
                 </StatusBadge>
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -762,6 +769,9 @@ function SpecialRulesReviewStep({
                   <p className="text-xs text-text-muted">Týdenní dotace</p>
                   <p className="mt-1 font-semibold text-text-primary">
                     {row.weeklyPeriods} h · {humanBlockSummary(row)}
+                    {row.organization === "ROTATION"
+                      ? ` · ${rotationPlacementLabel(row.rotationPlacement)}`
+                      : ""}
                   </p>
                 </div>
                 <div className="rounded-lg bg-surface/70 p-3">
@@ -782,7 +792,7 @@ function SpecialRulesReviewStep({
           Zpět na třídy
         </Button>
         <Button type="button" onClick={onConfirm}>
-          Dělení a dvojhodiny souhlasí
+          Dělení, dvojhodiny a výměny souhlasí
           <ArrowRight className="size-4" aria-hidden="true" />
         </Button>
       </div>

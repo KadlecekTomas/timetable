@@ -14,6 +14,7 @@ from app.models import (
     TeachingGroup,
     ValidationIssue,
 )
+from app.rotations import validate_rotation_schedule
 from app.school_day import crosses_lunch_break
 
 
@@ -286,11 +287,7 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
                         )
                     )
 
-                occupied_periods = [
-                    period
-                    for period in range(periods)
-                    if class_slots.get((class_id, day, period))
-                ]
+                occupied_periods = [period for period in range(periods) if class_slots.get((class_id, day, period))]
                 if len(occupied_periods) <= 1:
                     continue
                 for period in range(1, max(occupied_periods)):
@@ -331,6 +328,8 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
                         period=left_lesson.period,
                     )
                 )
+
+    issues.extend(validate_rotation_schedule(payload, lessons_by_assignment))
 
     return sorted(
         issues,

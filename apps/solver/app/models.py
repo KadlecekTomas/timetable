@@ -22,6 +22,12 @@ class ClassProfile(StrEnum):
     CUSTOM = "CUSTOM"
 
 
+class RotationPlacement(StrEnum):
+    ADJACENT = "ADJACENT"
+    SAME_DAY = "SAME_DAY"
+    FLEXIBLE = "FLEXIBLE"
+
+
 class AvailabilityEntityType(StrEnum):
     TEACHER = "TEACHER"
     CLASS = "CLASS"
@@ -77,6 +83,7 @@ class Assignment(BaseModel):
     parallel_key: str | None = None
     rotation_key: str | None = None
     rotation_leg: int | None = Field(default=None, ge=1, le=2)
+    rotation_placement: RotationPlacement | None = None
 
     @model_validator(mode="after")
     def validate_shape(self) -> "Assignment":
@@ -98,6 +105,8 @@ class Assignment(BaseModel):
             raise ValueError("Rotations require GROUP_1 or GROUP_2 assignments")
         if self.rotation_key and not self.parallel_key:
             raise ValueError("Rotation assignments require a parallel_key")
+        if self.rotation_placement is not None and not self.rotation_key:
+            raise ValueError("rotation_placement requires a rotation_key")
         return self
 
     def block_durations(self) -> list[int]:
@@ -233,6 +242,18 @@ class SolveRequest(BaseModel):
             }
             if len(shapes) != 1:
                 raise ValueError(f"All assignments in rotation {rotation_key} must have the same lesson shape")
+            class_sets = {tuple(sorted([item.class_id, *item.additional_class_ids])) for item in assignments}
+            if len(class_sets) != 1:
+                raise ValueError(f"All assignments in rotation {rotation_key} must target the same classes")
+            leg_1_parallel_keys = {item.parallel_key for item in assignments if item.rotation_leg == 1}
+            leg_2_parallel_keys = {item.parallel_key for item in assignments if item.rotation_leg == 2}
+            if len(leg_1_parallel_keys) != 1 or len(leg_2_parallel_keys) != 1:
+                raise ValueError(f"Each leg in rotation {rotation_key} must share one parallel_key")
+            if leg_1_parallel_keys == leg_2_parallel_keys:
+                raise ValueError(f"Rotation {rotation_key} must use a different parallel_key for each leg")
+            placements = {item.rotation_placement or RotationPlacement.SAME_DAY for item in assignments}
+            if len(placements) != 1:
+                raise ValueError(f"All assignments in rotation {rotation_key} must share rotation_placement")
             if leg_1_group_1.subject_id == leg_1_group_2.subject_id:
                 raise ValueError(f"Rotation {rotation_key} must contain two different subjects")
             if leg_1_group_1.teacher_id == leg_1_group_2.teacher_id:

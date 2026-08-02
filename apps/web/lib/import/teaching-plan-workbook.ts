@@ -7,6 +7,7 @@ import {
 } from "@/lib/local/staffing-plan";
 import {
   TEACHING_CLASS_PROFILES,
+  TEACHING_ROTATION_PLACEMENTS,
   TEACHING_SHAPES,
   classGradeFromCode,
   createEmptyTeachingPlan,
@@ -19,6 +20,7 @@ import {
   type TeachingClassProfile,
   type TeachingLessonShape,
   type TeachingPlan,
+  type TeachingRotationPlacement,
   type TeachingPlanRow,
 } from "@/lib/local/teaching-plan";
 
@@ -49,6 +51,12 @@ const PROFILE_LABELS: Record<TeachingClassProfile, string> = {
   REGULAR: "Běžná třída",
   SPORTS: "Sportovní třída",
   CUSTOM: "Vlastní profil",
+};
+
+const ROTATION_PLACEMENT_LABELS: Record<TeachingRotationPlacement, string> = {
+  ADJACENT: "Hned po sobě",
+  SAME_DAY: "Ve stejný den",
+  FLEXIBLE: "Kdykoliv během týdne",
 };
 
 const COLORS = {
@@ -202,6 +210,10 @@ function writeDictionaries(
   });
   dictionary.getCell("L1").value = "Počet učitelů";
   dictionary.getCell("L2").value = staffingPlan.teachers.length;
+  dictionary.getCell("N1").value = "Režim výměny";
+  TEACHING_ROTATION_PLACEMENTS.forEach((placement, index) => {
+    dictionary.getCell(index + 2, 14).value = placement.label;
+  });
   return dictionary;
 }
 
@@ -394,8 +406,8 @@ export async function createTeachingPlanWorkbook(
   const rotations = workbook.addWorksheet(TEACHING_ROTATIONS_SHEET, {
     views: [{ state: "frozen", ySplit: ROTATION_HEADER_ROW }],
   });
-  styleTitle(rotations, "A1:J1", "KROK 2C · VÝMĚNY PŘEDMĚTŮ MEZI SKUPINAMI");
-  rotations.mergeCells("A2:J2");
+  styleTitle(rotations, "A1:K1", "KROK 2C · VÝMĚNY PŘEDMĚTŮ MEZI SKUPINAMI");
+  rotations.mergeCells("A2:K2");
   rotations.getCell("A2").value =
     "Jeden řádek = celá povinná výměna. Solver vždy vytvoří obě ramena a přesně prohodí předměty i učitele mezi skupinami.";
   rotations.getCell("A2").fill = {
@@ -403,7 +415,7 @@ export async function createTeachingPlanWorkbook(
     pattern: "solid",
     fgColor: { argb: COLORS.paleBlue },
   };
-  rotations.mergeCells("A3:J3");
+  rotations.mergeCells("A3:K3");
   rotations.getCell("A3").value =
     "Příklad: 1. rameno G1 ČJ / G2 M → 2. rameno G1 M / G2 ČJ. Druhé rameno může být i odpoledne, pokud to vyžaduje dostupnost.";
   rotations.getCell("A3").fill = {
@@ -411,7 +423,7 @@ export async function createTeachingPlanWorkbook(
     pattern: "solid",
     fgColor: { argb: COLORS.paleYellow },
   };
-  rotations.mergeCells("A4:J4");
+  rotations.mergeCells("A4:K4");
   rotations.getCell("A4").value =
     "Počet hodin znamená dotaci každého z obou předmětů pro každou skupinu. Třída tedy absolvuje dvojnásobný počet hodin.";
   rotations.getCell("A4").font = {
@@ -427,6 +439,7 @@ export async function createTeachingPlanWorkbook(
     "Hodin každého předmětu pro každou skupinu *",
     "Jak mají hodiny probíhat? *",
     "Počet dvojhodin jen u kombinace",
+    "Kdy se mají skupiny vystřídat? *",
     "Náhled výměny",
     "Kontrola",
   ];
@@ -440,6 +453,7 @@ export async function createTeachingPlanWorkbook(
     { width: 24 },
     { width: 27 },
     { width: 20 },
+    { width: 28 },
     { width: 58 },
     { width: 24 },
   ];
@@ -481,27 +495,33 @@ export async function createTeachingPlanWorkbook(
     ROTATION_FIRST_ROW,
   );
   addWholeNumberValidation(rotations, 8, ROTATION_FIRST_ROW, 1, 10);
+  addListValidation(
+    rotations,
+    9,
+    `'${DICTIONARY_SHEET}'!$N$2:$N$${TEACHING_ROTATION_PLACEMENTS.length + 1}`,
+    ROTATION_FIRST_ROW,
+  );
 
   for (let row = ROTATION_FIRST_ROW; row <= LAST_ROW; row += 1) {
-    rotations.getCell(row, 9).value = {
-      formula: `IF(COUNTA(A${row}:H${row})=0,"","1. rameno: G1 "&B${row}&" / G2 "&D${row}&" → 2. rameno: G1 "&D${row}&" / G2 "&B${row})`,
-      result: "",
-    };
     rotations.getCell(row, 10).value = {
-      formula: `IF(COUNTA(A${row}:H${row})=0,"",IF(OR(A${row}="",B${row}="",C${row}="",D${row}="",E${row}="",F${row}="",G${row}=""),"DOPLNIT",IF(B${row}=D${row},"STEJNÉ PŘEDMĚTY",IF(C${row}=E${row},"STEJNÝ UČITEL",IF(AND(G${row}="Pouze dvojhodiny",MOD(F${row},2)=1),"LICHÝ POČET",IF(AND(G${row}="Kombinace",OR(H${row}="",2*H${row}>=F${row})),"OPRAVIT KOMBINACI","SEDÍ")))))`,
+      formula: `IF(COUNTA(A${row}:I${row})=0,"","1. rameno: G1 "&B${row}&" / G2 "&D${row}&" → 2. rameno: G1 "&D${row}&" / G2 "&B${row}&" · "&I${row})`,
       result: "",
     };
-    rotations.getCell(row, 9).fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: COLORS.paleBlue },
+    rotations.getCell(row, 11).value = {
+      formula: `IF(COUNTA(A${row}:I${row})=0,"",IF(OR(A${row}="",B${row}="",C${row}="",D${row}="",E${row}="",F${row}="",G${row}="",I${row}=""),"DOPLNIT",IF(B${row}=D${row},"STEJNÉ PŘEDMĚTY",IF(C${row}=E${row},"STEJNÝ UČITEL",IF(AND(G${row}="Pouze dvojhodiny",MOD(F${row},2)=1),"LICHÝ POČET",IF(AND(G${row}="Kombinace",OR(H${row}="",2*H${row}>=F${row})),"OPRAVIT KOMBINACI","SEDÍ")))))`,
+      result: "",
     };
     rotations.getCell(row, 10).fill = {
       type: "pattern",
       pattern: "solid",
+      fgColor: { argb: COLORS.paleBlue },
+    };
+    rotations.getCell(row, 11).fill = {
+      type: "pattern",
+      pattern: "solid",
       fgColor: { argb: COLORS.paleGreen },
     };
-    rotations.getCell(row, 10).font = { bold: true };
+    rotations.getCell(row, 11).font = { bold: true };
   }
 
   existingPlan.rows
@@ -523,6 +543,8 @@ export async function createTeachingPlanWorkbook(
       rotations.getCell(row, 7).value = SHAPE_LABELS[item.lessonShape];
       rotations.getCell(row, 8).value =
         item.lessonShape === "MIXED" ? item.doublePeriodsCount : null;
+      rotations.getCell(row, 9).value =
+        ROTATION_PLACEMENT_LABELS[item.rotationPlacement ?? "SAME_DAY"];
     });
 
   for (const worksheet of [classes, plan, rotations]) {
@@ -592,6 +614,18 @@ function organizationFromLabel(value: string): "WHOLE" | "SPLIT" | null {
       normalized === code.toLocaleLowerCase("cs-CZ"),
   );
   return (match?.[0] as "WHOLE" | "SPLIT" | undefined) ?? null;
+}
+
+function rotationPlacementFromLabel(
+  value: string,
+): TeachingRotationPlacement | null {
+  const normalized = value.trim().toLocaleLowerCase("cs-CZ");
+  const match = Object.entries(ROTATION_PLACEMENT_LABELS).find(
+    ([placement, label]) =>
+      normalized === label.toLocaleLowerCase("cs-CZ") ||
+      normalized === placement.toLocaleLowerCase("cs-CZ"),
+  );
+  return (match?.[0] as TeachingRotationPlacement | undefined) ?? null;
 }
 
 function classProfileFromLabel(
@@ -816,7 +850,7 @@ export async function analyzeTeachingPlanWorkbook(
   if (rotationsSheet) {
     const rotationRows = Math.min(rotationsSheet.actualRowCount, LAST_ROW);
     for (let row = ROTATION_FIRST_ROW; row <= rotationRows; row += 1) {
-      const values = Array.from({ length: 8 }, (_, index) =>
+      const values = Array.from({ length: 9 }, (_, index) =>
         cellText(rotationsSheet.getCell(row, index + 1)),
       );
       if (values.every((value) => value === "")) continue;
@@ -829,6 +863,7 @@ export async function analyzeTeachingPlanWorkbook(
         rawPeriods,
         rawShape,
         rawDoubleCount,
+        rawRotationPlacement,
       ] = values;
       const classCode = normalizeClassCode(rawClass!);
       const subjectCode = rawSubject1!.trim().toLocaleUpperCase("cs-CZ");
@@ -839,6 +874,9 @@ export async function analyzeTeachingPlanWorkbook(
       const secondaryTeacherId = resolveTeacher(rawTeacher2!);
       const weeklyPeriods = integerValue(rawPeriods!) ?? 0;
       const lessonShape = lessonShapeFromLabel(rawShape!);
+      const rotationPlacement = rotationPlacementFromLabel(
+        rawRotationPlacement!,
+      );
 
       if (!seenClasses.has(classCode)) {
         issue(
@@ -903,6 +941,15 @@ export async function analyzeTeachingPlanWorkbook(
           "Vyberte rozložení hodin ze seznamu.",
         );
       }
+      if (!rotationPlacement) {
+        issue(
+          issues,
+          TEACHING_ROTATIONS_SHEET,
+          row,
+          "Kdy se mají skupiny vystřídat?",
+          "Vyberte režim výměny ze seznamu.",
+        );
+      }
 
       plan.rows.push({
         id: `teaching-rotation-row-${row}`,
@@ -918,6 +965,7 @@ export async function analyzeTeachingPlanWorkbook(
               ? (integerValue(rawDoubleCount!) ?? 0)
               : 0,
         organization: "ROTATION",
+        rotationPlacement: rotationPlacement ?? "SAME_DAY",
         primaryTeacherId,
         secondaryTeacherId,
       });

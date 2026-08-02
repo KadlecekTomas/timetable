@@ -16,10 +16,7 @@ from app.school_day import crosses_lunch_break
 
 
 def effective_rotation_placement(assignments: tuple[Any, ...]) -> RotationPlacement:
-    placements = {
-        assignment.rotation_placement or RotationPlacement.SAME_DAY
-        for assignment in assignments
-    }
+    placements = {assignment.rotation_placement or RotationPlacement.SAME_DAY for assignment in assignments}
     if len(placements) != 1:
         raise ValueError("All assignments in one rotation must share placement mode")
     return next(iter(placements))
@@ -39,10 +36,7 @@ def _non_overlapping(
     right_period: int,
     duration: int,
 ) -> bool:
-    return (
-        left_period + duration <= right_period
-        or right_period + duration <= left_period
-    )
+    return left_period + duration <= right_period or right_period + duration <= left_period
 
 
 def _placement_allowed(
@@ -106,9 +100,7 @@ def add_rotation_constraints(
 ) -> list[dict[str, Any]]:
     diagnostics: list[dict[str, Any]] = []
 
-    for rotation_key, leg_1, leg_2 in rotation_assignment_legs(
-        payload.assignments
-    ):
+    for rotation_key, leg_1, leg_2 in rotation_assignment_legs(payload.assignments):
         assignments = (*leg_1, *leg_2)
         placement = effective_rotation_placement(assignments)
         leg_1_blocks = sorted(
@@ -124,10 +116,7 @@ def add_rotation_constraints(
             diagnostics.append(
                 {
                     "code": "ROTATION_BLOCK_COUNT_MISMATCH",
-                    "message": (
-                        f"Výměna {rotation_key} nemá v obou ramenech stejný "
-                        "počet bloků."
-                    ),
+                    "message": (f"Výměna {rotation_key} nemá v obou ramenech stejný počet bloků."),
                     "entityIds": [assignment.id for assignment in assignments],
                 }
             )
@@ -142,10 +131,7 @@ def add_rotation_constraints(
                 diagnostics.append(
                     {
                         "code": "ROTATION_BLOCK_DURATION_MISMATCH",
-                        "message": (
-                            f"Výměna {rotation_key} nemá v obou ramenech "
-                            "stejnou délku odpovídajícího bloku."
-                        ),
+                        "message": (f"Výměna {rotation_key} nemá v obou ramenech stejnou délku odpovídajícího bloku."),
                         "entityIds": [
                             leg_1_block.assignment.id,
                             leg_2_block.assignment.id,
@@ -179,9 +165,7 @@ def add_rotation_constraints(
                         f"{left_position[0]}_{left_position[1]}_"
                         f"{right_position[0]}_{right_position[1]}"
                     )
-                    pair_variables.append(
-                        (left_position, right_position, pair_variable)
-                    )
+                    pair_variables.append((left_position, right_position, pair_variable))
                     placement_cost = _placement_cost(
                         placement,
                         left_position,
@@ -189,20 +173,13 @@ def add_rotation_constraints(
                         leg_1_block.duration,
                     )
                     if placement_cost:
-                        objective_terms.append(
-                            pair_variable
-                            * placement_cost
-                            * payload.weights.rotation_spread
-                        )
+                        objective_terms.append(pair_variable * placement_cost * payload.weights.rotation_spread)
 
             if not pair_variables:
                 diagnostics.append(
                     {
                         "code": "ROTATION_PLACEMENT_UNAVAILABLE",
-                        "message": (
-                            f"Výměna {rotation_key} nemá žádnou dvojici "
-                            f"umístění pro režim {placement.value}."
-                        ),
+                        "message": (f"Výměna {rotation_key} nemá žádnou dvojici umístění pro režim {placement.value}."),
                         "entityIds": [assignment.id for assignment in assignments],
                         "details": {
                             "placement": placement.value,
@@ -212,23 +189,17 @@ def add_rotation_constraints(
                 )
                 continue
 
-            model.add_exactly_one(
-                [variable for _left, _right, variable in pair_variables]
-            )
+            model.add_exactly_one([variable for _left, _right, variable in pair_variables])
 
             for position, source_variables in left_positions.items():
                 linked_pairs = [
-                    pair_variable
-                    for left_position, _right_position, pair_variable in pair_variables
-                    if left_position == position
+                    pair_variable for left_position, _right_position, pair_variable in pair_variables if left_position == position
                 ]
                 model.add(sum(source_variables) == sum(linked_pairs))
 
             for position, source_variables in right_positions.items():
                 linked_pairs = [
-                    pair_variable
-                    for _left_position, right_position, pair_variable in pair_variables
-                    if right_position == position
+                    pair_variable for _left_position, right_position, pair_variable in pair_variables if right_position == position
                 ]
                 model.add(sum(source_variables) == sum(linked_pairs))
 
@@ -241,9 +212,7 @@ def validate_rotation_schedule(
 ) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
 
-    for rotation_key, leg_1, leg_2 in rotation_assignment_legs(
-        payload.assignments
-    ):
+    for rotation_key, leg_1, leg_2 in rotation_assignment_legs(payload.assignments):
         assignments = (*leg_1, *leg_2)
         placement = effective_rotation_placement(assignments)
         leg_1_lessons = sorted(
@@ -265,15 +234,11 @@ def validate_rotation_schedule(
             if left.duration != right.duration:
                 continue
 
-            if not _non_overlapping(left.period, right.period, left.duration) and (
-                left.day == right.day
-            ):
+            if not _non_overlapping(left.period, right.period, left.duration) and (left.day == right.day):
                 issues.append(
                     ValidationIssue(
                         code="ROTATION_LEGS_OVERLAP",
-                        message=(
-                            f"Ramena výměny {rotation_key} se nesmějí překrývat."
-                        ),
+                        message=(f"Ramena výměny {rotation_key} se nesmějí překrývat."),
                         entity_ids=[left.block_id, right.block_id],
                         day=left.day,
                         period=min(left.period, right.period),
@@ -281,17 +246,18 @@ def validate_rotation_schedule(
                 )
                 continue
 
-            if placement in {
-                RotationPlacement.ADJACENT,
-                RotationPlacement.SAME_DAY,
-            } and left.day != right.day:
+            if (
+                placement
+                in {
+                    RotationPlacement.ADJACENT,
+                    RotationPlacement.SAME_DAY,
+                }
+                and left.day != right.day
+            ):
                 issues.append(
                     ValidationIssue(
                         code="ROTATION_NOT_SAME_DAY",
-                        message=(
-                            f"Obě ramena výměny {rotation_key} musí proběhnout "
-                            "ve stejný den."
-                        ),
+                        message=(f"Obě ramena výměny {rotation_key} musí proběhnout ve stejný den."),
                         entity_ids=[left.block_id, right.block_id],
                     )
                 )
@@ -303,10 +269,7 @@ def validate_rotation_schedule(
                     issues.append(
                         ValidationIssue(
                             code="ROTATION_NOT_ADJACENT",
-                            message=(
-                                f"Obě ramena výměny {rotation_key} musí být "
-                                "bezprostředně za sebou."
-                            ),
+                            message=(f"Obě ramena výměny {rotation_key} musí být bezprostředně za sebou."),
                             entity_ids=[left.block_id, right.block_id],
                             day=left.day,
                             period=combined_start,
@@ -319,10 +282,7 @@ def validate_rotation_schedule(
                     issues.append(
                         ValidationIssue(
                             code="ROTATION_CROSSES_LUNCH_BREAK",
-                            message=(
-                                f"Výměna {rotation_key} nesmí být rozdělena "
-                                "obědovou přestávkou."
-                            ),
+                            message=(f"Výměna {rotation_key} nesmí být rozdělena obědovou přestávkou."),
                             entity_ids=[left.block_id, right.block_id],
                             day=left.day,
                             period=combined_start,

@@ -9,6 +9,7 @@ export const TEACHING_PLAN_CHANGE_EVENT = "rozvrhar:teaching-plan-changed";
 export type TeachingLessonShape = "SEPARATE" | "DOUBLE" | "MIXED";
 export type TeachingOrganization = "WHOLE" | "SPLIT" | "ROTATION";
 export type TeachingClassProfile = "REGULAR" | "SPORTS" | "CUSTOM";
+export type TeachingRotationPlacement = "ADJACENT" | "SAME_DAY" | "FLEXIBLE";
 
 export const TEACHING_SHAPES: Array<{
   value: TeachingLessonShape;
@@ -59,6 +60,35 @@ export const TEACHING_ORGANIZATIONS: Array<{
   },
 ];
 
+export const TEACHING_ROTATION_PLACEMENTS: Array<{
+  value: TeachingRotationPlacement;
+  label: string;
+  shortLabel: string;
+  description: string;
+}> = [
+  {
+    value: "ADJACENT",
+    label: "Hned po sobě",
+    shortLabel: "Bezprostředně",
+    description:
+      "Druhé rameno začne okamžitě po prvním. Pořadí obou ramen vybere algoritmus.",
+  },
+  {
+    value: "SAME_DAY",
+    label: "Ve stejný den",
+    shortLabel: "Stejný den",
+    description:
+      "Ramena mohou být ráno a odpoledne, ale obě proběhnou v jednom dni.",
+  },
+  {
+    value: "FLEXIBLE",
+    label: "Kdykoliv během týdne",
+    shortLabel: "Flexibilně",
+    description:
+      "Použijte jen při složitých dostupnostech. Algoritmus je stále drží co nejblíž.",
+  },
+];
+
 export const TEACHING_CLASS_PROFILES: Array<{
   value: TeachingClassProfile;
   label: string;
@@ -97,6 +127,7 @@ export interface TeachingPlanRow {
   lessonShape: TeachingLessonShape;
   doublePeriodsCount: number;
   organization: TeachingOrganization;
+  rotationPlacement?: TeachingRotationPlacement;
   primaryTeacherId: string;
   secondaryTeacherId: string;
 }
@@ -171,6 +202,7 @@ export function createTeachingPlanRow(
     lessonShape: "SEPARATE",
     doublePeriodsCount: 0,
     organization: "WHOLE",
+    rotationPlacement: "SAME_DAY",
     primaryTeacherId: "",
     secondaryTeacherId: "",
   };
@@ -237,9 +269,19 @@ export function rowTeacherPeriods(
   return 0;
 }
 
+export function rotationPlacementLabel(
+  placement: TeachingRotationPlacement | undefined,
+): string {
+  return (
+    TEACHING_ROTATION_PLACEMENTS.find(
+      (item) => item.value === (placement ?? "SAME_DAY"),
+    )?.label ?? "Ve stejný den"
+  );
+}
+
 export function rotationSummary(row: TeachingPlanRow): string {
   if (row.organization !== "ROTATION") return "";
-  return `1. rameno: skupina 1 ${row.subjectCode} / skupina 2 ${row.secondarySubjectCode} → 2. rameno: skupina 1 ${row.secondarySubjectCode} / skupina 2 ${row.subjectCode}`;
+  return `1. rameno: skupina 1 ${row.subjectCode} / skupina 2 ${row.secondarySubjectCode} → 2. rameno: skupina 1 ${row.secondarySubjectCode} / skupina 2 ${row.subjectCode} · ${rotationPlacementLabel(row.rotationPlacement)}`;
 }
 
 export function validateTeachingPlanRow(
@@ -263,6 +305,13 @@ export function validateTeachingPlanRow(
     }
     if (row.subjectCode && row.subjectCode === row.secondarySubjectCode) {
       messages.push("Při výměně musí být zvoleny dva různé předměty.");
+    }
+    if (
+      !["ADJACENT", "SAME_DAY", "FLEXIBLE"].includes(
+        String(row.rotationPlacement ?? "SAME_DAY"),
+      )
+    ) {
+      messages.push("Vyberte, kdy se mají obě ramena výměny uskutečnit.");
     }
   }
   if (
@@ -431,6 +480,11 @@ function normalizeTeachingPlan(value: unknown): TeachingPlan {
           )
             ? (item.organization as TeachingOrganization)
             : "WHOLE",
+          rotationPlacement: ["ADJACENT", "SAME_DAY", "FLEXIBLE"].includes(
+            String(item.rotationPlacement),
+          )
+            ? (item.rotationPlacement as TeachingRotationPlacement)
+            : "SAME_DAY",
           primaryTeacherId:
             typeof item.primaryTeacherId === "string"
               ? item.primaryTeacherId

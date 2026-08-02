@@ -42,6 +42,7 @@ import {
 import {
   TEACHING_CLASS_PROFILES,
   TEACHING_ORGANIZATIONS,
+  TEACHING_ROTATION_PLACEMENTS,
   TEACHING_SHAPES,
   classProfileLabel,
   createEmptyTeachingPlan,
@@ -51,6 +52,7 @@ import {
   lessonBlockDurations,
   loadTeachingPlan,
   normalizeClassCode,
+  rotationPlacementLabel,
   rotationSummary,
   rowClassPeriods,
   rowTeacherPeriods,
@@ -605,6 +607,7 @@ export default function TeachingPlanPage() {
         const rotationKey = `${safeCode(row.classCode)}-ROT-${rowToken}`;
         const leg1 = `${rotationKey}-L1`;
         const leg2 = `${rotationKey}-L2`;
+        const rotationPlacement = row.rotationPlacement ?? "SAME_DAY";
         return [
           {
             ...common,
@@ -615,6 +618,7 @@ export default function TeachingPlanPage() {
             parallelKey: leg1,
             rotationKey,
             rotationLeg: 1,
+            rotationPlacement,
           },
           {
             ...common,
@@ -625,6 +629,7 @@ export default function TeachingPlanPage() {
             parallelKey: leg1,
             rotationKey,
             rotationLeg: 1,
+            rotationPlacement,
           },
           {
             ...common,
@@ -635,6 +640,7 @@ export default function TeachingPlanPage() {
             parallelKey: leg2,
             rotationKey,
             rotationLeg: 2,
+            rotationPlacement,
           },
           {
             ...common,
@@ -645,6 +651,7 @@ export default function TeachingPlanPage() {
             parallelKey: leg2,
             rotationKey,
             rotationLeg: 2,
+            rotationPlacement,
           },
         ];
       });
@@ -1462,6 +1469,10 @@ function TeachingRowCard({
                         organization.value === "ROTATION"
                           ? current.secondarySubjectCode
                           : "",
+                      rotationPlacement:
+                        organization.value === "ROTATION"
+                          ? (current.rotationPlacement ?? "SAME_DAY")
+                          : current.rotationPlacement,
                     }))
                   }
                   className={
@@ -1503,9 +1514,8 @@ function TeachingRowCard({
                     Povinná výměna ve dvou ramenech
                   </h5>
                   <p className="mt-1 text-sm leading-6 text-text-secondary">
-                    Solver vytvoří obě ramena. Nemůže ponechat jednu skupinu bez
-                    prohození. Ramena smí být i v různých časech nebo jedno
-                    odpoledne, když to vyžaduje dostupnost učitelů.
+                    Solver vytvoří obě ramena, přesně prohodí předměty i učitele
+                    a sám smí otočit jejich pořadí podle dostupnosti.
                   </p>
                 </div>
               </div>
@@ -1532,6 +1542,46 @@ function TeachingRowCard({
                     Skupina 2: {row.subjectCode || "první předmět"}
                   </p>
                 </div>
+              </div>
+              <div className="mt-5">
+                <p className="text-sm font-semibold text-text-primary">
+                  Kdy se mají skupiny vystřídat?
+                </p>
+                <div className="mt-3 grid gap-3 lg:grid-cols-3">
+                  {TEACHING_ROTATION_PLACEMENTS.map((placement) => {
+                    const selected =
+                      (row.rotationPlacement ?? "SAME_DAY") === placement.value;
+                    return (
+                      <button
+                        key={placement.value}
+                        type="button"
+                        aria-pressed={selected}
+                        aria-label={placement.label}
+                        onClick={() =>
+                          update((current) => ({
+                            ...current,
+                            rotationPlacement: placement.value,
+                          }))
+                        }
+                        className={
+                          selected
+                            ? "rounded-xl border-2 border-primary bg-surface p-4 text-left"
+                            : "rounded-xl border border-primary/30 bg-primary-subtle/40 p-4 text-left hover:border-primary"
+                        }
+                      >
+                        <p className="font-semibold text-text-primary">
+                          {placement.shortLabel}
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-text-secondary">
+                          {placement.description}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-3 text-sm font-medium text-primary">
+                  Zvoleno: {rotationPlacementLabel(row.rotationPlacement)}
+                </p>
               </div>
               {row.subjectCode && row.secondarySubjectCode ? (
                 <p className="mt-3 text-sm font-medium text-primary">
@@ -1625,7 +1675,7 @@ function TeachingRowCard({
             <p className="font-semibold">
               Hotovo —{" "}
               {row.organization === "ROTATION"
-                ? `${row.subjectCode} a ${row.secondarySubjectCode} se povinně prohodí`
+                ? `${row.subjectCode} a ${row.secondarySubjectCode} se povinně prohodí · ${rotationPlacementLabel(row.rotationPlacement)}`
                 : `${humanBlockSummary(row)} · ${row.organization === "SPLIT" ? "dvě souběžné skupiny" : "celá třída"}`}
               .
             </p>
