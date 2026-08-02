@@ -105,7 +105,7 @@ const plan = {
       lessonShape: "SEPARATE",
       doublePeriodsCount: 0,
       organization: "ROTATION",
-      rotationPlacement: "ADJACENT",
+      rotationPlacement: "SAME_DAY",
       primaryTeacherId: "teacher-cj",
       secondaryTeacherId: "teacher-m",
     },
@@ -268,7 +268,7 @@ test("sports B class keeps A allocation and Czech-Math groups swap atomically", 
   expect(rotationAssignments).toHaveLength(4);
   expect(
     rotationAssignments.every(
-      (assignment) => assignment.rotation_placement === "ADJACENT",
+      (assignment) => assignment.rotation_placement === "SAME_DAY",
     ),
   ).toBe(true);
 
@@ -290,6 +290,6 @@ test("sports B class keeps A allocation and Czech-Math groups swap atomically", 
   const [leg1Day, leg1Period] = leg1Slot.split(":").map(Number);
   const [leg2Day, leg2Period] = leg2Slot.split(":").map(Number);
   expect(leg1Day).toBe(leg2Day);
-  expect(Math.abs(leg1Period - leg2Period)).toBe(1);
+  expect(leg1Period).not.toBe(leg2Period);
   await capture(page, "13-vygenerovana-atomicka-rotace.png");
 });
