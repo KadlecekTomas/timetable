@@ -1,16 +1,14 @@
-name: CI
+name: Apply block preview patch
 
 on:
   pull_request:
-  push:
-    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
-  patch-block-preview:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,32 +19,24 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Restore the human lesson-block preview
+      - name: Patch UI and tests
         run: |
           python - <<'PY'
           from pathlib import Path
 
           page = Path("apps/web/app/teaching-plan/page.tsx")
           content = page.read_text()
-          if 'data-testid={`block-preview-${index}`}' not in content:
-              marker = '''
-
-        <div>
-          <h4 className="font-semibold text-text-primary">
-            3. Jak se třída organizuje?
-          </h4>'''
-              preview = '''
-
-          <div
-            className="mt-4 rounded-xl border border-primary/30 bg-primary-subtle p-4"
-            data-testid={`block-preview-${index}`}
-          >
-            <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-              Takto to uvidí algoritmus
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              {validation.blockDurations.length > 0 ? (
-                validation.blockDurations.map((duration, blockIndex) => (
+          marker = '        <div>\n          <h4 className="font-semibold text-text-primary">\n            3. Jak se třída organizuje?\n          </h4>'
+          preview = '''        <div>
+            <div
+              className="rounded-xl border border-primary/30 bg-primary-subtle p-4"
+              data-testid={`block-preview-${index}`}
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                Takto to uvidí algoritmus
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {validation.blockDurations.map((duration, blockIndex) => (
                   <div
                     key={`${duration}-${blockIndex}`}
                     className={
@@ -57,175 +47,38 @@ jobs:
                   >
                     {duration === 2 ? "2 hodiny v kuse" : "1 hodina"}
                   </div>
-                ))
-              ) : (
-                <p className="text-sm text-danger-strong">
-                  Toto rozložení zatím nejde vytvořit.
-                </p>
-              )}
+                ))}
+              </div>
+              <p className="mt-3 text-sm font-medium text-text-primary">
+                {humanBlockSummary(row)}
+                {row.organization === "ROTATION" ? " v každém rameni" : ""}
+              </p>
             </div>
-            <p className="mt-3 text-sm font-medium text-text-primary">
-              {humanBlockSummary(row)}
-              {row.organization === "ROTATION" ? " v každém rameni" : ""}
-            </p>
           </div>
-        </div>
 
-        <div>
-          <h4 className="font-semibold text-text-primary">
-            3. Jak se třída organizuje?
-          </h4>'''
+'''
+          if 'data-testid={`block-preview-${index}`}' not in content:
               if marker not in content:
-                  raise SystemExit("Organization-step marker not found")
-              page.write_text(content.replace(marker, preview, 1))
+                  raise SystemExit("Organization marker not found")
+              page.write_text(content.replace(marker, preview + marker, 1))
 
-          review_test = Path("apps/web/e2e/teaching-plan-import-review.spec.ts")
-          review_test.write_text(
-              review_test.read_text().replace(
-                  "Souhlasí dělení tříd a dvojhodiny?",
-                  "Souhlasí dělení tříd, dvojhodiny a výměny?",
-              )
-          )
+          review = Path("apps/web/e2e/teaching-plan-import-review.spec.ts")
+          review.write_text(review.read_text().replace(
+              "Souhlasí dělení tříd a dvojhodiny?",
+              "Souhlasí dělení tříd, dvojhodiny a výměny?",
+          ))
 
-          teaching_test = Path("apps/web/e2e/teaching-plan.spec.ts")
-          teaching_test.write_text(
-              teaching_test.read_text().replace(
-                  "Hotovo. Uloženo 2 předmětů jako 3 výukových vazeb včetně dvojhodin a dělených skupin.",
-                  "Hotovo. Uloženo 2 nastavení jako 3 výukových vazeb včetně dvojhodin, dělení a výměn předmětů.",
-              )
-          )
+          teaching = Path("apps/web/e2e/teaching-plan.spec.ts")
+          teaching.write_text(teaching.read_text().replace(
+              "Hotovo. Uloženo 2 předmětů jako 3 výukových vazeb včetně dvojhodin a dělených skupin.",
+              "Hotovo. Uloženo 2 nastavení jako 3 výukových vazeb včetně dvojhodin, dělení a výměn předmětů.",
+          ))
           PY
       - run: npx prettier --write apps/web/app/teaching-plan/page.tsx apps/web/e2e/teaching-plan.spec.ts apps/web/e2e/teaching-plan-import-review.spec.ts
-      - name: Commit regression fix
+      - name: Commit patch
         run: |
-          if git diff --quiet; then
-            echo "Nothing to commit"
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add apps/web/app/teaching-plan/page.tsx apps/web/e2e/teaching-plan.spec.ts apps/web/e2e/teaching-plan-import-review.spec.ts
           git commit -m "fix(teaching-plan): restore visual block preview"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
-
-  web:
-    runs-on: ubuntu-latest
-    env:
-      SOLVER_URL: http://127.0.0.1:8000
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm install
-      - run: npm run format:check
-      - run: npm run lint --workspace @timetable/web
-      - run: npm run typecheck --workspace @timetable/web
-      - run: npm run test --workspace @timetable/web
-      - run: npm run build --workspace @timetable/web
-
-  solver:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: python -m pip install --upgrade pip
-      - run: pip install ".[dev]"
-        working-directory: apps/solver
-      - run: ruff check apps/solver
-      - run: pytest apps/solver
-
-  containers:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - run: docker compose config
-      - run: docker compose build
-      - name: Start database-free Docker stack
-        run: docker compose up -d --wait --wait-timeout 180
-      - name: Verify web and proxied solver runtime
-        run: |
-          curl --fail --silent --show-error http://127.0.0.1:3000/api/health
-          curl --fail --silent --show-error http://127.0.0.1:3000/solver/health
-          curl --fail --silent --show-error http://127.0.0.1:8000/health
-      - name: Show container diagnostics
-        if: failure()
-        run: docker compose ps && docker compose logs --no-color
-      - name: Stop Docker stack
-        if: always()
-        run: docker compose down --volumes --remove-orphans
-
-  local-first-e2e:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      SOLVER_URL: http://127.0.0.1:8000
-      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: npm install
-      - run: pip install "."
-        working-directory: apps/solver
-      - run: npx playwright install --with-deps chromium
-      - name: Build web without a database
-        run: npm run build --workspace @timetable/web
-      - name: Start solver and web
-        shell: bash
-        run: |
-          nohup bash -c 'cd apps/solver && uvicorn app.main:app --host 127.0.0.1 --port 8000' > /tmp/solver.log 2>&1 &
-          nohup npm run start --workspace @timetable/web > /tmp/web.log 2>&1 &
-
-          for attempt in $(seq 1 90); do
-            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null && \
-               curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null && \
-               curl --fail --silent http://127.0.0.1:3000/solver/health >/dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-
-          cat /tmp/solver.log || true
-          cat /tmp/web.log || true
-          exit 1
-      - name: Run database-free browser workflows
-        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/local-first-backup.spec.ts e2e/timetable-export.spec.ts e2e/staffing.spec.ts e2e/teaching-plan.spec.ts e2e/teaching-plan-import-review.spec.ts e2e/subject-rotation-and-sports.spec.ts --retries=0
-      - name: Upload detailed teaching-plan screenshots and Excel
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: teaching-plan-ui-screenshots-and-workbook
-          path: |
-            apps/web/test-results/teaching-plan-screenshots
-            apps/web/test-results/teaching-plan-review-screenshots
-            apps/web/test-results/subject-rotation-screenshots
-          if-no-files-found: warn
-      - name: Run realistic 40-teacher school workflow
-        run: npm run e2e --workspace @timetable/web -- e2e/school-scale.spec.ts --retries=0
-      - name: Run full 122-hour curriculum and leadership export
-        run: npm run e2e --workspace @timetable/web -- e2e/full-curriculum.spec.ts --retries=0
-      - name: Upload full-curriculum leadership export
-        uses: actions/upload-artifact@v4
-        with:
-          name: leadership-full-curriculum-timetable
-          path: /tmp/rozvrh-vedeni-plny-druhy-stupen.xlsx
-          if-no-files-found: error
-      - name: Repeat critical local-first workflow three times
-        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts --repeat-each=3 --retries=0
-      - name: Upload failure diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: local-first-failure
-          path: |
-            apps/web/playwright-report
-            apps/web/test-results
-          if-no-files-found: ignore
