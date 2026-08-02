@@ -44,9 +44,7 @@ function staffingPlan(): StaffingPlan {
         lastName: "Vašáková",
         targetWeeklyLoad: 2,
         unavailableDays: [],
-        subjectLoads: [
-          { id: "vas-inf", subjectCode: "INF", weeklyPeriods: 2 },
-        ],
+        subjectLoads: [{ id: "vas-inf", subjectCode: "INF", weeklyPeriods: 2 }],
       },
     ],
   };
@@ -154,9 +152,7 @@ test("Excel is reviewed teacher-by-teacher and class-by-class before it replaces
   );
   await page.reload();
 
-  await page
-    .getByLabel("Nahrát vyplněný Excel")
-    .setInputFiles(workbookPath);
+  await page.getByLabel("Nahrát vyplněný Excel").setInputFiles(workbookPath);
   await expect(page).toHaveURL(/\/teaching-plan\/review\?/);
   await expect(
     page.getByRole("heading", { name: "Sedí údaje z Excelu?" }),
@@ -209,12 +205,8 @@ test("Excel is reviewed teacher-by-teacher and class-by-class before it replaces
   );
   expect(untouchedBeforeFinalConfirmation.classes[0].code).toBe("9.A");
 
-  await page
-    .getByLabel("Potvrzuji správnost importovaných údajů")
-    .check();
-  await page
-    .getByRole("button", { name: "Potvrdit a převzít Excel" })
-    .click();
+  await page.getByLabel("Potvrzuji správnost importovaných údajů").check();
+  await page.getByRole("button", { name: "Potvrdit a převzít Excel" }).click();
   await expect(page).toHaveURL(/\/teaching-plan\?.*imported=1/);
   await expect(
     page.getByText("Excel byl potvrzen a převzat do editoru."),
@@ -228,8 +220,8 @@ test("Excel is reviewed teacher-by-teacher and class-by-class before it replaces
     "6.B",
   ]);
   expect(accepted.rows).toHaveLength(3);
-  expect(sessionStorage.getItem("rozvrhar:teaching-plan-import-review:v1")).toBe(
-    null,
-  );
+  expect(
+    sessionStorage.getItem("rozvrhar:teaching-plan-import-review:v1"),
+  ).toBe(null);
   await capture(page, "11-excel-prevzaty-do-editoru.png");
 });

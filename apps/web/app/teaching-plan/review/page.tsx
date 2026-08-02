@@ -82,10 +82,7 @@ function subjectLabel(code: string): string {
   return STAFFING_SUBJECTS.find((item) => item.code === code)?.label ?? code;
 }
 
-function rowTeachers(
-  row: TeachingPlanRow,
-  staffingPlan: StaffingPlan,
-): string {
+function rowTeachers(row: TeachingPlanRow, staffingPlan: StaffingPlan): string {
   const byId = new Map(
     staffingPlan.teachers.map((teacher) => [teacher.id, teacher] as const),
   );
@@ -127,8 +124,8 @@ function teacherReviewItems(
         classes: [...new Set(rows.map((row) => row.classCode))].sort((a, b) =>
           a.localeCompare(b, "cs-CZ", { numeric: true }),
         ),
-        subjects: [...new Set(rows.map((row) => row.subjectCode))].sort((a, b) =>
-          a.localeCompare(b, "cs-CZ"),
+        subjects: [...new Set(rows.map((row) => row.subjectCode))].sort(
+          (a, b) => a.localeCompare(b, "cs-CZ"),
         ),
       };
     })
@@ -146,7 +143,9 @@ export default function TeachingPlanReviewPage() {
   const schoolYearId = searchParams.get("schoolYearId") ?? LOCAL_SCHOOL_YEAR_ID;
   const context = `schoolYearId=${encodeURIComponent(schoolYearId)}`;
 
-  const [pending, setPending] = useState<PendingTeachingPlanImport | null>(null);
+  const [pending, setPending] = useState<PendingTeachingPlanImport | null>(
+    null,
+  );
   const [staffingPlan, setStaffingPlan] = useState<StaffingPlan>(() => ({
     version: 1,
     updatedAt: new Date(0).toISOString(),
@@ -248,7 +247,9 @@ export default function TeachingPlanReviewPage() {
   }
 
   if (!loaded) {
-    return <p className="text-sm text-text-muted">Připravuji kontrolu Excelu…</p>;
+    return (
+      <p className="text-sm text-text-muted">Připravuji kontrolu Excelu…</p>
+    );
   }
 
   if (!pending) {
@@ -553,8 +554,7 @@ function ClassReviewStep({
             Projít každou třídu
           </h2>
           <p className="mt-2 text-sm leading-6 text-text-secondary">
-            Zelená značka znamená, že jste údaje dané třídy už vědomě
-            potvrdili.
+            Zelená značka znamená, že jste údaje dané třídy už vědomě potvrdili.
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2 xl:grid-cols-1">
             {allClasses.map((code, index) => {
@@ -733,9 +733,7 @@ function SpecialRulesReviewStep({
                 <StatusBadge
                   tone={row.organization === "SPLIT" ? "warning" : "neutral"}
                 >
-                  {row.organization === "SPLIT"
-                    ? "Dvě skupiny"
-                    : "Celá třída"}
+                  {row.organization === "SPLIT" ? "Dvě skupiny" : "Celá třída"}
                 </StatusBadge>
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -839,7 +837,7 @@ function FinalReviewStep({
               Aktuální rozpracovaný plán bude nahrazen
             </p>
             <p className="mt-1 text-sm leading-6 text-text-secondary">
-              Nynější editor obsahuje {existingPlan.classes.length} tříd a {" "}
+              Nynější editor obsahuje {existingPlan.classes.length} tříd a{" "}
               {existingPlan.rows.length} předmětů. Projektová data solveru se
               tímto krokem ještě nemění; ta se ukládají až samostatným tlačítkem
               v editoru.

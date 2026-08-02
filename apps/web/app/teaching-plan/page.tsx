@@ -14,7 +14,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
@@ -26,6 +26,10 @@ import {
   type TeachingPlanWorkbookAnalysis,
 } from "@/lib/import/teaching-plan-workbook";
 import { LOCAL_SCHOOL_YEAR_ID, localApiFetch } from "@/lib/local/api";
+import {
+  createPendingTeachingPlanImport,
+  savePendingTeachingPlanImport,
+} from "@/lib/local/teaching-plan-import-review";
 import {
   STAFFING_SUBJECTS,
   loadStaffingPlan,
@@ -137,6 +141,7 @@ function teacherMatchesSubject(
 }
 
 export default function TeachingPlanPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const schoolYearId = searchParams.get("schoolYearId") ?? LOCAL_SCHOOL_YEAR_ID;
   const context = `schoolYearId=${encodeURIComponent(schoolYearId)}`;
@@ -167,6 +172,11 @@ export default function TeachingPlanPage() {
     setStaffingPlan(nextStaffing);
     setPlan(nextPlan);
     setSelectedClass(nextPlan.classes[0]?.code ?? "");
+    if (new URLSearchParams(window.location.search).get("imported") === "1") {
+      setMessage(
+        `Excel byl potvrzen a převzat do editoru. Zkontrolujte případné poslední úpravy a potom výuku uložte do projektu.`,
+      );
+    }
     setLoaded(true);
   }, []);
 
@@ -324,17 +334,14 @@ export default function TeachingPlanPage() {
       );
       setAnalysis(result);
       if (!result.valid) return;
-      if (
-        plan.rows.length > 0 &&
-        !window.confirm("Nahradit aktuální plán obsahem nahraného Excelu?")
-      ) {
-        return;
-      }
-      commit(result.plan);
-      setSelectedClass(result.plan.classes[0]?.code ?? "");
-      setMessage(
-        `Načteno ${result.summary.classes} tříd a ${result.summary.subjects} předmětů. Teď vše zkontrolujte na kartách.`,
+      savePendingTeachingPlanImport(
+        createPendingTeachingPlanImport({
+          fileName: file.name,
+          schoolYearId,
+          analysis: result,
+        }),
       );
+      router.push(`/teaching-plan/review?${context}`);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Excel se nepodařilo načíst.",
@@ -675,7 +682,9 @@ export default function TeachingPlanPage() {
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-text-secondary">
             Excel obsahuje rozbalovací seznamy s učiteli z Kroku 1 a přímo
-            kontroluje lichý počet dvojhodin i chybějícího druhého učitele.
+            kontroluje lichý počet dvojhodin i chybějícího druhého učitele. Po
+            nahrání se nic nepřepíše — nejdřív projdete učitele, každou třídu,
+            dotace, dělení a dvojhodiny v bezpečném kontrolním průvodci.
           </p>
           <label className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
             <Upload className="size-4" aria-hidden="true" />
