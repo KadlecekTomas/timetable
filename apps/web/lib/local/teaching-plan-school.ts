@@ -23,7 +23,9 @@ export const SCHOOL_REFERENCE_CLASS_SUFFIXES = ["A", "C"] as const;
 
 function classSuffix(code: string): string {
   const normalized = base.normalizeClassCode(code);
-  return normalized.match(/\.([A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ])$/)?.[1] ?? "";
+  return (
+    normalized.match(/\.([A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ])$/)?.[1] ?? ""
+  );
 }
 
 function isSuffixIn(code: string, suffixes: readonly string[]): boolean {
