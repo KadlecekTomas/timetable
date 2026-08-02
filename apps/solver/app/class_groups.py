@@ -1,4 +1,5 @@
 from collections import defaultdict
+import re
 
 from app.models import Assignment, ScheduledLesson, TeachingGroup
 
@@ -12,7 +13,17 @@ def lesson_class_ids(lesson: ScheduledLesson) -> tuple[str, ...]:
 
 
 def _parallel_key(assignment: Assignment) -> str:
-    return assignment.parallel_key or f"subject:{assignment.subject_id}"
+    if assignment.parallel_key:
+        return assignment.parallel_key
+
+    # Local projects created by older web clients do not persist parallel_key yet.
+    # Rotation assignment codes deliberately end in -G1/-G2, so both halves can
+    # still be paired after backup/restore and after passing through IndexedDB.
+    normalized_id = assignment.id.lower()
+    if "-rot-" in normalized_id or "-rotation-" in normalized_id:
+        return f"rotation-id:{re.sub(r'-(g1|g2)$', '', normalized_id)}"
+
+    return f"subject:{assignment.subject_id}"
 
 
 def parallel_assignment_pairs(
