@@ -6,15 +6,18 @@ import {
   type StaffingPlan,
 } from "@/lib/local/staffing-plan";
 import {
-  TEACHING_ORGANIZATIONS,
+  TEACHING_CLASS_PROFILES,
   TEACHING_SHAPES,
   classGradeFromCode,
   createEmptyTeachingPlan,
   humanBlockSummary,
+  inferredClassProfile,
   normalizeClassCode,
+  rotationSummary,
+  rowClassPeriods,
   validateTeachingPlan,
+  type TeachingClassProfile,
   type TeachingLessonShape,
-  type TeachingOrganization,
   type TeachingPlan,
   type TeachingPlanClass,
   type TeachingPlanRow,
@@ -22,11 +25,14 @@ import {
 
 export const TEACHING_CLASSES_SHEET = "Třídy";
 export const TEACHING_PLAN_SHEET = "Výuka tříd";
+export const TEACHING_ROTATIONS_SHEET = "Výměny skupin";
 const DICTIONARY_SHEET = "Číselníky";
 const CLASS_HEADER_ROW = 4;
 const CLASS_FIRST_ROW = 5;
 const PLAN_HEADER_ROW = 5;
 const PLAN_FIRST_ROW = 6;
+const ROTATION_HEADER_ROW = 5;
+const ROTATION_FIRST_ROW = 6;
 const LAST_ROW = 305;
 
 const SHAPE_LABELS: Record<TeachingLessonShape, string> = {
@@ -35,10 +41,15 @@ const SHAPE_LABELS: Record<TeachingLessonShape, string> = {
   MIXED: "Kombinace",
 };
 
-const ORGANIZATION_LABELS: Record<TeachingOrganization, string> = {
+const ORGANIZATION_LABELS = {
   WHOLE: "Celá třída",
   SPLIT: "Dvě skupiny",
-  ROTATION: "Výměna dvou předmětů",
+} as const;
+
+const PROFILE_LABELS: Record<TeachingClassProfile, string> = {
+  REGULAR: "Běžná třída",
+  SPORTS: "Sportovní třída",
+  CUSTOM: "Vlastní profil",
 };
 
 const COLORS = {
@@ -47,6 +58,7 @@ const COLORS = {
   paleBlue: "FFEAF1FF",
   paleGreen: "FFE8F5E9",
   paleYellow: "FFFFF4CC",
+  paleOrange: "FFFFE8CC",
   white: "FFFFFFFF",
   text: "FF172B4D",
   muted: "FF667085",
@@ -121,7 +133,7 @@ function addListValidation(
   worksheet: Worksheet,
   column: number,
   formula: string,
-  firstRow = PLAN_FIRST_ROW,
+  firstRow: number,
   lastRow = LAST_ROW,
 ): void {
   for (let row = firstRow; row <= lastRow; row += 1) {
@@ -136,8 +148,62 @@ function addListValidation(
   }
 }
 
+function addWholeNumberValidation(
+  worksheet: Worksheet,
+  column: number,
+  firstRow: number,
+  minimum: number,
+  maximum: number,
+): void {
+  for (let row = firstRow; row <= LAST_ROW; row += 1) {
+    worksheet.getCell(row, column).dataValidation = {
+      type: "whole",
+      operator: "between",
+      allowBlank: true,
+      formulae: [minimum, maximum],
+      showErrorMessage: true,
+      errorTitle: "Neplatné číslo",
+      error: `Zadejte celé číslo od ${minimum} do ${maximum}.`,
+    };
+  }
+}
+
 function teacherName(teacherId: string, labels: Map<string, string>): string {
   return labels.get(teacherId) ?? "";
+}
+
+function writeDictionaries(
+  workbook: ExcelJS.Workbook,
+  staffingPlan: StaffingPlan,
+  teacherLabels: Map<string, string>,
+): Worksheet {
+  const dictionary = workbook.addWorksheet(DICTIONARY_SHEET, {
+    state: "veryHidden",
+  });
+  dictionary.getCell("A1").value = "Předměty";
+  STAFFING_SUBJECTS.forEach((subject, index) => {
+    dictionary.getCell(index + 2, 1).value = subject.code;
+    dictionary.getCell(index + 2, 2).value = subject.label;
+  });
+  dictionary.getCell("D1").value = "Rozložení";
+  TEACHING_SHAPES.forEach((shape, index) => {
+    dictionary.getCell(index + 2, 4).value = shape.label;
+  });
+  dictionary.getCell("F1").value = "Organizace";
+  Object.values(ORGANIZATION_LABELS).forEach((label, index) => {
+    dictionary.getCell(index + 2, 6).value = label;
+  });
+  dictionary.getCell("H1").value = "Učitelé";
+  [...teacherLabels.values()].forEach((label, index) => {
+    dictionary.getCell(index + 2, 8).value = label;
+  });
+  dictionary.getCell("J1").value = "Profily tříd";
+  TEACHING_CLASS_PROFILES.forEach((profile, index) => {
+    dictionary.getCell(index + 2, 10).value = profile.label;
+  });
+  dictionary.getCell("L1").value = "Počet učitelů";
+  dictionary.getCell("L2").value = staffingPlan.teachers.length;
+  return dictionary;
 }
 
 export async function createTeachingPlanWorkbook(
@@ -149,50 +215,53 @@ export async function createTeachingPlanWorkbook(
   workbook.created = new Date("2026-01-01T00:00:00.000Z");
   workbook.modified = new Date("2026-01-01T00:00:00.000Z");
   const teacherLabels = teacherLabelMap(staffingPlan);
+  writeDictionaries(workbook, staffingPlan, teacherLabels);
 
   const classes = workbook.addWorksheet(TEACHING_CLASSES_SHEET, {
     views: [{ state: "frozen", ySplit: CLASS_HEADER_ROW }],
   });
-  styleTitle(classes, "A1:B1", "KROK 2A · SEZNAM TŘÍD");
-  classes.mergeCells("A2:B2");
+  styleTitle(classes, "A1:C1", "KROK 2A · TŘÍDY A JEJICH PROFIL");
+  classes.mergeCells("A2:C2");
   classes.getCell("A2").value =
-    "Každá třída je jeden řádek. Zápis 8A se automaticky načte jako 8.A.";
+    "Každá třída je samostatný řádek. Třídy B a D se nabídnou jako sportovní, profil ale můžete změnit.";
   classes.getCell("A2").fill = {
     type: "pattern",
     pattern: "solid",
     fgColor: { argb: COLORS.paleBlue },
   };
-  classes.mergeCells("A3:B3");
+  classes.mergeCells("A3:C3");
   classes.getCell("A3").value =
-    "Nejdřív doplňte třídy zde. Potom je na listu Výuka tříd vybíráte ze seznamu.";
+    "Profil je pouze označení. Skutečné hodinové dotace vždy vyplňujete zvlášť pro každou konkrétní třídu.";
   classes.getCell("A3").font = { italic: true, color: { argb: COLORS.muted } };
-  classes.getRow(CLASS_HEADER_ROW).values = ["Třída *", "Ročník"];
+  classes.getRow(CLASS_HEADER_ROW).values = [
+    "Třída *",
+    "Ročník",
+    "Profil třídy *",
+  ];
   styleHeader(classes, CLASS_HEADER_ROW);
-  classes.columns = [{ width: 22 }, { width: 14 }];
+  classes.columns = [{ width: 18 }, { width: 13 }, { width: 24 }];
   existingPlan.classes.forEach((schoolClass, index) => {
     const row = CLASS_FIRST_ROW + index;
     classes.getCell(row, 1).value = schoolClass.code;
     classes.getCell(row, 2).value = schoolClass.grade;
+    classes.getCell(row, 3).value =
+      PROFILE_LABELS[schoolClass.profile ?? inferredClassProfile(schoolClass.code)];
   });
-  for (let row = CLASS_FIRST_ROW; row <= LAST_ROW; row += 1) {
-    classes.getCell(row, 2).dataValidation = {
-      type: "whole",
-      operator: "between",
-      allowBlank: true,
-      formulae: [1, 13],
-      showErrorMessage: true,
-      errorTitle: "Neplatný ročník",
-      error: "Zadejte celé číslo od 1 do 13.",
-    };
-  }
+  addWholeNumberValidation(classes, 2, CLASS_FIRST_ROW, 1, 13);
+  addListValidation(
+    classes,
+    3,
+    `'${DICTIONARY_SHEET}'!$J$2:$J$${TEACHING_CLASS_PROFILES.length + 1}`,
+    CLASS_FIRST_ROW,
+  );
 
   const plan = workbook.addWorksheet(TEACHING_PLAN_SHEET, {
     views: [{ state: "frozen", ySplit: PLAN_HEADER_ROW }],
   });
-  styleTitle(plan, "A1:J1", "KROK 2B · PŘEDMĚTY, DVOJHODINY A DĚLENÍ");
+  styleTitle(plan, "A1:J1", "KROK 2B · BĚŽNÁ A DĚLENÁ VÝUKA");
   plan.mergeCells("A2:J2");
   plan.getCell("A2").value =
-    "Jeden řádek = jeden předmět v jedné třídě. Vyberte počet hodin, jejich rozložení a učitele.";
+    "Jeden řádek = jeden předmět v jedné třídě. Zde vyplňujte celou třídu nebo dvě skupiny se stejným předmětem.";
   plan.getCell("A2").fill = {
     type: "pattern",
     pattern: "solid",
@@ -200,15 +269,15 @@ export async function createTeachingPlanWorkbook(
   };
   plan.mergeCells("A3:J3");
   plan.getCell("A3").value =
-    "Příklad VV 2 h: Pouze dvojhodiny. Příklad INF dělená: Dvě skupiny + dva různí učitelé.";
+    "Výměnu ČJ/M nebo jiných dvou předmětů nepište sem — použijte samostatný list Výměny skupin.";
   plan.getCell("A3").fill = {
     type: "pattern",
     pattern: "solid",
-    fgColor: { argb: COLORS.paleYellow },
+    fgColor: { argb: COLORS.paleOrange },
   };
   plan.mergeCells("A4:J4");
   plan.getCell("A4").value =
-    "U kombinace zadejte počet dvojhodin. U samostatných hodin a čistých dvojhodin nechte tento sloupec prázdný.";
+    "Příklad VV 2 h: Pouze dvojhodiny. Příklad dělené INF: Dvě skupiny + dva různí učitelé.";
   plan.getCell("A4").font = { italic: true, color: { argb: COLORS.muted } };
   plan.getRow(PLAN_HEADER_ROW).values = [
     "Třída *",
@@ -216,7 +285,7 @@ export async function createTeachingPlanWorkbook(
     "Hodin týdně *",
     "Jak mají hodiny probíhat? *",
     "Počet dvojhodin jen u kombinace",
-    "Třída se dělí? *",
+    "Organizace *",
     "Učitel / skupina 1 *",
     "Učitel skupiny 2",
     "Náhled týdne",
@@ -236,70 +305,47 @@ export async function createTeachingPlanWorkbook(
     { width: 22 },
   ];
 
-  const dictionary = workbook.addWorksheet(DICTIONARY_SHEET, {
-    state: "veryHidden",
-  });
-  dictionary.getCell("A1").value = "Předměty";
-  STAFFING_SUBJECTS.forEach((subject, index) => {
-    dictionary.getCell(index + 2, 1).value = subject.code;
-    dictionary.getCell(index + 2, 2).value = subject.label;
-  });
-  dictionary.getCell("D1").value = "Rozložení";
-  TEACHING_SHAPES.forEach((shape, index) => {
-    dictionary.getCell(index + 2, 4).value = shape.label;
-  });
-  dictionary.getCell("F1").value = "Organizace";
-  TEACHING_ORGANIZATIONS.forEach((organization, index) => {
-    dictionary.getCell(index + 2, 6).value = organization.label;
-  });
-  dictionary.getCell("H1").value = "Učitelé";
-  [...teacherLabels.values()].forEach((label, index) => {
-    dictionary.getCell(index + 2, 8).value = label;
-  });
-
   addListValidation(
     plan,
     1,
     `'${TEACHING_CLASSES_SHEET}'!$A$${CLASS_FIRST_ROW}:$A$${LAST_ROW}`,
+    PLAN_FIRST_ROW,
   );
   addListValidation(
     plan,
     2,
     `'${DICTIONARY_SHEET}'!$A$2:$A$${STAFFING_SUBJECTS.length + 1}`,
+    PLAN_FIRST_ROW,
   );
   addListValidation(
     plan,
     4,
     `'${DICTIONARY_SHEET}'!$D$2:$D$${TEACHING_SHAPES.length + 1}`,
+    PLAN_FIRST_ROW,
   );
   addListValidation(
     plan,
     6,
-    `'${DICTIONARY_SHEET}'!$F$2:$F$${TEACHING_ORGANIZATIONS.length + 1}`,
+    `'${DICTIONARY_SHEET}'!$F$2:$F$${Object.keys(ORGANIZATION_LABELS).length + 1}`,
+    PLAN_FIRST_ROW,
   );
   const teacherLastRow = Math.max(2, staffingPlan.teachers.length + 1);
-  addListValidation(plan, 7, `'${DICTIONARY_SHEET}'!$H$2:$H$${teacherLastRow}`);
-  addListValidation(plan, 8, `'${DICTIONARY_SHEET}'!$H$2:$H$${teacherLastRow}`);
+  addListValidation(
+    plan,
+    7,
+    `'${DICTIONARY_SHEET}'!$H$2:$H$${teacherLastRow}`,
+    PLAN_FIRST_ROW,
+  );
+  addListValidation(
+    plan,
+    8,
+    `'${DICTIONARY_SHEET}'!$H$2:$H$${teacherLastRow}`,
+    PLAN_FIRST_ROW,
+  );
+  addWholeNumberValidation(plan, 3, PLAN_FIRST_ROW, 1, 20);
+  addWholeNumberValidation(plan, 5, PLAN_FIRST_ROW, 1, 10);
 
   for (let row = PLAN_FIRST_ROW; row <= LAST_ROW; row += 1) {
-    plan.getCell(row, 3).dataValidation = {
-      type: "whole",
-      operator: "between",
-      allowBlank: true,
-      formulae: [1, 20],
-      showErrorMessage: true,
-      errorTitle: "Neplatný počet hodin",
-      error: "Zadejte celé číslo od 1 do 20.",
-    };
-    plan.getCell(row, 5).dataValidation = {
-      type: "whole",
-      operator: "between",
-      allowBlank: true,
-      formulae: [1, 10],
-      showErrorMessage: true,
-      errorTitle: "Neplatný počet dvojhodin",
-      error: "Zadejte celé číslo od 1 do 10.",
-    };
     plan.getCell(row, 9).value = {
       formula: `IF(COUNTA(A${row}:H${row})=0,"",IF(D${row}="Samostatné hodiny",C${row}&"× samostatná",IF(D${row}="Pouze dvojhodiny",C${row}/2&"× dvojhodina",E${row}&"× dvojhodina + "&(C${row}-2*E${row})&"× samostatná")))`,
       result: "",
@@ -321,7 +367,10 @@ export async function createTeachingPlanWorkbook(
     plan.getCell(row, 10).font = { bold: true };
   }
 
-  existingPlan.rows.forEach((item, index) => {
+  const regularRows = existingPlan.rows.filter(
+    (item) => item.organization !== "ROTATION",
+  );
+  regularRows.forEach((item, index) => {
     const row = PLAN_FIRST_ROW + index;
     plan.getCell(row, 1).value = item.classCode;
     plan.getCell(row, 2).value = item.subjectCode;
@@ -340,22 +389,173 @@ export async function createTeachingPlanWorkbook(
         : null;
   });
 
-  const example = workbook.addWorksheet("Příklad");
-  example.columns = [
-    { width: 22 },
-    { width: 22 },
-    { width: 22 },
-    { width: 32 },
+  const rotations = workbook.addWorksheet(TEACHING_ROTATIONS_SHEET, {
+    views: [{ state: "frozen", ySplit: ROTATION_HEADER_ROW }],
+  });
+  styleTitle(rotations, "A1:J1", "KROK 2C · VÝMĚNY PŘEDMĚTŮ MEZI SKUPINAMI");
+  rotations.mergeCells("A2:J2");
+  rotations.getCell("A2").value =
+    "Jeden řádek = celá povinná výměna. Solver vždy vytvoří obě ramena a přesně prohodí předměty i učitele mezi skupinami.";
+  rotations.getCell("A2").fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: COLORS.paleBlue },
+  };
+  rotations.mergeCells("A3:J3");
+  rotations.getCell("A3").value =
+    "Příklad: 1. rameno G1 ČJ / G2 M → 2. rameno G1 M / G2 ČJ. Druhé rameno může být i odpoledne, pokud to vyžaduje dostupnost.";
+  rotations.getCell("A3").fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: COLORS.paleYellow },
+  };
+  rotations.mergeCells("A4:J4");
+  rotations.getCell("A4").value =
+    "Počet hodin znamená dotaci každého z obou předmětů pro každou skupinu. Třída tedy absolvuje dvojnásobný počet hodin.";
+  rotations.getCell("A4").font = {
+    italic: true,
+    color: { argb: COLORS.muted },
+  };
+  rotations.getRow(ROTATION_HEADER_ROW).values = [
+    "Třída *",
+    "Předmět 1 *",
+    "Učitel předmětu 1 *",
+    "Předmět 2 *",
+    "Učitel předmětu 2 *",
+    "Hodin každého předmětu pro každou skupinu *",
+    "Jak mají hodiny probíhat? *",
+    "Počet dvojhodin jen u kombinace",
+    "Náhled výměny",
+    "Kontrola",
   ];
-  example.addRows([
-    ["Třída", "Předmět", "Hodiny", "Význam"],
-    ["8.A", "VV", 2, "1× dvojhodina · celá třída"],
-    ["7.A", "INF", 1, "1× samostatná · dvě skupiny současně"],
-    ["6.A", "PC", 3, "1× dvojhodina + 1× samostatná"],
-  ]);
-  styleHeader(example, 1);
+  styleHeader(rotations, ROTATION_HEADER_ROW);
+  rotations.columns = [
+    { width: 14 },
+    { width: 17 },
+    { width: 30 },
+    { width: 17 },
+    { width: 30 },
+    { width: 24 },
+    { width: 27 },
+    { width: 20 },
+    { width: 58 },
+    { width: 24 },
+  ];
+  addListValidation(
+    rotations,
+    1,
+    `'${TEACHING_CLASSES_SHEET}'!$A$${CLASS_FIRST_ROW}:$A$${LAST_ROW}`,
+    ROTATION_FIRST_ROW,
+  );
+  addListValidation(
+    rotations,
+    2,
+    `'${DICTIONARY_SHEET}'!$A$2:$A$${STAFFING_SUBJECTS.length + 1}`,
+    ROTATION_FIRST_ROW,
+  );
+  addListValidation(
+    rotations,
+    3,
+    `'${DICTIONARY_SHEET}'!$H$2:$H$${teacherLastRow}`,
+    ROTATION_FIRST_ROW,
+  );
+  addListValidation(
+    rotations,
+    4,
+    `'${DICTIONARY_SHEET}'!$A$2:$A$${STAFFING_SUBJECTS.length + 1}`,
+    ROTATION_FIRST_ROW,
+  );
+  addListValidation(
+    rotations,
+    5,
+    `'${DICTIONARY_SHEET}'!$H$2:$H$${teacherLastRow}`,
+    ROTATION_FIRST_ROW,
+  );
+  addWholeNumberValidation(rotations, 6, ROTATION_FIRST_ROW, 1, 20);
+  addListValidation(
+    rotations,
+    7,
+    `'${DICTIONARY_SHEET}'!$D$2:$D$${TEACHING_SHAPES.length + 1}`,
+    ROTATION_FIRST_ROW,
+  );
+  addWholeNumberValidation(rotations, 8, ROTATION_FIRST_ROW, 1, 10);
 
-  return new Uint8Array(await workbook.xlsx.writeBuffer());
+  for (let row = ROTATION_FIRST_ROW; row <= LAST_ROW; row += 1) {
+    rotations.getCell(row, 9).value = {
+      formula: `IF(COUNTA(A${row}:H${row})=0,"","1. rameno: G1 "&B${row}&" / G2 "&D${row}&" → 2. rameno: G1 "&D${row}&" / G2 "&B${row})`,
+      result: "",
+    };
+    rotations.getCell(row, 10).value = {
+      formula: `IF(COUNTA(A${row}:H${row})=0,"",IF(OR(A${row}="",B${row}="",C${row}="",D${row}="",E${row}="",F${row}="",G${row}=""),"DOPLNIT",IF(B${row}=D${row},"STEJNÉ PŘEDMĚTY",IF(C${row}=E${row},"STEJNÝ UČITEL",IF(AND(G${row}="Pouze dvojhodiny",MOD(F${row},2)=1),"LICHÝ POČET",IF(AND(G${row}="Kombinace",OR(H${row}="",2*H${row}>=F${row})),"OPRAVIT KOMBINACI","SEDÍ")))))`,
+      result: "",
+    };
+    rotations.getCell(row, 9).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: COLORS.paleBlue },
+    };
+    rotations.getCell(row, 10).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: COLORS.paleGreen },
+    };
+    rotations.getCell(row, 10).font = { bold: true };
+  }
+
+  existingPlan.rows
+    .filter((item) => item.organization === "ROTATION")
+    .forEach((item, index) => {
+      const row = ROTATION_FIRST_ROW + index;
+      rotations.getCell(row, 1).value = item.classCode;
+      rotations.getCell(row, 2).value = item.subjectCode;
+      rotations.getCell(row, 3).value = teacherName(
+        item.primaryTeacherId,
+        teacherLabels,
+      );
+      rotations.getCell(row, 4).value = item.secondarySubjectCode ?? "";
+      rotations.getCell(row, 5).value = teacherName(
+        item.secondaryTeacherId,
+        teacherLabels,
+      );
+      rotations.getCell(row, 6).value = item.weeklyPeriods;
+      rotations.getCell(row, 7).value = SHAPE_LABELS[item.lessonShape];
+      rotations.getCell(row, 8).value =
+        item.lessonShape === "MIXED" ? item.doublePeriodsCount : null;
+    });
+
+  for (const worksheet of [classes, plan, rotations]) {
+    worksheet.autoFilter = {
+      from: {
+        row:
+          worksheet.name === TEACHING_CLASSES_SHEET
+            ? CLASS_HEADER_ROW
+            : PLAN_HEADER_ROW,
+        column: 1,
+      },
+      to: {
+        row:
+          worksheet.name === TEACHING_CLASSES_SHEET
+            ? CLASS_HEADER_ROW
+            : PLAN_HEADER_ROW,
+        column: worksheet.columnCount,
+      },
+    };
+    worksheet.eachRow((row, rowNumber) => {
+      if (
+        rowNumber <=
+        (worksheet.name === TEACHING_CLASSES_SHEET
+          ? CLASS_HEADER_ROW
+          : PLAN_HEADER_ROW)
+      ) {
+        return;
+      }
+      row.alignment = { vertical: "middle", wrapText: true };
+      row.height = 30;
+    });
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return new Uint8Array(buffer);
 }
 
 function cellText(cell: Cell): string {
@@ -382,14 +582,40 @@ function lessonShapeFromLabel(value: string): TeachingLessonShape | null {
   return (match?.[0] as TeachingLessonShape | undefined) ?? null;
 }
 
-function organizationFromLabel(value: string): TeachingOrganization | null {
+function organizationFromLabel(value: string): "WHOLE" | "SPLIT" | null {
   const normalized = value.trim().toLocaleLowerCase("cs-CZ");
   const match = Object.entries(ORGANIZATION_LABELS).find(
     ([code, label]) =>
       normalized === label.toLocaleLowerCase("cs-CZ") ||
       normalized === code.toLocaleLowerCase("cs-CZ"),
   );
-  return (match?.[0] as TeachingOrganization | undefined) ?? null;
+  return (match?.[0] as "WHOLE" | "SPLIT" | undefined) ?? null;
+}
+
+function classProfileFromLabel(
+  value: string,
+  code: string,
+): TeachingClassProfile {
+  const normalized = value.trim().toLocaleLowerCase("cs-CZ");
+  const match = Object.entries(PROFILE_LABELS).find(
+    ([profile, label]) =>
+      normalized === label.toLocaleLowerCase("cs-CZ") ||
+      normalized === profile.toLocaleLowerCase("cs-CZ"),
+  );
+  return (
+    (match?.[0] as TeachingClassProfile | undefined) ??
+    inferredClassProfile(code)
+  );
+}
+
+function issue(
+  issues: TeachingPlanWorkbookIssue[],
+  sheet: string,
+  row: number | null,
+  field: string | null,
+  message: string,
+): void {
+  issues.push({ severity: "ERROR", sheet, row, field, message });
 }
 
 export async function analyzeTeachingPlanWorkbook(
@@ -401,17 +627,18 @@ export async function analyzeTeachingPlanWorkbook(
   await workbook.xlsx.load(bytes as never);
   const classesSheet = workbook.getWorksheet(TEACHING_CLASSES_SHEET);
   const planSheet = workbook.getWorksheet(TEACHING_PLAN_SHEET);
+  const rotationsSheet = workbook.getWorksheet(TEACHING_ROTATIONS_SHEET);
   const issues: TeachingPlanWorkbookIssue[] = [];
   const plan = createEmptyTeachingPlan();
 
   if (!classesSheet || !planSheet) {
-    issues.push({
-      severity: "ERROR",
-      sheet: !classesSheet ? TEACHING_CLASSES_SHEET : TEACHING_PLAN_SHEET,
-      row: null,
-      field: null,
-      message: "Soubor nemá správné listy. Stáhněte novou šablonu z aplikace.",
-    });
+    issue(
+      issues,
+      !classesSheet ? TEACHING_CLASSES_SHEET : TEACHING_PLAN_SHEET,
+      null,
+      null,
+      "Soubor nemá správné listy. Stáhněte novou šablonu z aplikace.",
+    );
     return {
       valid: false,
       plan,
@@ -431,37 +658,32 @@ export async function analyzeTeachingPlanWorkbook(
   for (let row = CLASS_FIRST_ROW; row <= classRows; row += 1) {
     const rawCode = cellText(classesSheet.getCell(row, 1));
     const rawGrade = cellText(classesSheet.getCell(row, 2));
-    if (!rawCode && !rawGrade) continue;
+    const rawProfile = cellText(classesSheet.getCell(row, 3));
+    if (!rawCode && !rawGrade && !rawProfile) continue;
     const code = normalizeClassCode(rawCode);
     const grade = integerValue(rawGrade) ?? classGradeFromCode(code);
     if (!code) {
-      issues.push({
-        severity: "ERROR",
-        sheet: TEACHING_CLASSES_SHEET,
-        row,
-        field: "Třída",
-        message: "Doplňte označení třídy.",
-      });
+      issue(issues, TEACHING_CLASSES_SHEET, row, "Třída", "Doplňte označení třídy.");
       continue;
     }
     if (!Number.isInteger(grade) || grade < 1 || grade > 13) {
-      issues.push({
-        severity: "ERROR",
-        sheet: TEACHING_CLASSES_SHEET,
+      issue(
+        issues,
+        TEACHING_CLASSES_SHEET,
         row,
-        field: "Ročník",
-        message: `U třídy ${code} doplňte platný ročník od 1 do 13.`,
-      });
+        "Ročník",
+        `U třídy ${code} doplňte platný ročník od 1 do 13.`,
+      );
       continue;
     }
     if (seenClasses.has(code)) {
-      issues.push({
-        severity: "ERROR",
-        sheet: TEACHING_CLASSES_SHEET,
+      issue(
+        issues,
+        TEACHING_CLASSES_SHEET,
         row,
-        field: "Třída",
-        message: `Třída ${code} je uvedena vícekrát.`,
-      });
+        "Třída",
+        `Třída ${code} je uvedena vícekrát.`,
+      );
       continue;
     }
     seenClasses.add(code);
@@ -469,7 +691,8 @@ export async function analyzeTeachingPlanWorkbook(
       id: `teaching-class-row-${row}`,
       code,
       grade,
-    } satisfies TeachingPlanClass);
+      profile: classProfileFromLabel(rawProfile, code),
+    });
   }
 
   const teacherLabels = teacherLabelMap(staffingPlan);
@@ -479,6 +702,11 @@ export async function analyzeTeachingPlanWorkbook(
       id,
     ]),
   );
+  const resolveTeacher = (value: string): string =>
+    teacherByLabel.get(value.toLocaleLowerCase("cs-CZ")) ?? "";
+  const subjectExists = (code: string): boolean =>
+    STAFFING_SUBJECTS.some((subject) => subject.code === code);
+
   const planRows = Math.min(planSheet.actualRowCount, LAST_ROW);
   for (let row = PLAN_FIRST_ROW; row <= planRows; row += 1) {
     const values = Array.from({ length: 8 }, (_, index) =>
@@ -500,70 +728,69 @@ export async function analyzeTeachingPlanWorkbook(
     const weeklyPeriods = integerValue(rawPeriods!) ?? 0;
     const lessonShape = lessonShapeFromLabel(rawShape!);
     const organization = organizationFromLabel(rawOrganization!);
-    const primaryTeacherId =
-      teacherByLabel.get(rawPrimaryTeacher!.toLocaleLowerCase("cs-CZ")) ?? "";
-    const secondaryTeacherId =
-      teacherByLabel.get(rawSecondaryTeacher!.toLocaleLowerCase("cs-CZ")) ?? "";
+    const primaryTeacherId = resolveTeacher(rawPrimaryTeacher!);
+    const secondaryTeacherId = resolveTeacher(rawSecondaryTeacher!);
 
     if (!seenClasses.has(classCode)) {
-      issues.push({
-        severity: "ERROR",
-        sheet: TEACHING_PLAN_SHEET,
+      issue(
+        issues,
+        TEACHING_PLAN_SHEET,
         row,
-        field: "Třída",
-        message: `Třída ${rawClass || "–"} není uvedena na listu Třídy.`,
-      });
+        "Třída",
+        `Třída ${rawClass || "–"} není uvedena na listu Třídy.`,
+      );
     }
-    if (!STAFFING_SUBJECTS.some((subject) => subject.code === subjectCode)) {
-      issues.push({
-        severity: "ERROR",
-        sheet: TEACHING_PLAN_SHEET,
+    if (!subjectExists(subjectCode)) {
+      issue(
+        issues,
+        TEACHING_PLAN_SHEET,
         row,
-        field: "Předmět",
-        message: `Předmět ${rawSubject || "–"} není v seznamu.`,
-      });
+        "Předmět",
+        `Předmět ${rawSubject || "–"} není v seznamu.`,
+      );
     }
     if (!lessonShape) {
-      issues.push({
-        severity: "ERROR",
-        sheet: TEACHING_PLAN_SHEET,
+      issue(
+        issues,
+        TEACHING_PLAN_SHEET,
         row,
-        field: "Jak mají hodiny probíhat?",
-        message: "Vyberte rozložení hodin ze seznamu.",
-      });
+        "Jak mají hodiny probíhat?",
+        "Vyberte rozložení hodin ze seznamu.",
+      );
     }
     if (!organization) {
-      issues.push({
-        severity: "ERROR",
-        sheet: TEACHING_PLAN_SHEET,
+      issue(
+        issues,
+        TEACHING_PLAN_SHEET,
         row,
-        field: "Třída se dělí?",
-        message: "Vyberte celou třídu nebo dvě skupiny.",
-      });
+        "Organizace",
+        "Vyberte celou třídu nebo dvě skupiny.",
+      );
     }
     if (!primaryTeacherId) {
-      issues.push({
-        severity: "ERROR",
-        sheet: TEACHING_PLAN_SHEET,
+      issue(
+        issues,
+        TEACHING_PLAN_SHEET,
         row,
-        field: "Učitel / skupina 1",
-        message: "Vyberte učitele ze seznamu vytvořeného v Kroku 1.",
-      });
+        "Učitel / skupina 1",
+        "Vyberte učitele ze seznamu vytvořeného v Kroku 1.",
+      );
     }
     if (organization === "SPLIT" && !secondaryTeacherId) {
-      issues.push({
-        severity: "ERROR",
-        sheet: TEACHING_PLAN_SHEET,
+      issue(
+        issues,
+        TEACHING_PLAN_SHEET,
         row,
-        field: "Učitel skupiny 2",
-        message: "U dělené výuky vyberte druhého učitele.",
-      });
+        "Učitel skupiny 2",
+        "U dělené výuky vyberte druhého učitele.",
+      );
     }
 
     plan.rows.push({
       id: `teaching-row-${row}`,
       classCode,
       subjectCode,
+      secondarySubjectCode: "",
       weeklyPeriods,
       lessonShape: lessonShape ?? "SEPARATE",
       doublePeriodsCount:
@@ -575,23 +802,131 @@ export async function analyzeTeachingPlanWorkbook(
       organization: organization ?? "WHOLE",
       primaryTeacherId,
       secondaryTeacherId: organization === "SPLIT" ? secondaryTeacherId : "",
-    } satisfies TeachingPlanRow);
+    });
   }
 
-  for (const message of validateTeachingPlan(plan, staffingPlan)) {
-    if (!issues.some((issue) => issue.message === message)) {
-      issues.push({
-        severity: "ERROR",
-        sheet: TEACHING_PLAN_SHEET,
-        row: null,
-        field: null,
-        message,
+  if (rotationsSheet) {
+    const rotationRows = Math.min(rotationsSheet.actualRowCount, LAST_ROW);
+    for (let row = ROTATION_FIRST_ROW; row <= rotationRows; row += 1) {
+      const values = Array.from({ length: 8 }, (_, index) =>
+        cellText(rotationsSheet.getCell(row, index + 1)),
+      );
+      if (values.every((value) => value === "")) continue;
+      const [
+        rawClass,
+        rawSubject1,
+        rawTeacher1,
+        rawSubject2,
+        rawTeacher2,
+        rawPeriods,
+        rawShape,
+        rawDoubleCount,
+      ] = values;
+      const classCode = normalizeClassCode(rawClass!);
+      const subjectCode = rawSubject1!.trim().toLocaleUpperCase("cs-CZ");
+      const secondarySubjectCode = rawSubject2!
+        .trim()
+        .toLocaleUpperCase("cs-CZ");
+      const primaryTeacherId = resolveTeacher(rawTeacher1!);
+      const secondaryTeacherId = resolveTeacher(rawTeacher2!);
+      const weeklyPeriods = integerValue(rawPeriods!) ?? 0;
+      const lessonShape = lessonShapeFromLabel(rawShape!);
+
+      if (!seenClasses.has(classCode)) {
+        issue(
+          issues,
+          TEACHING_ROTATIONS_SHEET,
+          row,
+          "Třída",
+          `Třída ${rawClass || "–"} není uvedena na listu Třídy.`,
+        );
+      }
+      if (!subjectExists(subjectCode)) {
+        issue(
+          issues,
+          TEACHING_ROTATIONS_SHEET,
+          row,
+          "Předmět 1",
+          `Předmět ${rawSubject1 || "–"} není v seznamu.`,
+        );
+      }
+      if (!subjectExists(secondarySubjectCode)) {
+        issue(
+          issues,
+          TEACHING_ROTATIONS_SHEET,
+          row,
+          "Předmět 2",
+          `Předmět ${rawSubject2 || "–"} není v seznamu.`,
+        );
+      }
+      if (subjectCode && subjectCode === secondarySubjectCode) {
+        issue(
+          issues,
+          TEACHING_ROTATIONS_SHEET,
+          row,
+          "Předměty",
+          "Vyberte dva různé předměty.",
+        );
+      }
+      if (!primaryTeacherId || !secondaryTeacherId) {
+        issue(
+          issues,
+          TEACHING_ROTATIONS_SHEET,
+          row,
+          "Učitelé",
+          "Vyberte oba učitele ze seznamu vytvořeného v Kroku 1.",
+        );
+      }
+      if (
+        primaryTeacherId &&
+        primaryTeacherId === secondaryTeacherId
+      ) {
+        issue(
+          issues,
+          TEACHING_ROTATIONS_SHEET,
+          row,
+          "Učitelé",
+          "Dva různé předměty musí mít dva různé učitele.",
+        );
+      }
+      if (!lessonShape) {
+        issue(
+          issues,
+          TEACHING_ROTATIONS_SHEET,
+          row,
+          "Rozložení",
+          "Vyberte rozložení hodin ze seznamu.",
+        );
+      }
+
+      plan.rows.push({
+        id: `teaching-rotation-row-${row}`,
+        classCode,
+        subjectCode,
+        secondarySubjectCode,
+        weeklyPeriods,
+        lessonShape: lessonShape ?? "SEPARATE",
+        doublePeriodsCount:
+          lessonShape === "DOUBLE"
+            ? Math.floor(weeklyPeriods / 2)
+            : lessonShape === "MIXED"
+              ? (integerValue(rawDoubleCount!) ?? 0)
+              : 0,
+        organization: "ROTATION",
+        primaryTeacherId,
+        secondaryTeacherId,
       });
     }
   }
 
+  for (const message of validateTeachingPlan(plan, staffingPlan)) {
+    if (!issues.some((existingIssue) => existingIssue.message === message)) {
+      issue(issues, TEACHING_PLAN_SHEET, null, null, message);
+    }
+  }
+
   return {
-    valid: !issues.some((issue) => issue.severity === "ERROR"),
+    valid: !issues.some((workbookIssue) => workbookIssue.severity === "ERROR"),
     plan,
     issues,
     summary: {
@@ -599,18 +934,17 @@ export async function analyzeTeachingPlanWorkbook(
       subjects: plan.rows.length,
       splitSubjects: plan.rows.filter((item) => item.organization === "SPLIT")
         .length,
-      doubleBlocks: plan.rows.reduce(
-        (total, item) =>
-          total +
-          (item.lessonShape === "DOUBLE"
+      doubleBlocks: plan.rows.reduce((total, item) => {
+        const blocks =
+          item.lessonShape === "DOUBLE"
             ? item.weeklyPeriods / 2
             : item.lessonShape === "MIXED"
               ? item.doublePeriodsCount
-              : 0),
-        0,
-      ),
+              : 0;
+        return total + blocks * (item.organization === "ROTATION" ? 2 : 1);
+      }, 0),
       weeklyClassPeriods: plan.rows.reduce(
-        (total, item) => total + item.weeklyPeriods,
+        (total, item) => total + rowClassPeriods(item),
         0,
       ),
     },
@@ -618,5 +952,7 @@ export async function analyzeTeachingPlanWorkbook(
 }
 
 export function workbookRowPreview(row: TeachingPlanRow): string {
-  return `${row.classCode} · ${row.subjectCode} · ${humanBlockSummary(row)}`;
+  return row.organization === "ROTATION"
+    ? `${row.classCode} · ${rotationSummary(row)}`
+    : `${row.classCode} · ${row.subjectCode} · ${humanBlockSummary(row)}`;
 }
