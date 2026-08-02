@@ -16,6 +16,12 @@ class LessonShape(StrEnum):
     MIXED = "MIXED"
 
 
+class ClassProfile(StrEnum):
+    REGULAR = "REGULAR"
+    SPORTS = "SPORTS"
+    CUSTOM = "CUSTOM"
+
+
 class AvailabilityEntityType(StrEnum):
     TEACHER = "TEACHER"
     CLASS = "CLASS"
@@ -31,6 +37,12 @@ class AvailabilityKind(StrEnum):
 class Subject(BaseModel):
     id: str
     code: str
+
+
+class SchoolClass(BaseModel):
+    id: str
+    code: str
+    profile: ClassProfile = ClassProfile.REGULAR
 
 
 class Room(BaseModel):
@@ -62,6 +74,9 @@ class Assignment(BaseModel):
     required_room_type_id: str | None = None
     max_per_day: int | None = Field(default=None, ge=1, le=12)
     min_day_gap: int | None = Field(default=None, ge=0, le=6)
+    parallel_key: str | None = None
+    rotation_key: str | None = None
+    rotation_leg: int | None = Field(default=None, ge=1, le=2)
 
     @model_validator(mode="after")
     def validate_shape(self) -> "Assignment":
@@ -75,6 +90,14 @@ class Assignment(BaseModel):
             raise ValueError("SINGLE assignments cannot define double periods")
         if self.lesson_shape == LessonShape.DOUBLE and self.weekly_periods % 2 != 0:
             raise ValueError("DOUBLE assignments require an even weekly_periods value")
+        if self.group == TeachingGroup.WHOLE and self.parallel_key:
+            raise ValueError("WHOLE assignments cannot define a parallel_key")
+        if (self.rotation_key is None) != (self.rotation_leg is None):
+            raise ValueError("rotation_key and rotation_leg must be defined together")
+        if self.rotation_key and self.group == TeachingGroup.WHOLE:
+            raise ValueError("Rotations require GROUP_1 or GROUP_2 assignments")
+        if self.rotation_key and not self.parallel_key:
+            raise ValueError("Rotation assignments require a parallel_key")
         return self
 
     def block_durations(self) -> list[int]:
@@ -102,6 +125,7 @@ COMPACTNESS_MINIMUMS = {
     "preferred_slot_bonus": 3,
     "same_day_concentration": 50,
     "late_period": 10,
+    "rotation_spread": 75,
 }
 
 
@@ -112,6 +136,7 @@ class SolverWeights(BaseModel):
     preferred_slot_bonus: int = Field(default=3, ge=0, le=10_000)
     same_day_concentration: int = Field(default=50, ge=0, le=10_000)
     late_period: int = Field(default=10, ge=0, le=10_000)
+    rotation_spread: int = Field(default=75, ge=0, le=10_000)
 
     @model_validator(mode="after")
     def enforce_compactness_first_profile(self) -> "SolverWeights":
@@ -126,6 +151,7 @@ class SolverWeights(BaseModel):
 class SolveRequest(BaseModel):
     contract_version: str = "1.0"
     periods_per_day: list[int] = Field(default_factory=lambda: [8, 8, 8, 8, 7], min_length=1, max_length=7)
+    classes: list[SchoolClass] = Field(default_factory=list)
     subjects: list[Subject] = Field(default_factory=list)
     assignments: list[Assignment]
     rooms: list[Room] = Field(default_factory=list)
@@ -142,6 +168,10 @@ class SolveRequest(BaseModel):
             raise ValueError("Unsupported contract version")
         if any(periods < 1 or periods > 12 for periods in self.periods_per_day):
             raise ValueError("periods_per_day values must be between 1 and 12")
+
+        class_ids = [school_class.id for school_class in self.classes]
+        if len(class_ids) != len(set(class_ids)):
+            raise ValueError("Class ids must be unique")
 
         subject_ids = [subject.id for subject in self.subjects]
         if len(subject_ids) != len(set(subject_ids)):
@@ -167,6 +197,56 @@ class SolveRequest(BaseModel):
             if key in fixed_keys:
                 raise ValueError(f"Block {item.assignment_id}:{item.block_index} is fixed more than once")
             fixed_keys.add(key)
+
+        rotations: dict[str, list[Assignment]] = {}
+        for assignment in self.assignments:
+            if assignment.rotation_key:
+                rotations.setdefault(assignment.rotation_key, []).append(assignment)
+        for rotation_key, assignments in rotations.items():
+            by_leg_group = {(item.rotation_leg, item.group): item for item in assignments}
+            required_keys = {
+                (1, TeachingGroup.GROUP_1),
+                (1, TeachingGroup.GROUP_2),
+                (2, TeachingGroup.GROUP_1),
+                (2, TeachingGroup.GROUP_2),
+            }
+            if set(by_leg_group) != required_keys or len(assignments) != 4:
+                raise ValueError(
+                    f"Rotation {rotation_key} must contain exactly two groups in both legs"
+                )
+            leg_1_group_1 = by_leg_group[(1, TeachingGroup.GROUP_1)]
+            leg_1_group_2 = by_leg_group[(1, TeachingGroup.GROUP_2)]
+            leg_2_group_1 = by_leg_group[(2, TeachingGroup.GROUP_1)]
+            leg_2_group_2 = by_leg_group[(2, TeachingGroup.GROUP_2)]
+            if (
+                leg_1_group_1.subject_id != leg_2_group_2.subject_id
+                or leg_1_group_1.teacher_id != leg_2_group_2.teacher_id
+                or leg_1_group_2.subject_id != leg_2_group_1.subject_id
+                or leg_1_group_2.teacher_id != leg_2_group_1.teacher_id
+            ):
+                raise ValueError(
+                    f"Rotation {rotation_key} must swap both subjects and teachers between groups"
+                )
+            shapes = {
+                (
+                    item.weekly_periods,
+                    item.lesson_shape,
+                    item.double_periods_count,
+                )
+                for item in assignments
+            }
+            if len(shapes) != 1:
+                raise ValueError(
+                    f"All assignments in rotation {rotation_key} must have the same lesson shape"
+                )
+            if leg_1_group_1.subject_id == leg_1_group_2.subject_id:
+                raise ValueError(
+                    f"Rotation {rotation_key} must contain two different subjects"
+                )
+            if leg_1_group_1.teacher_id == leg_1_group_2.teacher_id:
+                raise ValueError(
+                    f"Rotation {rotation_key} must contain two different teachers"
+                )
         return self
 
 
