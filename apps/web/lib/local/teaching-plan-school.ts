@@ -26,10 +26,7 @@ function classSuffix(code: string): string {
   return normalized.match(/\.([A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ])$/)?.[1] ?? "";
 }
 
-function isSuffixIn(
-  code: string,
-  suffixes: readonly string[],
-): boolean {
+function isSuffixIn(code: string, suffixes: readonly string[]): boolean {
   return suffixes.includes(classSuffix(code));
 }
 
@@ -63,7 +60,9 @@ function enforceClassProfile(
   };
 }
 
-export function enforceSchoolTeachingPlanRules(plan: TeachingPlan): TeachingPlan {
+export function enforceSchoolTeachingPlanRules(
+  plan: TeachingPlan,
+): TeachingPlan {
   return {
     ...plan,
     classes: plan.classes.map(enforceClassProfile),
@@ -105,7 +104,9 @@ function allocationDifferences(
       const actualPeriods = actual.get(subjectCode) ?? 0;
       return expectedPeriods === actualPeriods
         ? []
-        : [`${subjectCode}: očekáváno ${expectedPeriods}, zadáno ${actualPeriods}`];
+        : [
+            `${subjectCode}: očekáváno ${expectedPeriods}, zadáno ${actualPeriods}`,
+          ];
     });
 }
 
