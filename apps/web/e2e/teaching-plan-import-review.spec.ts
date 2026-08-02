@@ -184,7 +184,7 @@ test("Excel is reviewed teacher-by-teacher and class-by-class before it replaces
   await expect(page.getByTestId("review-special-rules-step")).toBeVisible();
   await expect(
     page.getByRole("heading", {
-      name: "Souhlasí dělení tříd a dvojhodiny?",
+      name: "Souhlasí dělení tříd, dvojhodiny a výměny?",
     }),
   ).toBeVisible();
   await expect(page.getByText("1× dvojhodina")).toBeVisible();

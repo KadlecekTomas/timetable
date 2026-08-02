@@ -1409,6 +1409,35 @@ function TeachingRowCard({
         </div>
 
         <div>
+          <div
+            className="rounded-xl border border-primary/30 bg-primary-subtle p-4"
+            data-testid={`block-preview-${index}`}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+              Takto to uvidí algoritmus
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {validation.blockDurations.map((duration, blockIndex) => (
+                <div
+                  key={`${duration}-${blockIndex}`}
+                  className={
+                    duration === 2
+                      ? "flex h-12 min-w-36 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground"
+                      : "flex h-12 min-w-24 items-center justify-center rounded-lg border border-primary/40 bg-surface px-4 text-sm font-semibold text-primary"
+                  }
+                >
+                  {duration === 2 ? "2 hodiny v kuse" : "1 hodina"}
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-sm font-medium text-text-primary">
+              {humanBlockSummary(row)}
+              {row.organization === "ROTATION" ? " v každém rameni" : ""}
+            </p>
+          </div>
+        </div>
+
+        <div>
           <h4 className="font-semibold text-text-primary">
             3. Jak se třída organizuje?
           </h4>

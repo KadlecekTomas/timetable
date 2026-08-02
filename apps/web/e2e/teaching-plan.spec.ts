@@ -121,7 +121,7 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
   await page.getByRole("button", { name: "Uložit výuku do projektu" }).click();
   await expect(
     page.getByText(
-      "Hotovo. Uloženo 2 předmětů jako 3 výukových vazeb včetně dvojhodin a dělených skupin.",
+      "Hotovo. Uloženo 2 nastavení jako 3 výukových vazeb včetně dvojhodin, dělení a výměn předmětů.",
     ),
   ).toBeVisible();
   await screenshot(page, "05-plan-ulozeny-do-projektu.png");
