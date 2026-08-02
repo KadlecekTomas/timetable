@@ -220,8 +220,9 @@ test("Excel is reviewed teacher-by-teacher and class-by-class before it replaces
     "6.B",
   ]);
   expect(accepted.rows).toHaveLength(3);
-  expect(
+  const pendingReview = await page.evaluate(() =>
     sessionStorage.getItem("rozvrhar:teaching-plan-import-review:v1"),
-  ).toBe(null);
+  );
+  expect(pendingReview).toBe(null);
   await capture(page, "11-excel-prevzaty-do-editoru.png");
 });
