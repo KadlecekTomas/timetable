@@ -1,0 +1,34 @@
+name: Fix final rotation review selector once
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: python .github/scripts/fix-final-rotation-review-selector.py
+      - run: npx prettier --write apps/web/e2e/subject-rotation-and-sports.spec.ts apps/web/e2e/teaching-plan.spec.ts
+      - name: Commit final selectors
+        run: |
+          if git diff --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/e2e/subject-rotation-and-sports.spec.ts apps/web/e2e/teaching-plan.spec.ts
+          git commit -m "test(e2e): finalize exact rotation and split selectors"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
