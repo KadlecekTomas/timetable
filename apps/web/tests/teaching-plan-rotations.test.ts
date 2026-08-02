@@ -28,9 +28,7 @@ function staffingPlan(): StaffingPlan {
         lastName: "Učitel",
         targetWeeklyLoad: 2,
         unavailableDays: [],
-        subjectLoads: [
-          { id: "load-cj", subjectCode: "CJ", weeklyPeriods: 2 },
-        ],
+        subjectLoads: [{ id: "load-cj", subjectCode: "CJ", weeklyPeriods: 2 }],
       },
       {
         id: "teacher-m",
@@ -38,9 +36,7 @@ function staffingPlan(): StaffingPlan {
         lastName: "Učitel",
         targetWeeklyLoad: 2,
         unavailableDays: [],
-        subjectLoads: [
-          { id: "load-m", subjectCode: "M", weeklyPeriods: 2 },
-        ],
+        subjectLoads: [{ id: "load-m", subjectCode: "M", weeklyPeriods: 2 }],
       },
     ],
   };

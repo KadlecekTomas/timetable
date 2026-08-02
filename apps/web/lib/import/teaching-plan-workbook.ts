@@ -245,7 +245,9 @@ export async function createTeachingPlanWorkbook(
     classes.getCell(row, 1).value = schoolClass.code;
     classes.getCell(row, 2).value = schoolClass.grade;
     classes.getCell(row, 3).value =
-      PROFILE_LABELS[schoolClass.profile ?? inferredClassProfile(schoolClass.code)];
+      PROFILE_LABELS[
+        schoolClass.profile ?? inferredClassProfile(schoolClass.code)
+      ];
   });
   addWholeNumberValidation(classes, 2, CLASS_FIRST_ROW, 1, 13);
   addListValidation(
@@ -663,7 +665,13 @@ export async function analyzeTeachingPlanWorkbook(
     const code = normalizeClassCode(rawCode);
     const grade = integerValue(rawGrade) ?? classGradeFromCode(code);
     if (!code) {
-      issue(issues, TEACHING_CLASSES_SHEET, row, "Třída", "Doplňte označení třídy.");
+      issue(
+        issues,
+        TEACHING_CLASSES_SHEET,
+        row,
+        "Třída",
+        "Doplňte označení třídy.",
+      );
       continue;
     }
     if (!Number.isInteger(grade) || grade < 1 || grade > 13) {
@@ -877,10 +885,7 @@ export async function analyzeTeachingPlanWorkbook(
           "Vyberte oba učitele ze seznamu vytvořeného v Kroku 1.",
         );
       }
-      if (
-        primaryTeacherId &&
-        primaryTeacherId === secondaryTeacherId
-      ) {
+      if (primaryTeacherId && primaryTeacherId === secondaryTeacherId) {
         issue(
           issues,
           TEACHING_ROTATIONS_SHEET,
