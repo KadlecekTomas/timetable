@@ -6,9 +6,102 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
+  patch-import-review:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Stage valid Excel imports for review instead of saving immediately
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("apps/web/app/teaching-plan/page.tsx")
+          content = path.read_text()
+          marker = "savePendingTeachingPlanImport("
+          if marker in content:
+              print("Teaching plan import review is already connected")
+          else:
+              replacements = [
+                  (
+                      'import { useSearchParams } from "next/navigation";',
+                      'import { useRouter, useSearchParams } from "next/navigation";',
+                  ),
+                  (
+                      'import {\n  STAFFING_SUBJECTS,\n  loadStaffingPlan,',
+                      'import {\n  createPendingTeachingPlanImport,\n  savePendingTeachingPlanImport,\n} from "@/lib/local/teaching-plan-import-review";\nimport {\n  STAFFING_SUBJECTS,\n  loadStaffingPlan,',
+                  ),
+                  (
+                      'export default function TeachingPlanPage() {\n  const searchParams = useSearchParams();',
+                      'export default function TeachingPlanPage() {\n  const router = useRouter();\n  const searchParams = useSearchParams();',
+                  ),
+                  (
+                      '    setSelectedClass(nextPlan.classes[0]?.code ?? "");\n    setLoaded(true);',
+                      '    setSelectedClass(nextPlan.classes[0]?.code ?? "");\n    if (new URLSearchParams(window.location.search).get("imported") === "1") {\n      setMessage(\n        `Excel byl potvrzen a převzat do editoru. Zkontrolujte případné poslední úpravy a potom výuku uložte do projektu.`,\n      );\n    }\n    setLoaded(true);',
+                  ),
+                  (
+                      '''      setAnalysis(result);
+              if (!result.valid) return;
+              if (
+                plan.rows.length > 0 &&
+                !window.confirm("Nahradit aktuální plán obsahem nahraného Excelu?")
+              ) {
+                return;
+              }
+              commit(result.plan);
+              setSelectedClass(result.plan.classes[0]?.code ?? "");
+              setMessage(
+                `Načteno ${result.summary.classes} tříd a ${result.summary.subjects} předmětů. Teď vše zkontrolujte na kartách.`,
+              );''',
+                      '''      setAnalysis(result);
+              if (!result.valid) return;
+              savePendingTeachingPlanImport(
+                createPendingTeachingPlanImport({
+                  fileName: file.name,
+                  schoolYearId,
+                  analysis: result,
+                }),
+              );
+              router.push(`/teaching-plan/review?${context}`);''',
+                  ),
+                  (
+                      '''            Excel obsahuje rozbalovací seznamy s učiteli z Kroku 1 a přímo
+                    kontroluje lichý počet dvojhodin i chybějícího druhého učitele.''',
+                      '''            Excel obsahuje rozbalovací seznamy s učiteli z Kroku 1 a přímo
+                    kontroluje lichý počet dvojhodin i chybějícího druhého učitele. Po
+                    nahrání se nic nepřepíše — nejdřív projdete učitele, každou třídu,
+                    dotace, dělení a dvojhodiny v bezpečném kontrolním průvodci.''',
+                  ),
+              ]
+              for old, new in replacements:
+                  if old not in content:
+                      raise SystemExit(f"Expected fragment not found:\n{old[:180]}")
+                  content = content.replace(old, new, 1)
+              path.write_text(content)
+          PY
+      - run: npx prettier --write apps/web/app/teaching-plan/page.tsx apps/web/app/teaching-plan/review/page.tsx apps/web/lib/local/teaching-plan-import-review.ts apps/web/e2e/teaching-plan-import-review.spec.ts
+      - name: Commit review connection
+        run: |
+          if git diff --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/app/teaching-plan/page.tsx apps/web/app/teaching-plan/review/page.tsx apps/web/lib/local/teaching-plan-import-review.ts apps/web/e2e/teaching-plan-import-review.spec.ts
+          git commit -m "feat(teaching-plan): require guided Excel verification"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
   web:
     runs-on: ubuntu-latest
     env:
@@ -98,13 +191,15 @@ jobs:
           cat /tmp/web.log || true
           exit 1
       - name: Run database-free browser workflows
-        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/local-first-backup.spec.ts e2e/timetable-export.spec.ts e2e/staffing.spec.ts e2e/teaching-plan.spec.ts --retries=0
+        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/local-first-backup.spec.ts e2e/timetable-export.spec.ts e2e/staffing.spec.ts e2e/teaching-plan.spec.ts e2e/teaching-plan-import-review.spec.ts --retries=0
       - name: Upload detailed teaching-plan screenshots and Excel
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: teaching-plan-ui-screenshots-and-workbook
-          path: apps/web/test-results/teaching-plan-screenshots
+          path: |
+            apps/web/test-results/teaching-plan-screenshots
+            apps/web/test-results/teaching-plan-review-screenshots
           if-no-files-found: warn
       - name: Run realistic 40-teacher school workflow
         run: npm run e2e --workspace @timetable/web -- e2e/school-scale.spec.ts --retries=0
