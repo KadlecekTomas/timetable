@@ -42,9 +42,9 @@ const staffing = {
       id: "teacher-tv",
       firstName: "Sportovní",
       lastName: "Učitel",
-      targetWeeklyLoad: 8,
+      targetWeeklyLoad: 4,
       unavailableDays: [],
-      subjectLoads: [{ id: "load-tv", subjectCode: "TV", weeklyPeriods: 8 }],
+      subjectLoads: [{ id: "load-tv", subjectCode: "TV", weeklyPeriods: 4 }],
     },
   ],
 };
@@ -88,7 +88,7 @@ const plan = {
       classCode: "6.A",
       subjectCode: "TV",
       secondarySubjectCode: "",
-      weeklyPeriods: 4,
+      weeklyPeriods: 2,
       lessonShape: "SEPARATE",
       doublePeriodsCount: 0,
       organization: "WHOLE",
@@ -114,7 +114,7 @@ const plan = {
       classCode: "6.B",
       subjectCode: "TV",
       secondarySubjectCode: "",
-      weeklyPeriods: 4,
+      weeklyPeriods: 2,
       lessonShape: "SEPARATE",
       doublePeriodsCount: 0,
       organization: "WHOLE",
@@ -203,7 +203,7 @@ test("sports B class keeps A allocation and Czech-Math groups swap atomically", 
   await page.getByRole("button", { name: /^6\.B/ }).first().click();
   await expect(page.getByLabel("Profil třídy 6.B")).toHaveValue("SPORTS");
   await expect(page.getByText("3 / 3 h")).toHaveCount(2);
-  await expect(page.getByText("8 / 8 h")).toHaveCount(1);
+  await expect(page.getByText("4 / 4 h")).toHaveCount(1);
   await expect(page.getByText("Výuka tříd je připravená")).toBeVisible();
   await capture(page, "12-stejna-dotace-a-atomicka-rotace.png");
 
@@ -244,10 +244,10 @@ test("sports B class keeps A allocation and Czech-Math groups swap atomically", 
     new Map([
       ["6.A:CJ", 1],
       ["6.A:M", 1],
-      ["6.A:TV", 4],
+      ["6.A:TV", 2],
       ["6.B:CJ", 1],
       ["6.B:M", 1],
-      ["6.B:TV", 4],
+      ["6.B:TV", 2],
     ]),
   );
 
