@@ -2,9 +2,9 @@ import type { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 360;
+export const maxDuration = 300;
 
-const MAX_SOLVER_REQUEST_MS = 330_000;
+const MAX_SOLVER_REQUEST_MS = 290_000;
 
 type RouteContext = {
   params: Promise<{ path: string[] }>;
