@@ -85,14 +85,14 @@ export interface TeachingPlanClass {
   id: string;
   code: string;
   grade: number;
-  profile: TeachingClassProfile;
+  profile?: TeachingClassProfile;
 }
 
 export interface TeachingPlanRow {
   id: string;
   classCode: string;
   subjectCode: string;
-  secondarySubjectCode: string;
+  secondarySubjectCode?: string;
   weeklyPeriods: number;
   lessonShape: TeachingLessonShape;
   doublePeriodsCount: number;

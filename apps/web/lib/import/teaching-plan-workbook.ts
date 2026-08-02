@@ -38,6 +38,7 @@ const SHAPE_LABELS: Record<TeachingLessonShape, string> = {
 const ORGANIZATION_LABELS: Record<TeachingOrganization, string> = {
   WHOLE: "Celá třída",
   SPLIT: "Dvě skupiny",
+  ROTATION: "Výměna dvou předmětů",
 };
 
 const COLORS = {
