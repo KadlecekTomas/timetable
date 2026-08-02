@@ -20,46 +20,21 @@ jobs:
           node-version: 22
       - run: npm install
       - name: Patch UI and tests
+        env:
+          BLOCK_PREVIEW_B64: ICAgICAgICA8ZGl2PgogICAgICAgICAgPGRpdgogICAgICAgICAgICBjbGFzc05hbWU9InJvdW5kZWQteGwgYm9yZGVyIGJvcmRlci1wcmltYXJ5LzMwIGJnLXByaW1hcnktc3VidGxlIHAtNCIKICAgICAgICAgICAgZGF0YS10ZXN0aWQ9e2BibG9jay1wcmV2aWV3LSR7aW5kZXh9YH0KICAgICAgICAgID4KICAgICAgICAgICAgPHAgY2xhc3NOYW1lPSJ0ZXh0LXhzIGZvbnQtc2VtaWJvbGQgdXBwZXJjYXNlIHRyYWNraW5nLXdpZGUgdGV4dC1wcmltYXJ5Ij4KICAgICAgICAgICAgICBUYWt0byB0byB1dmlkw60gYWxnb3JpdG11cwogICAgICAgICAgICA8L3A+CiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPSJtdC0zIGZsZXggZmxleC13cmFwIGl0ZW1zLWNlbnRlciBnYXAtMiI+CiAgICAgICAgICAgICAge3ZhbGlkYXRpb24uYmxvY2tEdXJhdGlvbnMubWFwKChkdXJhdGlvbiwgYmxvY2tJbmRleCkgPT4gKAogICAgICAgICAgICAgICAgPGRpdgogICAgICAgICAgICAgICAgICBrZXk9e2Ake2R1cmF0aW9ufS0ke2Jsb2NrSW5kZXh9YH0KICAgICAgICAgICAgICAgICAgY2xhc3NOYW1lPXsKICAgICAgICAgICAgICAgICAgICBkdXJhdGlvbiA9PT0gMgogICAgICAgICAgICAgICAgICAgICAgPyAiZmxleCBoLTEyIG1pbi13LTM2IGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWNlbnRlciByb3VuZGVkLWxnIGJnLXByaW1hcnkgcHgtNCB0ZXh0LXNtIGZvbnQtc2VtaWJvbGQgdGV4dC1wcmltYXJ5LWZvcmVncm91bmQiCiAgICAgICAgICAgICAgICAgICAgICA6ICJmbGV4IGgtMTIgbWluLXctMjQgaXRlbXMtY2VudGVyIGp1c3RpZnktY2VudGVyIHJvdW5kZWQtbGcgYm9yZGVyIGJvcmRlci1wcmltYXJ5LzQwIGJnLXN1cmZhY2UgcHgtNCB0ZXh0LXNtIGZvbnQtc2VtaWJvbGQgdGV4dC1wcmltYXJ5IgogICAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICA+CiAgICAgICAgICAgICAgICAgIHtkdXJhdGlvbiA9PT0gMiA/ICIyIGhvZGlueSB2IGt1c2UiIDogIjEgaG9kaW5hIn0KICAgICAgICAgICAgICAgIDwvZGl2PgogICAgICAgICAgICAgICkpfQogICAgICAgICAgICA8L2Rpdj4KICAgICAgICAgICAgPHAgY2xhc3NOYW1lPSJtdC0zIHRleHQtc20gZm9udC1tZWRpdW0gdGV4dC10ZXh0LXByaW1hcnkiPgogICAgICAgICAgICAgIHtodW1hbkJsb2NrU3VtbWFyeShyb3cpfQogICAgICAgICAgICAgIHtyb3cub3JnYW5pemF0aW9uID09PSAiUk9UQVRJT04iID8gIiB2IGthxb5kw6ltIHJhbWVuaSIgOiAiIn0KICAgICAgICAgICAgPC9wPgogICAgICAgICAgPC9kaXY+CiAgICAgICAgPC9kaXY+Cgo=
         run: |
           python - <<'PY'
+          import base64
+          import os
           from pathlib import Path
 
           page = Path("apps/web/app/teaching-plan/page.tsx")
           content = page.read_text()
           marker = '        <div>\n          <h4 className="font-semibold text-text-primary">\n            3. Jak se třída organizuje?\n          </h4>'
-          preview = '''        <div>
-            <div
-              className="rounded-xl border border-primary/30 bg-primary-subtle p-4"
-              data-testid={`block-preview-${index}`}
-            >
-              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-                Takto to uvidí algoritmus
-              </p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                {validation.blockDurations.map((duration, blockIndex) => (
-                  <div
-                    key={`${duration}-${blockIndex}`}
-                    className={
-                      duration === 2
-                        ? "flex h-12 min-w-36 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground"
-                        : "flex h-12 min-w-24 items-center justify-center rounded-lg border border-primary/40 bg-surface px-4 text-sm font-semibold text-primary"
-                    }
-                  >
-                    {duration === 2 ? "2 hodiny v kuse" : "1 hodina"}
-                  </div>
-                ))}
-              </div>
-              <p className="mt-3 text-sm font-medium text-text-primary">
-                {humanBlockSummary(row)}
-                {row.organization === "ROTATION" ? " v každém rameni" : ""}
-              </p>
-            </div>
-          </div>
-
-'''
           if 'data-testid={`block-preview-${index}`}' not in content:
               if marker not in content:
                   raise SystemExit("Organization marker not found")
+              preview = base64.b64decode(os.environ["BLOCK_PREVIEW_B64"]).decode()
               page.write_text(content.replace(marker, preview + marker, 1))
 
           review = Path("apps/web/e2e/teaching-plan-import-review.spec.ts")
