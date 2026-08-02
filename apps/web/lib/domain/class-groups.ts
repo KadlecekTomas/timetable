@@ -19,6 +19,16 @@ export function lessonClassIds(lesson: ScheduledLesson): string[] {
   ];
 }
 
+function parallelKey(assignment: SnapshotAssignment): string {
+  if (assignment.parallel_key) return assignment.parallel_key;
+
+  const normalizedId = assignment.id.toLocaleLowerCase("cs-CZ");
+  if (normalizedId.includes("-rot-") || normalizedId.includes("-rotation-")) {
+    return `rotation-id:${normalizedId.replace(/-(g1|g2)$/i, "")}`;
+  }
+  return `subject:${assignment.subject_id}`;
+}
+
 export function parallelAssignmentPairs(
   assignments: SnapshotAssignment[],
 ): Array<[SnapshotAssignment, SnapshotAssignment]> {
@@ -29,7 +39,7 @@ export function parallelAssignmentPairs(
 
   for (const assignment of assignments) {
     if (assignment.group === "WHOLE") continue;
-    const key = `${assignmentClassIds(assignment).sort().join("|")}::${assignment.subject_id}`;
+    const key = `${assignmentClassIds(assignment).sort().join("|")}::${parallelKey(assignment)}`;
     const groups = grouped.get(key) ?? {};
     const current = groups[assignment.group] ?? [];
     groups[assignment.group] = [...current, assignment];
@@ -49,6 +59,50 @@ export function parallelAssignmentPairs(
     }
   }
   return pairs;
+}
+
+export function rotationAssignmentLegs(
+  assignments: SnapshotAssignment[],
+): Array<{
+  rotationKey: string;
+  leg1: [SnapshotAssignment, SnapshotAssignment];
+  leg2: [SnapshotAssignment, SnapshotAssignment];
+}> {
+  const rotations = new Map<
+    string,
+    Partial<Record<1 | 2, [SnapshotAssignment, SnapshotAssignment]>>
+  >();
+
+  for (const pair of parallelAssignmentPairs(assignments)) {
+    const [left, right] = pair;
+    if (
+      !left.rotation_key ||
+      left.rotation_key !== right.rotation_key ||
+      left.rotation_leg == null ||
+      left.rotation_leg !== right.rotation_leg
+    ) {
+      continue;
+    }
+    const leg = left.rotation_leg as 1 | 2;
+    const current = rotations.get(left.rotation_key) ?? {};
+    current[leg] = pair;
+    rotations.set(left.rotation_key, current);
+  }
+
+  return [...rotations.entries()]
+    .filter((entry): entry is [
+      string,
+      {
+        1: [SnapshotAssignment, SnapshotAssignment];
+        2: [SnapshotAssignment, SnapshotAssignment];
+      },
+    ] => Boolean(entry[1][1] && entry[1][2]))
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([rotationKey, legs]) => ({
+      rotationKey,
+      leg1: legs[1],
+      leg2: legs[2],
+    }));
 }
 
 export function classRequiredWeeklyPeriods(
