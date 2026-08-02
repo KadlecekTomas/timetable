@@ -192,6 +192,7 @@ test("sports B class keeps A allocation and Czech-Math groups swap atomically", 
   await page
     .getByRole("button", { name: "Uložit učitele do projektu" })
     .click();
+  await expect(page.getByText(/Hotovo\. Uloženo 3 učitelů/)).toBeVisible();
 
   await page.goto("/teaching-plan?schoolYearId=local-school-year");
   await page.evaluate((value) => {
@@ -207,6 +208,12 @@ test("sports B class keeps A allocation and Czech-Math groups swap atomically", 
   await capture(page, "12-stejna-dotace-a-atomicka-rotace.png");
 
   await page.getByRole("button", { name: "Uložit výuku do projektu" }).click();
+  await expect(
+    page.getByText(
+      "Hotovo. Uloženo 5 nastavení jako 8 výukových vazeb včetně dvojhodin, dělení a výměn předmětů.",
+    ),
+  ).toBeVisible();
+
   const stored = await readProject(page);
   expect(
     stored.classes.map((schoolClass) => [
