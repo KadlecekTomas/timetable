@@ -1551,12 +1551,12 @@ function TeachingRowCard({
                 value={row.secondaryTeacherId}
                 teachers={sortedTeachers(
                   row.organization === "ROTATION"
-                    ? row.secondarySubjectCode
+                    ? (row.secondarySubjectCode ?? "")
                     : row.subjectCode,
                 )}
                 subjectCode={
                   row.organization === "ROTATION"
-                    ? row.secondarySubjectCode
+                    ? (row.secondarySubjectCode ?? "")
                     : row.subjectCode
                 }
                 onChange={(value) =>
