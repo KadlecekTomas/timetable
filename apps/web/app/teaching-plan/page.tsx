@@ -619,7 +619,7 @@ export default function TeachingPlanPage() {
           {
             ...common,
             assignmentCode: `${leg1}-G2`,
-            subjectId: subjectIdByCode.get(row.secondarySubjectCode),
+            subjectId: subjectIdByCode.get(row.secondarySubjectCode ?? ""),
             teacherId: secondaryTeacherId,
             group: "GROUP_2",
             parallelKey: leg1,
@@ -629,7 +629,7 @@ export default function TeachingPlanPage() {
           {
             ...common,
             assignmentCode: `${leg2}-G1`,
-            subjectId: subjectIdByCode.get(row.secondarySubjectCode),
+            subjectId: subjectIdByCode.get(row.secondarySubjectCode ?? ""),
             teacherId: secondaryTeacherId,
             group: "GROUP_1",
             parallelKey: leg2,
