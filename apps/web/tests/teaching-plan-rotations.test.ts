@@ -19,7 +19,7 @@ import {
   validateTeachingPlan,
   type TeachingPlan,
   type TeachingRotationPlacement,
-} from "../lib/local/teaching-plan";
+} from "../lib/local/teaching-plan-school";
 
 function staffingPlan(): StaffingPlan {
   return {
@@ -61,10 +61,7 @@ function rotationPlan(
     ...createTeachingPlanClass("6.A"),
     profile: "REGULAR" as const,
   };
-  const sportsClass = {
-    ...createTeachingPlanClass("6.B"),
-    profile: "SPORTS" as const,
-  };
+  const sportsClass = createTeachingPlanClass("6.B");
   const rows = [
     {
       ...createTeachingPlanRow("6.A", "CJ"),
@@ -88,7 +85,7 @@ function rotationPlan(
       ...createTeachingPlanRow("6.B", "CJ"),
       id: "rotation-cj-m",
       secondarySubjectCode: "M",
-      weeklyPeriods: 1,
+      weeklyPeriods: 4,
       organization: "ROTATION" as const,
       rotationPlacement,
       primaryTeacherId: "teacher-cj",
@@ -97,7 +94,7 @@ function rotationPlan(
     {
       ...createTeachingPlanRow("6.B", "TV"),
       id: "6b-tv",
-      weeklyPeriods: 4,
+      weeklyPeriods: 2,
       primaryTeacherId: "teacher-tv",
     },
   ];
@@ -109,25 +106,20 @@ function rotationPlan(
   };
 }
 
-test("B and D classes are suggested as sports but remain explicit profiles", () => {
+test("B and D classes are enforced as school sports profiles", () => {
   assert.equal(inferredClassProfile("6.B"), "SPORTS");
   assert.equal(inferredClassProfile("8.D"), "SPORTS");
   assert.equal(inferredClassProfile("7.A"), "REGULAR");
   assert.equal(createTeachingPlanClass("6.B").profile, "SPORTS");
-
-  const explicitRegularB = {
-    ...createTeachingPlanClass("7.B"),
-    profile: "REGULAR" as const,
-  };
-  assert.equal(explicitRegularB.profile, "REGULAR");
+  assert.equal(createTeachingPlanClass("7.D").profile, "SPORTS");
 });
 
-test("subject rotation counts both legs and class allocations stay independent", () => {
+test("subject rotation counts both legs while class allocations stay equal", () => {
   const plan = rotationPlan("ADJACENT");
   const rotation = plan.rows.find((row) => row.organization === "ROTATION")!;
-  assert.equal(rowClassPeriods(rotation), 2);
-  assert.equal(rowTeacherPeriods(rotation, "teacher-cj"), 2);
-  assert.equal(rowTeacherPeriods(rotation, "teacher-m"), 2);
+  assert.equal(rowClassPeriods(rotation), 8);
+  assert.equal(rowTeacherPeriods(rotation, "teacher-cj"), 8);
+  assert.equal(rowTeacherPeriods(rotation, "teacher-m"), 8);
   assert.equal(
     rotationPlacementLabel(rotation.rotationPlacement),
     "Hned po sobě",
@@ -142,11 +134,11 @@ test("subject rotation counts both legs and class allocations stay independent",
     ]),
   );
   assert.equal(totals.get("6.A"), 10);
-  assert.equal(totals.get("6.B"), 6);
+  assert.equal(totals.get("6.B"), 10);
   assert.deepEqual(validateTeachingPlan(plan, staffingPlan()), []);
 });
 
-test("Excel roundtrip preserves sport profile, explicit allocations and rotation timing", async () => {
+test("Excel roundtrip preserves sport profile, equal allocations and rotation timing", async () => {
   const source = rotationPlan("FLEXIBLE");
   const bytes = await createTeachingPlanWorkbook(staffingPlan(), source);
   const analysis = await analyzeTeachingPlanWorkbook(bytes, staffingPlan());
@@ -171,7 +163,7 @@ test("Excel roundtrip preserves sport profile, explicit allocations and rotation
   assert.equal(rotation.primaryTeacherId, "teacher-cj");
   assert.equal(rotation.secondaryTeacherId, "teacher-m");
   assert.equal(rotation.rotationPlacement, "FLEXIBLE");
-  assert.equal(analysis.summary.weeklyClassPeriods, 16);
+  assert.equal(analysis.summary.weeklyClassPeriods, 20);
 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(bytes as never);

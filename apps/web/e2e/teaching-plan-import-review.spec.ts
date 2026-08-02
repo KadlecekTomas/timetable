@@ -31,10 +31,10 @@ function staffingPlan(): StaffingPlan {
         id: "teacher-kad",
         firstName: "Tomáš",
         lastName: "Kadleček",
-        targetWeeklyLoad: 4,
+        targetWeeklyLoad: 6,
         unavailableDays: [],
         subjectLoads: [
-          { id: "kad-vv", subjectCode: "VV", weeklyPeriods: 2 },
+          { id: "kad-vv", subjectCode: "VV", weeklyPeriods: 4 },
           { id: "kad-inf", subjectCode: "INF", weeklyPeriods: 2 },
         ],
       },
@@ -80,6 +80,17 @@ function importedPlan(): TeachingPlan {
         organization: "SPLIT",
         primaryTeacherId: "teacher-kad",
         secondaryTeacherId: "teacher-vas",
+      },
+      {
+        id: "row-6b-vv",
+        classCode: "6.B",
+        subjectCode: "VV",
+        weeklyPeriods: 2,
+        lessonShape: "DOUBLE",
+        doublePeriodsCount: 1,
+        organization: "WHOLE",
+        primaryTeacherId: "teacher-kad",
+        secondaryTeacherId: "",
       },
       {
         id: "row-6b-inf",
@@ -158,7 +169,7 @@ test("Excel is reviewed teacher-by-teacher and class-by-class before it replaces
     page.getByRole("heading", { name: "Sedí údaje z Excelu?" }),
   ).toBeVisible();
   await expect(page.getByTestId("review-teachers-step")).toBeVisible();
-  await expect(page.getByText("4 / 4 h")).toBeVisible();
+  await expect(page.getByText("6 / 6 h")).toBeVisible();
   await expect(page.getByText("2 / 2 h")).toBeVisible();
 
   const untouchedBeforeReview = await page.evaluate(() =>
@@ -177,8 +188,9 @@ test("Excel is reviewed teacher-by-teacher and class-by-class before it replaces
 
   await page.getByRole("button", { name: "6.A souhlasí" }).click();
   await expect(page.getByRole("heading", { name: "6.B" })).toBeVisible();
-  await expect(page.getByText("1 hodin")).toBeVisible();
-  await capture(page, "08-kontrola-dalsi-tridy-6b.png");
+  await expect(page.getByText("Sportovní třída")).toBeVisible();
+  await expect(page.getByText("3 hodin")).toBeVisible();
+  await capture(page, "08-kontrola-stejne-dotace-sportovni-6b.png");
 
   await page.getByRole("button", { name: "6.B souhlasí" }).click();
   await expect(page.getByTestId("review-special-rules-step")).toBeVisible();
@@ -187,7 +199,7 @@ test("Excel is reviewed teacher-by-teacher and class-by-class before it replaces
       name: "Souhlasí dělení tříd, dvojhodiny a výměny?",
     }),
   ).toBeVisible();
-  await expect(page.getByText("1× dvojhodina")).toBeVisible();
+  await expect(page.getByText("1× dvojhodina")).toHaveCount(2);
   await expect(page.getByText("Dvě skupiny", { exact: true })).toHaveCount(2);
   await capture(page, "09-kontrola-deleni-a-dvojhodin.png");
 
@@ -222,7 +234,7 @@ test("Excel is reviewed teacher-by-teacher and class-by-class before it replaces
     "6.A",
     "6.B",
   ]);
-  expect(accepted.rows).toHaveLength(3);
+  expect(accepted.rows).toHaveLength(4);
   const pendingReview = await page.evaluate(() =>
     sessionStorage.getItem("rozvrhar:teaching-plan-import-review:v1"),
   );
