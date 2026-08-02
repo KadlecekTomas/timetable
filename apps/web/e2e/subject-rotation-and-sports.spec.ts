@@ -26,25 +26,25 @@ const staffing = {
       id: "teacher-cj",
       firstName: "Český",
       lastName: "Učitel",
-      targetWeeklyLoad: 6,
+      targetWeeklyLoad: 12,
       unavailableDays: [],
-      subjectLoads: [{ id: "load-cj", subjectCode: "CJ", weeklyPeriods: 6 }],
+      subjectLoads: [{ id: "load-cj", subjectCode: "CJ", weeklyPeriods: 12 }],
     },
     {
       id: "teacher-m",
       firstName: "Matematický",
       lastName: "Učitel",
-      targetWeeklyLoad: 6,
+      targetWeeklyLoad: 12,
       unavailableDays: [],
-      subjectLoads: [{ id: "load-m", subjectCode: "M", weeklyPeriods: 6 }],
+      subjectLoads: [{ id: "load-m", subjectCode: "M", weeklyPeriods: 12 }],
     },
     {
       id: "teacher-tv",
       firstName: "Sportovní",
       lastName: "Učitel",
-      targetWeeklyLoad: 6,
+      targetWeeklyLoad: 4,
       unavailableDays: [],
-      subjectLoads: [{ id: "load-tv", subjectCode: "TV", weeklyPeriods: 6 }],
+      subjectLoads: [{ id: "load-tv", subjectCode: "TV", weeklyPeriods: 4 }],
     },
   ],
 };
@@ -101,7 +101,7 @@ const plan = {
       classCode: "6.B",
       subjectCode: "CJ",
       secondarySubjectCode: "M",
-      weeklyPeriods: 1,
+      weeklyPeriods: 4,
       lessonShape: "SEPARATE",
       doublePeriodsCount: 0,
       organization: "ROTATION",
@@ -114,7 +114,7 @@ const plan = {
       classCode: "6.B",
       subjectCode: "TV",
       secondarySubjectCode: "",
-      weeklyPeriods: 4,
+      weeklyPeriods: 2,
       lessonShape: "SEPARATE",
       doublePeriodsCount: 0,
       organization: "WHOLE",
@@ -181,7 +181,7 @@ async function readProject(page: Page) {
   );
 }
 
-test("sports class keeps its own allocation and Czech-Math groups swap atomically", async ({
+test("sports class keeps the regular allocation and Czech-Math groups swap atomically", async ({
   page,
 }) => {
   test.setTimeout(180_000);
@@ -233,7 +233,8 @@ test("sports class keeps its own allocation and Czech-Math groups swap atomicall
   await expect(page.getByTestId("rotation-preview-0")).toContainText(
     "2. rameno – prohozeno",
   );
-  await expect(page.getByText("6 / 6 h")).toHaveCount(3);
+  await expect(page.getByText("12 / 12 h")).toHaveCount(2);
+  await expect(page.getByText("4 / 4 h")).toHaveCount(1);
   await expect(page.getByText("Výuka tříd je připravená")).toBeVisible();
   await capture(page, "12-bezna-6a-sportovni-6b-a-vymena-cj-m.png");
 
@@ -274,7 +275,9 @@ test("sports class keeps its own allocation and Czech-Math groups swap atomicall
   expect(allocation.get("6.A:CJ")).toBe(4);
   expect(allocation.get("6.A:M")).toBe(4);
   expect(allocation.get("6.A:TV")).toBe(2);
-  expect(allocation.get("6.B:TV")).toBe(4);
+  expect(allocation.get("6.B:CJ")).toBe(4);
+  expect(allocation.get("6.B:M")).toBe(4);
+  expect(allocation.get("6.B:TV")).toBe(2);
 
   const rotationAssignments = stored.assignments.filter(
     (assignment) => assignment.rotationKey,
@@ -381,7 +384,8 @@ test("sports class keeps its own allocation and Czech-Math groups swap atomicall
   await download.saveAs(workbookPath);
   await page.getByLabel("Nahrát vyplněný Excel").setInputFiles(workbookPath);
   await expect(page).toHaveURL(/\/teaching-plan\/review\?/);
-  await expect(page.getByText("6 / 6 h")).toHaveCount(3);
+  await expect(page.getByText("12 / 12 h")).toHaveCount(2);
+  await expect(page.getByText("4 / 4 h")).toHaveCount(1);
   await capture(page, "15-kontrola-ucitelu-po-importu-rotace.png");
 
   await page.getByRole("button", { name: "Učitelé souhlasí" }).click();
@@ -390,11 +394,11 @@ test("sports class keeps its own allocation and Czech-Math groups swap atomicall
   await page.getByRole("button", { name: "6.A souhlasí" }).click();
   await expect(page.getByRole("heading", { name: "6.B" })).toBeVisible();
   await expect(page.getByText("Sportovní třída")).toBeVisible();
-  await expect(page.getByText("6 hodin")).toBeVisible();
+  await expect(page.getByText("10 hodin")).toBeVisible();
   await expect(
     page.getByText("Výměna · Hned po sobě", { exact: true }),
   ).toBeVisible();
-  await capture(page, "16-kontrola-rozdilnych-dotaci-6a-a-6b.png");
+  await capture(page, "16-kontrola-stejnych-dotaci-6a-a-6b.png");
 
   expect(pageErrors).toEqual([]);
   expect(serverErrors).toEqual([]);
