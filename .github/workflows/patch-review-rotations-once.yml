@@ -1,0 +1,218 @@
+name: Extend import review for rotations once
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Add profiles and rotations to review wizard
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("apps/web/app/teaching-plan/review/page.tsx")
+          content = path.read_text()
+
+          def replace_once(old: str, new: str) -> None:
+              global content
+              if old not in content:
+                  raise SystemExit(f"Missing review fragment: {old[:120]}")
+              content = content.replace(old, new, 1)
+
+          replace_once(
+              '''  humanBlockSummary,
+              loadTeachingPlan,
+              saveTeachingPlan,'''.replace("          ", ""),
+              '''  classProfileLabel,
+              humanBlockSummary,
+              loadTeachingPlan,
+              rotationSummary,
+              rowClassPeriods,
+              rowTeacherPeriods,
+              saveTeachingPlan,'''.replace("          ", ""),
+          )
+          replace_once(
+              '''  const primary = teacherLabel(byId.get(row.primaryTeacherId));
+              if (row.organization === "WHOLE") return primary;
+              return `${primary} · skupina 1 / ${teacherLabel(byId.get(row.secondaryTeacherId))} · skupina 2`;'''.replace("          ", ""),
+              '''  const primary = teacherLabel(byId.get(row.primaryTeacherId));
+              if (row.organization === "WHOLE") return primary;
+              const secondary = teacherLabel(byId.get(row.secondaryTeacherId));
+              if (row.organization === "ROTATION") {
+                return `${row.subjectCode}: ${primary} / ${row.secondarySubjectCode ?? "2. předmět"}: ${secondary}`;
+              }
+              return `${primary} · skupina 1 / ${secondary} · skupina 2`;'''.replace("          ", ""),
+          )
+          replace_once(
+              '    if (row.organization === "SPLIT" && row.secondaryTeacherId) {',
+              '    if (row.organization !== "WHOLE" && row.secondaryTeacherId) {',
+          )
+          replace_once(
+              '''        assignedPeriods: rows.reduce(
+              (total, row) => total + row.weeklyPeriods,
+              0,
+            ),'''.replace("          ", ""),
+              '''        assignedPeriods: rows.reduce(
+              (total, row) => total + rowTeacherPeriods(row, teacher.id),
+              0,
+            ),'''.replace("          ", ""),
+          )
+          replace_once(
+              '''        subjects: [...new Set(rows.map((row) => row.subjectCode))].sort(
+                  (a, b) => a.localeCompare(b, "cs-CZ"),
+                ),'''.replace("          ", ""),
+              '''        subjects: [
+                  ...new Set(
+                    rows.flatMap((row) => {
+                      if (row.organization !== "ROTATION") return [row.subjectCode];
+                      return [
+                        row.primaryTeacherId === teacher.id ? row.subjectCode : "",
+                        row.secondaryTeacherId === teacher.id
+                          ? (row.secondarySubjectCode ?? "")
+                          : "",
+                      ].filter(Boolean);
+                    }),
+                  ),
+                ].sort((a, b) => a.localeCompare(b, "cs-CZ")),'''.replace("          ", ""),
+          )
+          replace_once(
+              '''              row.lessonShape !== "SEPARATE" || row.organization === "SPLIT",'''.replace("          ", ""),
+              '''              row.lessonShape !== "SEPARATE" || row.organization !== "WHOLE",'''.replace("          ", ""),
+          )
+          replace_once(
+              '''  const currentClassPeriods = currentClassRows.reduce(
+                (total, row) => total + row.weeklyPeriods,
+                0,
+              );'''.replace("          ", ""),
+              '''  const currentClassPeriods = currentClassRows.reduce(
+                (total, row) => total + rowClassPeriods(row),
+                0,
+              );'''.replace("          ", ""),
+          )
+          replace_once(
+              '''          classCode={currentClass.code}
+              classIndex={currentClassIndex}'''.replace("          ", ""),
+              '''          classCode={currentClass.code}
+              classProfile={currentClass.profile ?? "REGULAR"}
+              classIndex={currentClassIndex}'''.replace("          ", ""),
+          )
+          replace_once(
+              '''  classCode,
+              classIndex,'''.replace("          ", ""),
+              '''  classCode,
+              classProfile,
+              classIndex,'''.replace("          ", ""),
+          )
+          replace_once(
+              '''  classCode: string;
+              classIndex: number;'''.replace("          ", ""),
+              '''  classCode: string;
+              classProfile: "REGULAR" | "SPORTS" | "CUSTOM";
+              classIndex: number;'''.replace("          ", ""),
+          )
+          replace_once(
+              '''              <h2 className="mt-1 text-3xl font-semibold text-text-primary">
+                    {classCode}
+                  </h2>'''.replace("          ", ""),
+              '''              <div className="mt-1 flex flex-wrap items-center gap-3">
+                    <h2 className="text-3xl font-semibold text-text-primary">
+                      {classCode}
+                    </h2>
+                    <StatusBadge tone={classProfile === "SPORTS" ? "success" : "neutral"}>
+                      {classProfileLabel(classProfile)}
+                    </StatusBadge>
+                  </div>'''.replace("          ", ""),
+          )
+          replace_once(
+              '''                    {subjectLabel(row.subjectCode)}
+                      </p>
+                      <p className="mt-0.5 text-xs text-text-muted">
+                        {row.subjectCode}'''.replace("          ", ""),
+              '''                    {subjectLabel(row.subjectCode)}
+                        {row.organization === "ROTATION"
+                          ? ` ↔ ${subjectLabel(row.secondarySubjectCode ?? "")}`
+                          : ""}
+                      </p>
+                      <p className="mt-0.5 text-xs text-text-muted">
+                        {row.organization === "ROTATION"
+                          ? rotationSummary(row)
+                          : row.subjectCode}'''.replace("          ", ""),
+          )
+          replace_once(
+              '''                  {row.weeklyPeriods} h'''.replace("          ", ""),
+              '''                  {rowClassPeriods(row)} h'''.replace("          ", ""),
+          )
+          replace_once(
+              '''                    tone={row.organization === "SPLIT" ? "warning" : "neutral"}
+                      >
+                        {row.organization === "SPLIT"
+                          ? "Dvě skupiny současně"
+                          : "Celá třída"}'''.replace("          ", ""),
+              '''                    tone={row.organization === "WHOLE" ? "neutral" : "warning"}
+                      >
+                        {row.organization === "ROTATION"
+                          ? "Povinná výměna předmětů"
+                          : row.organization === "SPLIT"
+                            ? "Dvě skupiny současně"
+                            : "Celá třída"}'''.replace("          ", ""),
+          )
+          replace_once(
+              '            Souhlasí dělení tříd a dvojhodiny?',
+              '            Souhlasí dělení, dvojhodiny a výměny předmětů?',
+          )
+          replace_once(
+              '            Excel neobsahuje žádné dělené předměty ani dvojhodiny.',
+              '            Excel neobsahuje žádné dělené předměty, dvojhodiny ani výměny.',
+          )
+          replace_once(
+              '''                    {subjectLabel(row.subjectCode)}
+                      </h3>'''.replace("          ", ""),
+              '''                    {subjectLabel(row.subjectCode)}
+                        {row.organization === "ROTATION"
+                          ? ` ↔ ${subjectLabel(row.secondarySubjectCode ?? "")}`
+                          : ""}
+                      </h3>'''.replace("          ", ""),
+          )
+          replace_once(
+              '''                  tone={row.organization === "SPLIT" ? "warning" : "neutral"}
+                    >
+                      {row.organization === "SPLIT" ? "Dvě skupiny" : "Celá třída"}'''.replace("          ", ""),
+              '''                  tone={row.organization === "WHOLE" ? "neutral" : "warning"}
+                    >
+                      {row.organization === "ROTATION"
+                        ? "Výměna předmětů"
+                        : row.organization === "SPLIT"
+                          ? "Dvě skupiny"
+                          : "Celá třída"}'''.replace("          ", ""),
+          )
+          replace_once(
+              '''                    {row.weeklyPeriods} h · {humanBlockSummary(row)}'''.replace("          ", ""),
+              '''                    {rowClassPeriods(row)} h třídy · {humanBlockSummary(row)}
+                        {row.organization === "ROTATION" ? " v každém rameni" : ""}'''.replace("          ", ""),
+          )
+
+          path.write_text(content)
+          PY
+      - run: npx prettier --write apps/web/app/teaching-plan/review/page.tsx
+      - name: Commit review support
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/app/teaching-plan/review/page.tsx
+          git commit -m "feat(import-review): verify sport profiles and subject swaps"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
