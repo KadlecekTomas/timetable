@@ -29,8 +29,20 @@ function snapshot(): CanonicalSnapshot {
       },
     ],
     classes: [
-      { id: "9a", code: "9A", name: "9.A", grade: 9 },
-      { id: "9c", code: "9C", name: "9.C", grade: 9 },
+      {
+        id: "9a",
+        code: "9A",
+        name: "9.A",
+        grade: 9,
+        profile: "REGULAR",
+      },
+      {
+        id: "9c",
+        code: "9C",
+        name: "9.C",
+        grade: 9,
+        profile: "REGULAR",
+      },
     ],
     subjects: [
       { id: "tv", code: "TV", name: "Tělesná výchova" },
@@ -80,6 +92,7 @@ function snapshot(): CanonicalSnapshot {
       preferred_slot_bonus: 3,
       same_day_concentration: 6,
       late_period: 1,
+      rotation_spread: 75,
     },
     random_seed: 1,
     time_limit_seconds: 30,
