@@ -25,45 +25,42 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           path = Path("apps/web/app/teaching-plan/page.tsx")
           content = path.read_text()
           marker = "savePendingTeachingPlanImport("
+
           if marker in content:
               print("Teaching plan import review is already connected")
           else:
-              replacements = [
-                  (
-                      'import { useSearchParams } from "next/navigation";',
-                      'import { useRouter, useSearchParams } from "next/navigation";',
-                  ),
-                  (
-                      'import {\n  STAFFING_SUBJECTS,\n  loadStaffingPlan,',
-                      'import {\n  createPendingTeachingPlanImport,\n  savePendingTeachingPlanImport,\n} from "@/lib/local/teaching-plan-import-review";\nimport {\n  STAFFING_SUBJECTS,\n  loadStaffingPlan,',
-                  ),
-                  (
-                      'export default function TeachingPlanPage() {\n  const searchParams = useSearchParams();',
-                      'export default function TeachingPlanPage() {\n  const router = useRouter();\n  const searchParams = useSearchParams();',
-                  ),
-                  (
-                      '    setSelectedClass(nextPlan.classes[0]?.code ?? "");\n    setLoaded(true);',
-                      '    setSelectedClass(nextPlan.classes[0]?.code ?? "");\n    if (new URLSearchParams(window.location.search).get("imported") === "1") {\n      setMessage(\n        `Excel byl potvrzen a převzat do editoru. Zkontrolujte případné poslední úpravy a potom výuku uložte do projektu.`,\n      );\n    }\n    setLoaded(true);',
-                  ),
-                  (
-                      '''      setAnalysis(result);
-              if (!result.valid) return;
-              if (
-                plan.rows.length > 0 &&
-                !window.confirm("Nahradit aktuální plán obsahem nahraného Excelu?")
-              ) {
-                return;
-              }
-              commit(result.plan);
-              setSelectedClass(result.plan.classes[0]?.code ?? "");
-              setMessage(
-                `Načteno ${result.summary.classes} tříd a ${result.summary.subjects} předmětů. Teď vše zkontrolujte na kartách.`,
-              );''',
-                      '''      setAnalysis(result);
+              def replace_once(old: str, new: str) -> None:
+                  global content
+                  if old not in content:
+                      raise SystemExit(f"Expected fragment not found: {old[:140]}")
+                  content = content.replace(old, new, 1)
+
+              replace_once(
+                  'import { useSearchParams } from "next/navigation";',
+                  'import { useRouter, useSearchParams } from "next/navigation";',
+              )
+              replace_once(
+                  'import {\n  STAFFING_SUBJECTS,\n  loadStaffingPlan,',
+                  'import {\n  createPendingTeachingPlanImport,\n  savePendingTeachingPlanImport,\n} from "@/lib/local/teaching-plan-import-review";\nimport {\n  STAFFING_SUBJECTS,\n  loadStaffingPlan,',
+              )
+              replace_once(
+                  'export default function TeachingPlanPage() {\n  const searchParams = useSearchParams();',
+                  'export default function TeachingPlanPage() {\n  const router = useRouter();\n  const searchParams = useSearchParams();',
+              )
+              replace_once(
+                  '    setSelectedClass(nextPlan.classes[0]?.code ?? "");\n    setLoaded(true);',
+                  '    setSelectedClass(nextPlan.classes[0]?.code ?? "");\n    if (new URLSearchParams(window.location.search).get("imported") === "1") {\n      setMessage(\n        `Excel byl potvrzen a převzat do editoru. Zkontrolujte případné poslední úpravy a potom výuku uložte do projektu.`,\n      );\n    }\n    setLoaded(true);',
+              )
+
+              import_pattern = re.compile(
+                  r'''      setAnalysis\(result\);\n      if \(!result\.valid\) return;\n      if \(\n        plan\.rows\.length > 0 &&\n        !window\.confirm\("Nahradit aktuální plán obsahem nahraného Excelu\?"\)\n      \) \{\n        return;\n      \}\n      commit\(result\.plan\);\n      setSelectedClass\(result\.plan\.classes\[0\]\?\.code \?\? ""\);\n      setMessage\(\n        `Načteno \$\{result\.summary\.classes\} tříd a \$\{result\.summary\.subjects\} předmětů\. Teď vše zkontrolujte na kartách\.`,\n      \);'''
+              )
+              replacement = '''      setAnalysis(result);
               if (!result.valid) return;
               savePendingTeachingPlanImport(
                 createPendingTeachingPlanImport({
@@ -72,21 +69,15 @@ jobs:
                   analysis: result,
                 }),
               );
-              router.push(`/teaching-plan/review?${context}`);''',
-                  ),
-                  (
-                      '''            Excel obsahuje rozbalovací seznamy s učiteli z Kroku 1 a přímo
-                    kontroluje lichý počet dvojhodin i chybějícího druhého učitele.''',
-                      '''            Excel obsahuje rozbalovací seznamy s učiteli z Kroku 1 a přímo
-                    kontroluje lichý počet dvojhodin i chybějícího druhého učitele. Po
-                    nahrání se nic nepřepíše — nejdřív projdete učitele, každou třídu,
-                    dotace, dělení a dvojhodiny v bezpečném kontrolním průvodci.''',
-                  ),
-              ]
-              for old, new in replacements:
-                  if old not in content:
-                      raise SystemExit(f"Expected fragment not found:\n{old[:180]}")
-                  content = content.replace(old, new, 1)
+              router.push(`/teaching-plan/review?${context}`);'''
+              content, count = import_pattern.subn(replacement, content, count=1)
+              if count != 1:
+                  raise SystemExit("Valid Excel import block was not found")
+
+              replace_once(
+                  '            Excel obsahuje rozbalovací seznamy s učiteli z Kroku 1 a přímo\n            kontroluje lichý počet dvojhodin i chybějícího druhého učitele.',
+                  '            Excel obsahuje rozbalovací seznamy s učiteli z Kroku 1 a přímo\n            kontroluje lichý počet dvojhodin i chybějícího druhého učitele. Po\n            nahrání se nic nepřepíše — nejdřív projdete učitele, každou třídu,\n            dotace, dělení a dvojhodiny v bezpečném kontrolním průvodci.',
+              )
               path.write_text(content)
           PY
       - run: npx prettier --write apps/web/app/teaching-plan/page.tsx apps/web/app/teaching-plan/review/page.tsx apps/web/lib/local/teaching-plan-import-review.ts apps/web/e2e/teaching-plan-import-review.spec.ts
