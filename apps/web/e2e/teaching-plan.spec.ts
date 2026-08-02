@@ -94,8 +94,12 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
   await page.getByLabel("Předmět 2").selectOption("INF");
   await page.getByLabel("Hodin týdně 2").fill("1");
   await page
-    .getByTestId("teaching-row-1")
-    .getByRole("button", { name: "Dvě skupiny", exact: true })
+    .getByLabel("Předmět 2")
+    .locator("xpath=ancestor::article")
+    .getByRole("button", {
+      name: "Dvě skupiny – stejný předmět",
+      exact: true,
+    })
     .click();
   await page
     .getByLabel("Učitel 1 předmětu 2")
