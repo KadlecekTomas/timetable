@@ -225,7 +225,8 @@ export function rowTeacherPeriods(
   teacherId: string,
 ): number {
   if (row.organization === "ROTATION") {
-    return row.primaryTeacherId === teacherId || row.secondaryTeacherId === teacherId
+    return row.primaryTeacherId === teacherId ||
+      row.secondaryTeacherId === teacherId
       ? row.weeklyPeriods * 2
       : 0;
   }
@@ -256,16 +257,11 @@ export function validateTeachingPlanRow(
   }
   if (row.organization === "ROTATION") {
     if (
-      !STAFFING_SUBJECTS.some(
-        (item) => item.code === row.secondarySubjectCode,
-      )
+      !STAFFING_SUBJECTS.some((item) => item.code === row.secondarySubjectCode)
     ) {
       messages.push("Vyberte druhý předmět pro výměnu skupin.");
     }
-    if (
-      row.subjectCode &&
-      row.subjectCode === row.secondarySubjectCode
-    ) {
+    if (row.subjectCode && row.subjectCode === row.secondarySubjectCode) {
       messages.push("Při výměně musí být zvoleny dva různé předměty.");
     }
   }

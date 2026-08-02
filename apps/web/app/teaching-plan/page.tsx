@@ -121,10 +121,7 @@ function safeCode(value: string): string {
 function workloadByTeacher(plan: TeachingPlan): Map<string, number> {
   const result = new Map<string, number>();
   const teacherIds = new Set(
-    plan.rows.flatMap((row) => [
-      row.primaryTeacherId,
-      row.secondaryTeacherId,
-    ]),
+    plan.rows.flatMap((row) => [row.primaryTeacherId, row.secondaryTeacherId]),
   );
   for (const teacherId of teacherIds) {
     if (!teacherId) continue;
@@ -451,7 +448,11 @@ export default function TeachingPlanPage() {
         return;
       }
 
-      for (let index = 0; index < assignmentsResponse.items.length; index += 1) {
+      for (
+        let index = 0;
+        index < assignmentsResponse.items.length;
+        index += 1
+      ) {
         const assignment = assignmentsResponse.items[index]!;
         setProgress(
           `Nahrazuji starý plán ${index + 1}/${assignmentsResponse.items.length}…`,
@@ -696,12 +697,16 @@ export default function TeachingPlanPage() {
           description="Nejdřív potřebujeme seznam učitelů z prvního kroku."
         />
         <section className="rounded-2xl border border-warning-border bg-warning-subtle p-8 text-center">
-          <UsersRound className="mx-auto size-10 text-warning" aria-hidden="true" />
+          <UsersRound
+            className="mx-auto size-10 text-warning"
+            aria-hidden="true"
+          />
           <h2 className="mt-4 text-lg font-semibold text-text-primary">
             Nejprve dokončete učitele a úvazky
           </h2>
           <p className="mx-auto mt-2 max-w-xl text-sm text-text-secondary">
-            U dělených hodin a výměn musíme znát oba učitele i jejich dostupnost.
+            U dělených hodin a výměn musíme znát oba učitele i jejich
+            dostupnost.
           </p>
           <Button asChild className="mt-5">
             <Link href={`/staffing?${context}`}>Přejít na Krok 1</Link>
@@ -733,8 +738,16 @@ export default function TeachingPlanPage() {
       <section className="grid gap-3 md:grid-cols-4">
         {[
           ["1", "Profil třídy", "Běžná, sportovní nebo vlastní skladba."],
-          ["2", "Předměty a dotace", "Každá třída má své skutečné počty hodin."],
-          ["3", "Bloky a skupiny", "Samostatně, dvojhodiny nebo paralelní skupiny."],
+          [
+            "2",
+            "Předměty a dotace",
+            "Každá třída má své skutečné počty hodin.",
+          ],
+          [
+            "3",
+            "Bloky a skupiny",
+            "Samostatně, dvojhodiny nebo paralelní skupiny.",
+          ],
           ["4", "Výměna předmětů", "ČJ/M a podobné dvojice se přesně prohodí."],
         ].map(([number, title, description]) => (
           <article
@@ -754,7 +767,10 @@ export default function TeachingPlanPage() {
 
       <section className="rounded-xl border-2 border-dashed border-primary/40 bg-primary-subtle p-6">
         <div className="flex flex-col items-center text-center">
-          <FileSpreadsheet className="size-10 text-primary" aria-hidden="true" />
+          <FileSpreadsheet
+            className="size-10 text-primary"
+            aria-hidden="true"
+          />
           <h2 className="mt-3 text-lg font-semibold text-text-primary">
             Velké množství tříd vyplňte v Excelu
           </h2>
@@ -784,13 +800,17 @@ export default function TeachingPlanPage() {
       {analysis && !analysis.valid ? (
         <section className="rounded-xl border border-danger-border bg-danger-subtle p-5">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 size-5 text-danger" aria-hidden="true" />
+            <AlertTriangle
+              className="mt-0.5 size-5 text-danger"
+              aria-hidden="true"
+            />
             <div>
               <h2 className="font-semibold text-text-primary">
                 Excel potřebuje opravit
               </h2>
               <p className="mt-1 text-sm text-text-secondary">
-                Nic se nepřepsalo. Opravte uvedené řádky a nahrajte soubor znovu.
+                Nic se nepřepsalo. Opravte uvedené řádky a nahrajte soubor
+                znovu.
               </p>
               <ul className="mt-3 space-y-1 text-sm text-danger-strong">
                 {analysis.issues.slice(0, 12).map((issue, index) => (
@@ -819,7 +839,10 @@ export default function TeachingPlanPage() {
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
           ["Třídy", plan.classes.length],
-          ["Sportovní třídy", plan.classes.filter((item) => item.profile === "SPORTS").length],
+          [
+            "Sportovní třídy",
+            plan.classes.filter((item) => item.profile === "SPORTS").length,
+          ],
           ["Předměty / dvojice", plan.rows.length],
           ["Dělené předměty", splitCount],
           ["Výměny předmětů", rotationCount],
@@ -843,7 +866,8 @@ export default function TeachingPlanPage() {
           <div>
             <h2 className="text-lg font-semibold text-text-primary">Třídy</h2>
             <p className="mt-1 text-sm text-text-secondary">
-              B a D se pro tuto školu automaticky nabídnou jako sportovní, profil lze ručně změnit.
+              B a D se pro tuto školu automaticky nabídnou jako sportovní,
+              profil lze ručně změnit.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -870,7 +894,11 @@ export default function TeachingPlanPage() {
                 Přidat
               </Button>
             </div>
-            <Button type="button" variant="ghost" onClick={addCurrentSchoolClasses}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={addCurrentSchoolClasses}
+            >
               Přidat třídy 6.–9. ročníku
             </Button>
           </div>
@@ -922,7 +950,13 @@ export default function TeachingPlanPage() {
           <div className="rounded-2xl border border-border bg-surface p-5">
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
               <div className="flex items-start gap-4">
-                <div className={selectedClassItem.profile === "SPORTS" ? "flex size-12 items-center justify-center rounded-xl bg-success-subtle text-success" : "flex size-12 items-center justify-center rounded-xl bg-primary-subtle text-primary"}>
+                <div
+                  className={
+                    selectedClassItem.profile === "SPORTS"
+                      ? "flex size-12 items-center justify-center rounded-xl bg-success-subtle text-success"
+                      : "flex size-12 items-center justify-center rounded-xl bg-primary-subtle text-primary"
+                  }
+                >
                   {selectedClassItem.profile === "SPORTS" ? (
                     <Dumbbell className="size-6" aria-hidden="true" />
                   ) : (
@@ -937,7 +971,11 @@ export default function TeachingPlanPage() {
                     Třída {selectedClass}
                   </h2>
                   <p className="mt-1 text-sm text-text-secondary">
-                    {selectedRows.reduce((total, row) => total + rowClassPeriods(row), 0)} hodin třídy týdně · {selectedRows.length} nastavení.
+                    {selectedRows.reduce(
+                      (total, row) => total + rowClassPeriods(row),
+                      0,
+                    )}{" "}
+                    hodin třídy týdně · {selectedRows.length} nastavení.
                   </p>
                 </div>
               </div>
@@ -946,7 +984,9 @@ export default function TeachingPlanPage() {
                 <select
                   value={selectedClassItem.profile ?? "REGULAR"}
                   onChange={(event) =>
-                    updateClassProfile(event.target.value as TeachingClassProfile)
+                    updateClassProfile(
+                      event.target.value as TeachingClassProfile,
+                    )
                   }
                   className={`${inputClass} mt-1.5`}
                   aria-label={`Profil třídy ${selectedClass}`}
@@ -958,7 +998,9 @@ export default function TeachingPlanPage() {
                   ))}
                 </select>
                 <span className="mt-1 block text-xs font-normal text-text-muted">
-                  {classProfileLabel(selectedClassItem.profile ?? "REGULAR")} má vlastní skutečné řádky níže; profil žádné hodiny tajně nekopíruje.
+                  {classProfileLabel(selectedClassItem.profile ?? "REGULAR")} má
+                  vlastní skutečné řádky níže; profil žádné hodiny tajně
+                  nekopíruje.
                 </span>
               </label>
             </div>
@@ -970,7 +1012,8 @@ export default function TeachingPlanPage() {
                 Předměty a skupiny
               </h2>
               <p className="mt-1 text-sm text-text-secondary">
-                Výměnu ČJ/M vložte jako jeden společný řádek, ne jako čtyři technické vazby.
+                Výměnu ČJ/M vložte jako jeden společný řádek, ne jako čtyři
+                technické vazby.
               </p>
             </div>
             <Button type="button" onClick={addSubjectRow}>
@@ -981,7 +1024,10 @@ export default function TeachingPlanPage() {
 
           {selectedRows.length === 0 ? (
             <article className="rounded-2xl border border-dashed border-border-strong bg-surface p-10 text-center">
-              <BookOpen className="mx-auto size-10 text-text-muted" aria-hidden="true" />
+              <BookOpen
+                className="mx-auto size-10 text-text-muted"
+                aria-hidden="true"
+              />
               <h3 className="mt-4 font-semibold text-text-primary">
                 Třída zatím nemá žádné předměty
               </h3>
@@ -1007,13 +1053,17 @@ export default function TeachingPlanPage() {
 
       <section className="rounded-2xl border border-border bg-surface p-6">
         <div className="flex items-start gap-3">
-          <UsersRound className="mt-0.5 size-6 text-primary" aria-hidden="true" />
+          <UsersRound
+            className="mt-0.5 size-6 text-primary"
+            aria-hidden="true"
+          />
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold text-text-primary">
               Kontrola úvazků učitelů
             </h2>
             <p className="mt-1 text-sm text-text-secondary">
-              U výměny učí každý učitel oba díly třídy, proto se mu započítá dvojnásobek dotace uvedené pro jednu skupinu.
+              U výměny učí každý učitel oba díly třídy, proto se mu započítá
+              dvojnásobek dotace uvedené pro jednu skupinu.
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {staffingPlan.teachers.map((teacher) => {
@@ -1038,10 +1088,21 @@ export default function TeachingPlanPage() {
                         </p>
                       </div>
                       {exact ? (
-                        <CheckCircle2 className="size-5 text-success" aria-hidden="true" />
+                        <CheckCircle2
+                          className="size-5 text-success"
+                          aria-hidden="true"
+                        />
                       ) : null}
                     </div>
-                    <p className={exact ? "mt-3 text-xl font-bold text-success-strong" : assigned > teacher.targetWeeklyLoad ? "mt-3 text-xl font-bold text-danger" : "mt-3 text-xl font-bold text-text-primary"}>
+                    <p
+                      className={
+                        exact
+                          ? "mt-3 text-xl font-bold text-success-strong"
+                          : assigned > teacher.targetWeeklyLoad
+                            ? "mt-3 text-xl font-bold text-danger"
+                            : "mt-3 text-xl font-bold text-text-primary"
+                      }
+                    >
                       {assigned} / {teacher.targetWeeklyLoad} h
                     </p>
                   </div>
@@ -1052,22 +1113,38 @@ export default function TeachingPlanPage() {
         </div>
       </section>
 
-      <section className={allReady ? "rounded-2xl border border-success-border bg-success-subtle p-6" : "rounded-2xl border border-warning-border bg-warning-subtle p-6"}>
+      <section
+        className={
+          allReady
+            ? "rounded-2xl border border-success-border bg-success-subtle p-6"
+            : "rounded-2xl border border-warning-border bg-warning-subtle p-6"
+        }
+      >
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-3">
             {allReady ? (
-              <CheckCircle2 className="mt-0.5 size-6 text-success" aria-hidden="true" />
+              <CheckCircle2
+                className="mt-0.5 size-6 text-success"
+                aria-hidden="true"
+              />
             ) : (
-              <AlertTriangle className="mt-0.5 size-6 text-warning" aria-hidden="true" />
+              <AlertTriangle
+                className="mt-0.5 size-6 text-warning"
+                aria-hidden="true"
+              />
             )}
             <div>
               <h2 className="text-lg font-semibold text-text-primary">
-                {allReady ? "Výuka tříd je připravená" : "Ještě je potřeba plán dokončit"}
+                {allReady
+                  ? "Výuka tříd je připravená"
+                  : "Ještě je potřeba plán dokončit"}
               </h2>
               <p className="mt-1 text-sm text-text-secondary">
                 {allReady
                   ? `${plan.rows.length} nastavení · ${splitCount} dělených · ${rotationCount} výměn · ${doubleBlockCount} dvojhodinových bloků · všechny úvazky sedí.`
-                  : validationMessages[0] ?? workloadMessages[0] ?? "Přidejte třídy a předměty."}
+                  : (validationMessages[0] ??
+                    workloadMessages[0] ??
+                    "Přidejte třídy a předměty.")}
               </p>
             </div>
           </div>
@@ -1141,7 +1218,8 @@ function TeachingRowCard({
                 : ""}
             </h3>
             <p className="mt-0.5 text-xs text-text-muted">
-              {rowClassPeriods(row)} hodin třídy týdně · {humanBlockSummary(row)}
+              {rowClassPeriods(row)} hodin třídy týdně ·{" "}
+              {humanBlockSummary(row)}
               {row.organization === "ROTATION" ? " v každém rameni" : ""}
             </p>
           </div>
@@ -1162,7 +1240,13 @@ function TeachingRowCard({
       </div>
 
       <div className="space-y-7 p-5">
-        <div className={row.organization === "ROTATION" ? "grid gap-4 md:grid-cols-3" : "grid gap-4 md:grid-cols-[minmax(0,1fr)_180px]"}>
+        <div
+          className={
+            row.organization === "ROTATION"
+              ? "grid gap-4 md:grid-cols-3"
+              : "grid gap-4 md:grid-cols-[minmax(0,1fr)_180px]"
+          }
+        >
           <label className="space-y-1.5 text-sm font-medium text-text-primary">
             1. Který předmět?
             <select
@@ -1226,7 +1310,8 @@ function TeachingRowCard({
                     ...current,
                     weeklyPeriods,
                     lessonShape:
-                      current.lessonShape === "DOUBLE" && weeklyPeriods % 2 !== 0
+                      current.lessonShape === "DOUBLE" &&
+                      weeklyPeriods % 2 !== 0
                         ? "SEPARATE"
                         : current.lessonShape,
                     doublePeriodsCount:
@@ -1254,7 +1339,8 @@ function TeachingRowCard({
           </h4>
           <div className="mt-3 grid gap-3 lg:grid-cols-3">
             {TEACHING_SHAPES.map((shape) => {
-              const disabled = shape.value === "DOUBLE" && row.weeklyPeriods % 2 !== 0;
+              const disabled =
+                shape.value === "DOUBLE" && row.weeklyPeriods % 2 !== 0;
               const selected = row.lessonShape === shape.value;
               return (
                 <button
@@ -1281,9 +1367,17 @@ function TeachingRowCard({
                             : 0,
                     }))
                   }
-                  className={selected ? "rounded-xl border-2 border-primary bg-primary-subtle p-4 text-left" : disabled ? "cursor-not-allowed rounded-xl border border-border bg-surface-subtle p-4 text-left opacity-45" : "rounded-xl border border-border-strong bg-surface p-4 text-left hover:border-primary/50 hover:bg-primary-subtle/40"}
+                  className={
+                    selected
+                      ? "rounded-xl border-2 border-primary bg-primary-subtle p-4 text-left"
+                      : disabled
+                        ? "cursor-not-allowed rounded-xl border border-border bg-surface-subtle p-4 text-left opacity-45"
+                        : "rounded-xl border border-border-strong bg-surface p-4 text-left hover:border-primary/50 hover:bg-primary-subtle/40"
+                  }
                 >
-                  <p className="font-semibold text-text-primary">{shape.shortLabel}</p>
+                  <p className="font-semibold text-text-primary">
+                    {shape.shortLabel}
+                  </p>
                   <p className="mt-1 text-xs leading-5 text-text-secondary">
                     {shape.description}
                   </p>
@@ -1341,7 +1435,11 @@ function TeachingRowCard({
                           : "",
                     }))
                   }
-                  className={selected ? "rounded-xl border-2 border-primary bg-primary-subtle p-4 text-left" : "rounded-xl border border-border-strong bg-surface p-4 text-left hover:border-primary/50 hover:bg-primary-subtle/40"}
+                  className={
+                    selected
+                      ? "rounded-xl border-2 border-primary bg-primary-subtle p-4 text-left"
+                      : "rounded-xl border border-border-strong bg-surface p-4 text-left hover:border-primary/50 hover:bg-primary-subtle/40"
+                  }
                 >
                   <p className="font-semibold text-text-primary">
                     {organization.label}
@@ -1356,26 +1454,37 @@ function TeachingRowCard({
 
           {row.organization === "SPLIT" ? (
             <div className="mt-3 rounded-xl border border-success-border bg-success-subtle p-4 text-sm text-success-strong">
-              <strong>Obě skupiny budou vždy ve stejnou dobu.</strong> Solver zabrání kolizi obou učitelů.
+              <strong>Obě skupiny budou vždy ve stejnou dobu.</strong> Solver
+              zabrání kolizi obou učitelů.
             </div>
           ) : null}
 
           {row.organization === "ROTATION" ? (
-            <div className="mt-4 rounded-2xl border-2 border-primary/40 bg-primary-subtle p-5" data-testid={`rotation-preview-${index}`}>
+            <div
+              className="mt-4 rounded-2xl border-2 border-primary/40 bg-primary-subtle p-5"
+              data-testid={`rotation-preview-${index}`}
+            >
               <div className="flex items-start gap-3">
-                <Repeat2 className="mt-0.5 size-6 shrink-0 text-primary" aria-hidden="true" />
+                <Repeat2
+                  className="mt-0.5 size-6 shrink-0 text-primary"
+                  aria-hidden="true"
+                />
                 <div>
                   <h5 className="font-semibold text-text-primary">
                     Povinná výměna ve dvou ramenech
                   </h5>
                   <p className="mt-1 text-sm leading-6 text-text-secondary">
-                    Solver vytvoří obě ramena. Nemůže ponechat jednu skupinu bez prohození. Ramena smí být i v různých časech nebo jedno odpoledne, když to vyžaduje dostupnost učitelů.
+                    Solver vytvoří obě ramena. Nemůže ponechat jednu skupinu bez
+                    prohození. Ramena smí být i v různých časech nebo jedno
+                    odpoledne, když to vyžaduje dostupnost učitelů.
                   </p>
                 </div>
               </div>
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
                 <div className="rounded-xl border border-primary/30 bg-surface p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary">1. rameno</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                    1. rameno
+                  </p>
                   <p className="mt-2 font-semibold text-text-primary">
                     Skupina 1: {row.subjectCode || "první předmět"}
                   </p>
@@ -1384,7 +1493,9 @@ function TeachingRowCard({
                   </p>
                 </div>
                 <div className="rounded-xl border border-primary/30 bg-surface p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary">2. rameno – prohozeno</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                    2. rameno – prohozeno
+                  </p>
                   <p className="mt-2 font-semibold text-text-primary">
                     Skupina 1: {row.secondarySubjectCode || "druhý předmět"}
                   </p>
@@ -1407,22 +1518,53 @@ function TeachingRowCard({
           <p className="mt-1 text-sm text-text-secondary">
             U výměny je učitel svázaný s předmětem, nikoli natrvalo se skupinou.
           </p>
-          <div className={row.organization === "WHOLE" ? "mt-3 max-w-xl" : "mt-3 grid gap-4 md:grid-cols-2"}>
+          <div
+            className={
+              row.organization === "WHOLE"
+                ? "mt-3 max-w-xl"
+                : "mt-3 grid gap-4 md:grid-cols-2"
+            }
+          >
             <TeacherSelect
-              label={row.organization === "ROTATION" ? `Učitel předmětu ${row.subjectCode || "1"}` : row.organization === "SPLIT" ? "Skupina 1" : "Celá třída"}
+              label={
+                row.organization === "ROTATION"
+                  ? `Učitel předmětu ${row.subjectCode || "1"}`
+                  : row.organization === "SPLIT"
+                    ? "Skupina 1"
+                    : "Celá třída"
+              }
               value={row.primaryTeacherId}
               teachers={sortedTeachers(row.subjectCode)}
               subjectCode={row.subjectCode}
-              onChange={(value) => update((current) => ({ ...current, primaryTeacherId: value }))}
+              onChange={(value) =>
+                update((current) => ({ ...current, primaryTeacherId: value }))
+              }
               ariaLabel={`Učitel 1 předmětu ${index + 1}`}
             />
             {row.organization !== "WHOLE" ? (
               <TeacherSelect
-                label={row.organization === "ROTATION" ? `Učitel předmětu ${row.secondarySubjectCode || "2"}` : "Skupina 2"}
+                label={
+                  row.organization === "ROTATION"
+                    ? `Učitel předmětu ${row.secondarySubjectCode || "2"}`
+                    : "Skupina 2"
+                }
                 value={row.secondaryTeacherId}
-                teachers={sortedTeachers(row.organization === "ROTATION" ? row.secondarySubjectCode : row.subjectCode)}
-                subjectCode={row.organization === "ROTATION" ? row.secondarySubjectCode : row.subjectCode}
-                onChange={(value) => update((current) => ({ ...current, secondaryTeacherId: value }))}
+                teachers={sortedTeachers(
+                  row.organization === "ROTATION"
+                    ? row.secondarySubjectCode
+                    : row.subjectCode,
+                )}
+                subjectCode={
+                  row.organization === "ROTATION"
+                    ? row.secondarySubjectCode
+                    : row.subjectCode
+                }
+                onChange={(value) =>
+                  update((current) => ({
+                    ...current,
+                    secondaryTeacherId: value,
+                  }))
+                }
                 ariaLabel={`Učitel 2 předmětu ${index + 1}`}
               />
             ) : null}
@@ -1432,7 +1574,10 @@ function TeachingRowCard({
         {!validation.valid ? (
           <div className="rounded-xl border border-danger-border bg-danger-subtle p-4">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 size-5 shrink-0 text-danger" aria-hidden="true" />
+              <AlertTriangle
+                className="mt-0.5 size-5 shrink-0 text-danger"
+                aria-hidden="true"
+              />
               <div>
                 <p className="font-semibold text-text-primary">
                   Tato výuka ještě není hotová
@@ -1449,7 +1594,11 @@ function TeachingRowCard({
           <div className="flex items-center gap-3 rounded-xl border border-success-border bg-success-subtle p-4 text-success-strong">
             <CheckCircle2 className="size-5" aria-hidden="true" />
             <p className="font-semibold">
-              Hotovo — {row.organization === "ROTATION" ? `${row.subjectCode} a ${row.secondarySubjectCode} se povinně prohodí` : `${humanBlockSummary(row)} · ${row.organization === "SPLIT" ? "dvě souběžné skupiny" : "celá třída"}`}.
+              Hotovo —{" "}
+              {row.organization === "ROTATION"
+                ? `${row.subjectCode} a ${row.secondarySubjectCode} se povinně prohodí`
+                : `${humanBlockSummary(row)} · ${row.organization === "SPLIT" ? "dvě souběžné skupiny" : "celá třída"}`}
+              .
             </p>
           </div>
         )}

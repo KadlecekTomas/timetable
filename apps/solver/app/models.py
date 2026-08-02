@@ -211,9 +211,7 @@ class SolveRequest(BaseModel):
                 (2, TeachingGroup.GROUP_2),
             }
             if set(by_leg_group) != required_keys or len(assignments) != 4:
-                raise ValueError(
-                    f"Rotation {rotation_key} must contain exactly two groups in both legs"
-                )
+                raise ValueError(f"Rotation {rotation_key} must contain exactly two groups in both legs")
             leg_1_group_1 = by_leg_group[(1, TeachingGroup.GROUP_1)]
             leg_1_group_2 = by_leg_group[(1, TeachingGroup.GROUP_2)]
             leg_2_group_1 = by_leg_group[(2, TeachingGroup.GROUP_1)]
@@ -224,9 +222,7 @@ class SolveRequest(BaseModel):
                 or leg_1_group_2.subject_id != leg_2_group_1.subject_id
                 or leg_1_group_2.teacher_id != leg_2_group_1.teacher_id
             ):
-                raise ValueError(
-                    f"Rotation {rotation_key} must swap both subjects and teachers between groups"
-                )
+                raise ValueError(f"Rotation {rotation_key} must swap both subjects and teachers between groups")
             shapes = {
                 (
                     item.weekly_periods,
@@ -236,17 +232,11 @@ class SolveRequest(BaseModel):
                 for item in assignments
             }
             if len(shapes) != 1:
-                raise ValueError(
-                    f"All assignments in rotation {rotation_key} must have the same lesson shape"
-                )
+                raise ValueError(f"All assignments in rotation {rotation_key} must have the same lesson shape")
             if leg_1_group_1.subject_id == leg_1_group_2.subject_id:
-                raise ValueError(
-                    f"Rotation {rotation_key} must contain two different subjects"
-                )
+                raise ValueError(f"Rotation {rotation_key} must contain two different subjects")
             if leg_1_group_1.teacher_id == leg_1_group_2.teacher_id:
-                raise ValueError(
-                    f"Rotation {rotation_key} must contain two different teachers"
-                )
+                raise ValueError(f"Rotation {rotation_key} must contain two different teachers")
         return self
 
 

@@ -1,5 +1,5 @@
-from collections import defaultdict
 import re
+from collections import defaultdict
 
 from app.models import Assignment, ScheduledLesson, TeachingGroup
 
@@ -65,9 +65,7 @@ def rotation_assignment_legs(
         ):
             by_rotation[left.rotation_key][left.rotation_leg] = (left, right)
 
-    result: list[
-        tuple[str, tuple[Assignment, Assignment], tuple[Assignment, Assignment]]
-    ] = []
+    result: list[tuple[str, tuple[Assignment, Assignment], tuple[Assignment, Assignment]]] = []
     for rotation_key, legs in sorted(by_rotation.items()):
         if 1 in legs and 2 in legs:
             result.append((rotation_key, legs[1], legs[2]))
