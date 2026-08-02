@@ -306,6 +306,8 @@ test("sports class keeps its own allocation and Czech-Math groups swap atomicall
   await expect(
     page.getByRole("heading", { name: "Kvalita návrhu" }),
   ).toBeVisible();
+  await page.getByLabel("Třída").selectOption({ label: "6.B · 6.B" });
+  await expect(page.getByLabel("Třída")).toHaveValue(/.+/);
   await capture(page, "14-vygenerovana-vymena-cj-m-ve-sportovni-6b.png");
 
   const generated = await readProject(page);
