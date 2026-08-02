@@ -1,0 +1,44 @@
+name: Format rotation hardening once
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: |
+          npx prettier --write \
+            apps/web/e2e/subject-rotation-and-sports.spec.ts \
+            apps/web/tests/rotation-validation.test.ts \
+            apps/web/tests/teaching-plan-rotations.test.ts \
+            apps/web/tests/domain.test.ts \
+            apps/web/tests/release-gate.test.ts \
+            apps/web/tests/school-day.test.ts \
+            apps/web/tests/shared-classes.test.ts \
+            apps/web/lib/domain/class-groups.ts \
+            apps/web/lib/domain/rotation-validation.ts \
+            apps/web/lib/domain/validation.ts
+      - name: Commit canonical formatting
+        run: |
+          if git diff --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/e2e/subject-rotation-and-sports.spec.ts apps/web/tests apps/web/lib/domain
+          git commit -m "style: format rotation and sports hardening"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
