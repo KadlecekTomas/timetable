@@ -19,7 +19,6 @@ import {
   type TeachingClassProfile,
   type TeachingLessonShape,
   type TeachingPlan,
-  type TeachingPlanClass,
   type TeachingPlanRow,
 } from "@/lib/local/teaching-plan";
 
@@ -380,7 +379,8 @@ export async function createTeachingPlanWorkbook(
     plan.getCell(row, 4).value = SHAPE_LABELS[item.lessonShape];
     plan.getCell(row, 5).value =
       item.lessonShape === "MIXED" ? item.doublePeriodsCount : null;
-    plan.getCell(row, 6).value = ORGANIZATION_LABELS[item.organization];
+    plan.getCell(row, 6).value =
+      ORGANIZATION_LABELS[item.organization as "WHOLE" | "SPLIT"];
     plan.getCell(row, 7).value = teacherName(
       item.primaryTeacherId,
       teacherLabels,
