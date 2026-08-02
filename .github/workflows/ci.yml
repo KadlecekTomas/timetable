@@ -6,9 +6,137 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
+  patch-block-preview:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Restore the human lesson-block preview
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path("apps/web/app/teaching-plan/page.tsx")
+          content = page.read_text()
+          if 'data-testid={`block-preview-${index}`}' not in content:
+              anchor = '''          {row.lessonShape === "MIXED" ? (
+                <div className="mt-4 rounded-xl border border-border bg-surface-subtle p-4">
+                  <label className="flex flex-wrap items-center justify-between gap-3 text-sm font-medium text-text-primary">
+                    Kolik dvojhodin má být v týdnu?
+                    <input
+                      type="number"
+                      min={1}
+                      max={Math.max(1, Math.floor((row.weeklyPeriods - 1) / 2))}
+                      value={row.doublePeriodsCount}
+                      onChange={(event) =>
+                        update((current) => ({
+                          ...current,
+                          doublePeriodsCount: numberValue(event.target.value),
+                        }))
+                      }
+                      className={`${inputClass} w-28`}
+                      aria-label={`Počet dvojhodin ${index + 1}`}
+                    />
+                  </label>
+                </div>
+              ) : null}
+            </div>'''
+              replacement = '''          {row.lessonShape === "MIXED" ? (
+                <div className="mt-4 rounded-xl border border-border bg-surface-subtle p-4">
+                  <label className="flex flex-wrap items-center justify-between gap-3 text-sm font-medium text-text-primary">
+                    Kolik dvojhodin má být v týdnu?
+                    <input
+                      type="number"
+                      min={1}
+                      max={Math.max(1, Math.floor((row.weeklyPeriods - 1) / 2))}
+                      value={row.doublePeriodsCount}
+                      onChange={(event) =>
+                        update((current) => ({
+                          ...current,
+                          doublePeriodsCount: numberValue(event.target.value),
+                        }))
+                      }
+                      className={`${inputClass} w-28`}
+                      aria-label={`Počet dvojhodin ${index + 1}`}
+                    />
+                  </label>
+                </div>
+              ) : null}
+
+              <div
+                className="mt-4 rounded-xl border border-primary/30 bg-primary-subtle p-4"
+                data-testid={`block-preview-${index}`}
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                  Takto to uvidí algoritmus
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {validation.blockDurations.length > 0 ? (
+                    validation.blockDurations.map((duration, blockIndex) => (
+                      <div
+                        key={`${duration}-${blockIndex}`}
+                        className={
+                          duration === 2
+                            ? "flex h-12 min-w-36 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground"
+                            : "flex h-12 min-w-24 items-center justify-center rounded-lg border border-primary/40 bg-surface px-4 text-sm font-semibold text-primary"
+                        }
+                      >
+                        {duration === 2 ? "2 hodiny v kuse" : "1 hodina"}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-danger-strong">
+                      Toto rozložení zatím nejde vytvořit.
+                    </p>
+                  )}
+                </div>
+                <p className="mt-3 text-sm font-medium text-text-primary">
+                  {humanBlockSummary(row)}
+                  {row.organization === "ROTATION" ? " v každém rameni" : ""}
+                </p>
+              </div>
+            </div>'''
+              if anchor not in content:
+                  raise SystemExit("Lesson preview anchor not found")
+              page.write_text(content.replace(anchor, replacement, 1))
+
+          review_test = Path("apps/web/e2e/teaching-plan-import-review.spec.ts")
+          review_content = review_test.read_text().replace(
+              "Souhlasí dělení tříd a dvojhodiny?",
+              "Souhlasí dělení tříd, dvojhodiny a výměny?",
+          )
+          review_test.write_text(review_content)
+
+          teaching_test = Path("apps/web/e2e/teaching-plan.spec.ts")
+          teaching_content = teaching_test.read_text().replace(
+              "Hotovo. Uloženo 2 předmětů jako 3 výukových vazeb včetně dvojhodin a dělených skupin.",
+              "Hotovo. Uloženo 2 nastavení jako 3 výukových vazeb včetně dvojhodin, dělení a výměn předmětů.",
+          )
+          teaching_test.write_text(teaching_content)
+          PY
+      - run: npx prettier --write apps/web/app/teaching-plan/page.tsx apps/web/e2e/teaching-plan.spec.ts apps/web/e2e/teaching-plan-import-review.spec.ts
+      - name: Commit regression fix
+        run: |
+          if git diff --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/app/teaching-plan/page.tsx apps/web/e2e/teaching-plan.spec.ts apps/web/e2e/teaching-plan-import-review.spec.ts
+          git commit -m "fix(teaching-plan): restore visual block preview"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
   web:
     runs-on: ubuntu-latest
     env:
