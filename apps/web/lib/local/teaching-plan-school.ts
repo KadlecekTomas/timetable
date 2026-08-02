@@ -9,6 +9,23 @@ import type {
 
 export * from "./teaching-plan";
 
+/** School-specific class structure for FZŠ Chodovická. */
+export const SCHOOL_CLASS_CODES = [
+  "6.A",
+  "6.B",
+  "6.C",
+  "6.D",
+  "7.A",
+  "7.B",
+  "7.C",
+  "8.A",
+  "8.B",
+  "8.C",
+  "9.A",
+  "9.B",
+  "9.C",
+] as const;
+
 /**
  * School-specific rules for FZŠ Chodovická.
  *
@@ -50,13 +67,38 @@ export function createTeachingPlanClass(code = ""): TeachingPlanClass {
   };
 }
 
+function defaultSchoolClasses(): TeachingPlanClass[] {
+  return SCHOOL_CLASS_CODES.map((code) => createTeachingPlanClass(code));
+}
+
 function enforceClassProfile(
   schoolClass: TeachingPlanClass,
 ): TeachingPlanClass {
-  if (!isSchoolSportsClass(schoolClass.code)) return schoolClass;
   return {
     ...schoolClass,
-    profile: "SPORTS",
+    profile: inferredClassProfile(schoolClass.code),
+  };
+}
+
+function ensureSchoolClasses(classes: TeachingPlanClass[]): TeachingPlanClass[] {
+  const byCode = new Map(
+    classes.map((schoolClass) => [
+      base.normalizeClassCode(schoolClass.code),
+      enforceClassProfile(schoolClass),
+    ]),
+  );
+
+  return SCHOOL_CLASS_CODES.map((code) => {
+    const existing = byCode.get(code);
+    return existing ?? createTeachingPlanClass(code);
+  });
+}
+
+export function createEmptyTeachingPlan(): TeachingPlan {
+  const plan = base.createEmptyTeachingPlan();
+  return {
+    ...plan,
+    classes: defaultSchoolClasses(),
   };
 }
 
@@ -65,7 +107,7 @@ export function enforceSchoolTeachingPlanRules(
 ): TeachingPlan {
   return {
     ...plan,
-    classes: plan.classes.map(enforceClassProfile),
+    classes: ensureSchoolClasses(plan.classes),
   };
 }
 
