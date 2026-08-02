@@ -7,7 +7,8 @@ export const TEACHING_PLAN_STORAGE_KEY = "rozvrhar:teaching-plan:v1";
 export const TEACHING_PLAN_CHANGE_EVENT = "rozvrhar:teaching-plan-changed";
 
 export type TeachingLessonShape = "SEPARATE" | "DOUBLE" | "MIXED";
-export type TeachingOrganization = "WHOLE" | "SPLIT";
+export type TeachingOrganization = "WHOLE" | "SPLIT" | "ROTATION";
+export type TeachingClassProfile = "REGULAR" | "SPORTS" | "CUSTOM";
 
 export const TEACHING_SHAPES: Array<{
   value: TeachingLessonShape;
@@ -47,8 +48,36 @@ export const TEACHING_ORGANIZATIONS: Array<{
   },
   {
     value: "SPLIT",
-    label: "Dvě skupiny",
+    label: "Dvě skupiny – stejný předmět",
     description: "Obě skupiny probíhají současně, každá s vlastním učitelem.",
+  },
+  {
+    value: "ROTATION",
+    label: "Dvě skupiny – výměna předmětů",
+    description:
+      "Skupiny mají současně dva různé předměty a v druhém rameni si je přesně prohodí.",
+  },
+];
+
+export const TEACHING_CLASS_PROFILES: Array<{
+  value: TeachingClassProfile;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "REGULAR",
+    label: "Běžná třída",
+    description: "Standardní hodinová dotace školy.",
+  },
+  {
+    value: "SPORTS",
+    label: "Sportovní třída",
+    description: "Může mít vlastní dotace a větší počet sportovních bloků.",
+  },
+  {
+    value: "CUSTOM",
+    label: "Vlastní profil",
+    description: "Individuální vzdělávací skladba této konkrétní třídy.",
   },
 ];
 
@@ -56,12 +85,14 @@ export interface TeachingPlanClass {
   id: string;
   code: string;
   grade: number;
+  profile: TeachingClassProfile;
 }
 
 export interface TeachingPlanRow {
   id: string;
   classCode: string;
   subjectCode: string;
+  secondarySubjectCode: string;
   weeklyPeriods: number;
   lessonShape: TeachingLessonShape;
   doublePeriodsCount: number;
@@ -105,12 +136,25 @@ export function normalizeClassCode(value: string): string {
     .replace(/^(\d{1,2})([A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ])$/, "$1.$2");
 }
 
+export function inferredClassProfile(code: string): TeachingClassProfile {
+  const normalized = normalizeClassCode(code);
+  return /\.(B|D)$/.test(normalized) ? "SPORTS" : "REGULAR";
+}
+
+export function classProfileLabel(profile: TeachingClassProfile): string {
+  return (
+    TEACHING_CLASS_PROFILES.find((item) => item.value === profile)?.label ??
+    profile
+  );
+}
+
 export function createTeachingPlanClass(code = ""): TeachingPlanClass {
   const normalized = normalizeClassCode(code);
   return {
     id: newId("teaching-class"),
     code: normalized,
     grade: classGradeFromCode(normalized),
+    profile: inferredClassProfile(normalized),
   };
 }
 
@@ -122,6 +166,7 @@ export function createTeachingPlanRow(
     id: newId("teaching-row"),
     classCode: normalizeClassCode(classCode),
     subjectCode,
+    secondarySubjectCode: "",
     weeklyPeriods: 1,
     lessonShape: "SEPARATE",
     doublePeriodsCount: 0,
@@ -169,6 +214,33 @@ export function humanBlockSummary(row: TeachingPlanRow): string {
   return parts.join(" + ");
 }
 
+export function rowClassPeriods(row: TeachingPlanRow): number {
+  return row.organization === "ROTATION"
+    ? row.weeklyPeriods * 2
+    : row.weeklyPeriods;
+}
+
+export function rowTeacherPeriods(
+  row: TeachingPlanRow,
+  teacherId: string,
+): number {
+  if (row.organization === "ROTATION") {
+    return row.primaryTeacherId === teacherId || row.secondaryTeacherId === teacherId
+      ? row.weeklyPeriods * 2
+      : 0;
+  }
+  if (row.primaryTeacherId === teacherId) return row.weeklyPeriods;
+  if (row.organization === "SPLIT" && row.secondaryTeacherId === teacherId) {
+    return row.weeklyPeriods;
+  }
+  return 0;
+}
+
+export function rotationSummary(row: TeachingPlanRow): string {
+  if (row.organization !== "ROTATION") return "";
+  return `1. rameno: skupina 1 ${row.subjectCode} / skupina 2 ${row.secondarySubjectCode} → 2. rameno: skupina 1 ${row.secondarySubjectCode} / skupina 2 ${row.subjectCode}`;
+}
+
 export function validateTeachingPlanRow(
   row: TeachingPlanRow,
   plan: TeachingPlan,
@@ -181,6 +253,21 @@ export function validateTeachingPlanRow(
   }
   if (!STAFFING_SUBJECTS.some((item) => item.code === row.subjectCode)) {
     messages.push("Vyberte předmět.");
+  }
+  if (row.organization === "ROTATION") {
+    if (
+      !STAFFING_SUBJECTS.some(
+        (item) => item.code === row.secondarySubjectCode,
+      )
+    ) {
+      messages.push("Vyberte druhý předmět pro výměnu skupin.");
+    }
+    if (
+      row.subjectCode &&
+      row.subjectCode === row.secondarySubjectCode
+    ) {
+      messages.push("Při výměně musí být zvoleny dva různé předměty.");
+    }
   }
   if (
     !Number.isInteger(row.weeklyPeriods) ||
@@ -212,20 +299,30 @@ export function validateTeachingPlanRow(
   );
   if (!row.primaryTeacherId || !teacherIds.has(row.primaryTeacherId)) {
     messages.push(
-      row.organization === "SPLIT"
-        ? "Vyberte učitele první skupiny."
-        : "Vyberte učitele celé třídy.",
+      row.organization === "WHOLE"
+        ? "Vyberte učitele celé třídy."
+        : row.organization === "ROTATION"
+          ? "Vyberte učitele prvního předmětu."
+          : "Vyberte učitele první skupiny.",
     );
   }
-  if (row.organization === "SPLIT") {
+  if (row.organization !== "WHOLE") {
     if (!row.secondaryTeacherId || !teacherIds.has(row.secondaryTeacherId)) {
-      messages.push("Vyberte učitele druhé skupiny.");
+      messages.push(
+        row.organization === "ROTATION"
+          ? "Vyberte učitele druhého předmětu."
+          : "Vyberte učitele druhé skupiny.",
+      );
     }
     if (
       row.primaryTeacherId &&
       row.primaryTeacherId === row.secondaryTeacherId
     ) {
-      messages.push("Každá skupina musí mít jiného učitele.");
+      messages.push(
+        row.organization === "ROTATION"
+          ? "Dva různé předměty musí mít dva různé učitele."
+          : "Každá skupina musí mít jiného učitele.",
+      );
     }
   }
 
@@ -262,13 +359,19 @@ export function validateTeachingPlan(
           `${row.classCode || "Třída"} ${row.subjectCode || "předmět"}: ${message}`,
       ),
     );
-    const key = `${normalizeClassCode(row.classCode)}|${row.subjectCode}`;
-    if (teachingKeys.has(key)) {
-      messages.push(
-        `${row.classCode} ${row.subjectCode}: předmět je pro třídu uveden vícekrát.`,
-      );
+    const subjectCodes = [
+      row.subjectCode,
+      ...(row.organization === "ROTATION" ? [row.secondarySubjectCode] : []),
+    ].filter(Boolean);
+    for (const subjectCode of subjectCodes) {
+      const key = `${normalizeClassCode(row.classCode)}|${subjectCode}`;
+      if (teachingKeys.has(key)) {
+        messages.push(
+          `${row.classCode} ${subjectCode}: předmět je pro třídu uveden vícekrát.`,
+        );
+      }
+      teachingKeys.add(key);
     }
-    teachingKeys.add(key);
   }
   return messages;
 }
@@ -288,6 +391,11 @@ function normalizeTeachingPlan(value: unknown): TeachingPlan {
           const code = normalizeClassCode(
             typeof item.code === "string" ? item.code : "",
           );
+          const profile = ["REGULAR", "SPORTS", "CUSTOM"].includes(
+            String(item.profile),
+          )
+            ? (item.profile as TeachingClassProfile)
+            : inferredClassProfile(code);
           return {
             id: typeof item.id === "string" ? item.id : newId("teaching-class"),
             code,
@@ -295,6 +403,7 @@ function normalizeTeachingPlan(value: unknown): TeachingPlan {
               Number.isInteger(item.grade) && Number(item.grade) > 0
                 ? Number(item.grade)
                 : classGradeFromCode(code),
+            profile,
           };
         })
       : [],
@@ -306,6 +415,10 @@ function normalizeTeachingPlan(value: unknown): TeachingPlan {
           ),
           subjectCode:
             typeof item.subjectCode === "string" ? item.subjectCode : "",
+          secondarySubjectCode:
+            typeof item.secondarySubjectCode === "string"
+              ? item.secondarySubjectCode
+              : "",
           weeklyPeriods: Number.isFinite(item.weeklyPeriods)
             ? Number(item.weeklyPeriods)
             : 1,
@@ -317,7 +430,9 @@ function normalizeTeachingPlan(value: unknown): TeachingPlan {
           doublePeriodsCount: Number.isFinite(item.doublePeriodsCount)
             ? Number(item.doublePeriodsCount)
             : 0,
-          organization: ["WHOLE", "SPLIT"].includes(String(item.organization))
+          organization: ["WHOLE", "SPLIT", "ROTATION"].includes(
+            String(item.organization),
+          )
             ? (item.organization as TeachingOrganization)
             : "WHOLE",
           primaryTeacherId:
