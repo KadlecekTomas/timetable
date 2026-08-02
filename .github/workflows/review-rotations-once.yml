@@ -1,0 +1,268 @@
+name: Review rotations once
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Teach the review wizard about profiles and rotations
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("apps/web/app/teaching-plan/review/page.tsx")
+          content = path.read_text()
+
+          old_import = '''import {
+            humanBlockSummary,
+            loadTeachingPlan,
+            saveTeachingPlan,
+            type TeachingPlan,
+            type TeachingPlanRow,
+          } from "@/lib/local/teaching-plan";'''.replace("        ", "")
+          new_import = '''import {
+            classProfileLabel,
+            humanBlockSummary,
+            loadTeachingPlan,
+            rotationSummary,
+            rowClassPeriods,
+            rowTeacherPeriods,
+            saveTeachingPlan,
+            type TeachingClassProfile,
+            type TeachingPlan,
+            type TeachingPlanRow,
+          } from "@/lib/local/teaching-plan";'''.replace("        ", "")
+          if old_import not in content:
+              raise SystemExit("Teaching-plan import block not found")
+          content = content.replace(old_import, new_import, 1)
+
+          row_teachers_pattern = re.compile(
+              r'''function rowTeachers\(row: TeachingPlanRow, staffingPlan: StaffingPlan\): string \{.*?\n\}\n\nfunction teacherReviewItems''',
+              re.S,
+          )
+          row_teachers_replacement = '''function rowTeachers(row: TeachingPlanRow, staffingPlan: StaffingPlan): string {
+            const byId = new Map(
+              staffingPlan.teachers.map((teacher) => [teacher.id, teacher] as const),
+            );
+            const primary = teacherLabel(byId.get(row.primaryTeacherId));
+            if (row.organization === "WHOLE") return primary;
+            const secondary = teacherLabel(byId.get(row.secondaryTeacherId));
+            if (row.organization === "ROTATION") {
+              return `${row.subjectCode}: ${primary} / ${row.secondarySubjectCode ?? "2. předmět"}: ${secondary}`;
+            }
+            return `${primary} · skupina 1 / ${secondary} · skupina 2`;
+          }
+
+          function teacherReviewItems'''.replace("        ", "")
+          content, count = row_teachers_pattern.subn(row_teachers_replacement, content, count=1)
+          if count != 1:
+              raise SystemExit("rowTeachers function not found")
+
+          teacher_items_pattern = re.compile(
+              r'''function teacherReviewItems\(\n  plan: TeachingPlan,\n  staffingPlan: StaffingPlan,\n\): TeacherReviewItem\[\] \{.*?\n\}\n\nexport default function TeachingPlanReviewPage''',
+              re.S,
+          )
+          teacher_items_replacement = '''function teacherReviewItems(
+            plan: TeachingPlan,
+            staffingPlan: StaffingPlan,
+          ): TeacherReviewItem[] {
+            const rowsByTeacher = new Map<string, TeachingPlanRow[]>();
+            for (const row of plan.rows) {
+              for (const teacherId of [row.primaryTeacherId, row.secondaryTeacherId]) {
+                if (!teacherId) continue;
+                if (row.organization === "WHOLE" && teacherId === row.secondaryTeacherId) continue;
+                rowsByTeacher.set(teacherId, [
+                  ...(rowsByTeacher.get(teacherId) ?? []),
+                  row,
+                ]);
+              }
+            }
+
+            return staffingPlan.teachers
+              .filter((teacher) => rowsByTeacher.has(teacher.id))
+              .map((teacher) => {
+                const rows = rowsByTeacher.get(teacher.id) ?? [];
+                const subjects = rows.flatMap((row) => {
+                  if (row.organization !== "ROTATION") return [row.subjectCode];
+                  if (row.primaryTeacherId === teacher.id) return [row.subjectCode];
+                  return [row.secondarySubjectCode ?? ""].filter(Boolean);
+                });
+                return {
+                  teacher,
+                  assignedPeriods: rows.reduce(
+                    (total, row) => total + rowTeacherPeriods(row, teacher.id),
+                    0,
+                  ),
+                  classes: [...new Set(rows.map((row) => row.classCode))].sort((a, b) =>
+                    a.localeCompare(b, "cs-CZ", { numeric: true }),
+                  ),
+                  subjects: [...new Set(subjects)].sort((a, b) =>
+                    a.localeCompare(b, "cs-CZ"),
+                  ),
+                };
+              })
+              .sort((left, right) =>
+                teacherLabel(left.teacher).localeCompare(
+                  teacherLabel(right.teacher),
+                  "cs-CZ",
+                ),
+              );
+          }
+
+          export default function TeachingPlanReviewPage'''.replace("        ", "")
+          content, count = teacher_items_pattern.subn(teacher_items_replacement, content, count=1)
+          if count != 1:
+              raise SystemExit("teacherReviewItems function not found")
+
+          replacements = [
+              (
+                  'row.lessonShape !== "SEPARATE" || row.organization === "SPLIT",',
+                  'row.lessonShape !== "SEPARATE" || row.organization !== "WHOLE",',
+              ),
+              (
+                  '''  const currentClassPeriods = currentClassRows.reduce(
+            (total, row) => total + row.weeklyPeriods,
+            0,
+          );'''.replace("        ", ""),
+                  '''  const currentClassPeriods = currentClassRows.reduce(
+            (total, row) => total + rowClassPeriods(row),
+            0,
+          );'''.replace("        ", ""),
+              ),
+              (
+                  '          classCode={currentClass.code}\n          classIndex={currentClassIndex}',
+                  '          classCode={currentClass.code}\n          classProfile={currentClass.profile ?? "REGULAR"}\n          classIndex={currentClassIndex}',
+              ),
+              (
+                  '''function ClassReviewStep({
+            classCode,
+            classIndex,'''.replace("        ", ""),
+                  '''function ClassReviewStep({
+            classCode,
+            classProfile,
+            classIndex,'''.replace("        ", ""),
+              ),
+              (
+                  '  classCode: string;\n  classIndex: number;',
+                  '  classCode: string;\n  classProfile: TeachingClassProfile;\n  classIndex: number;',
+              ),
+              (
+                  '''              <h2 className="mt-1 text-3xl font-semibold text-text-primary">
+                {classCode}
+              </h2>'''.replace("        ", ""),
+                  '''              <div className="mt-1 flex flex-wrap items-center gap-3">
+                <h2 className="text-3xl font-semibold text-text-primary">
+                  {classCode}
+                </h2>
+                <StatusBadge tone={classProfile === "SPORTS" ? "success" : "neutral"}>
+                  {classProfileLabel(classProfile)}
+                </StatusBadge>
+              </div>'''.replace("        ", ""),
+              ),
+              (
+                  '                  {row.weeklyPeriods} h',
+                  '                  {rowClassPeriods(row)} h',
+              ),
+              (
+                  '            Souhlasí dělení tříd a dvojhodiny?',
+                  '            Souhlasí dělení tříd, dvojhodiny a výměny?',
+              ),
+              (
+                  '            Excel neobsahuje žádné dělené předměty ani dvojhodiny.',
+                  '            Excel neobsahuje žádné dělené předměty, dvojhodiny ani výměny.',
+              ),
+          ]
+          for old, new in replacements:
+              if old not in content:
+                  raise SystemExit(f"Review fragment not found: {old[:100]}")
+              content = content.replace(old, new, 1)
+
+          subject_marker = '''                  <p className="mt-0.5 text-xs text-text-muted">
+                    {row.subjectCode}
+                  </p>'''.replace("        ", "")
+          subject_replacement = '''                  <p className="mt-0.5 text-xs text-text-muted">
+                    {row.organization === "ROTATION"
+                      ? rotationSummary(row)
+                      : row.subjectCode}
+                  </p>'''.replace("        ", "")
+          if subject_marker not in content:
+              raise SystemExit("Class subject detail marker not found")
+          content = content.replace(subject_marker, subject_replacement, 1)
+
+          badge_marker = '''                  <StatusBadge
+                    tone={row.organization === "SPLIT" ? "warning" : "neutral"}
+                  >
+                    {row.organization === "SPLIT"
+                      ? "Dvě skupiny současně"
+                      : "Celá třída"}
+                  </StatusBadge>'''.replace("        ", "")
+          badge_replacement = '''                  <StatusBadge
+                    tone={row.organization === "WHOLE" ? "neutral" : "warning"}
+                  >
+                    {row.organization === "ROTATION"
+                      ? "Povinná výměna předmětů"
+                      : row.organization === "SPLIT"
+                        ? "Dvě skupiny současně"
+                        : "Celá třída"}
+                  </StatusBadge>'''.replace("        ", "")
+          if badge_marker not in content:
+              raise SystemExit("Class organization badge not found")
+          content = content.replace(badge_marker, badge_replacement, 1)
+
+          special_title = '''                  <h3 className="mt-1 text-lg font-semibold text-text-primary">
+                    {subjectLabel(row.subjectCode)}
+                  </h3>'''.replace("        ", "")
+          special_title_new = '''                  <h3 className="mt-1 text-lg font-semibold text-text-primary">
+                    {subjectLabel(row.subjectCode)}
+                    {row.organization === "ROTATION"
+                      ? ` ↔ ${subjectLabel(row.secondarySubjectCode ?? "")}`
+                      : ""}
+                  </h3>'''.replace("        ", "")
+          if special_title not in content:
+              raise SystemExit("Special title marker not found")
+          content = content.replace(special_title, special_title_new, 1)
+
+          special_badge = '''                <StatusBadge
+                  tone={row.organization === "SPLIT" ? "warning" : "neutral"}
+                >
+                  {row.organization === "SPLIT" ? "Dvě skupiny" : "Celá třída"}
+                </StatusBadge>'''.replace("        ", "")
+          special_badge_new = '''                <StatusBadge
+                  tone={row.organization === "WHOLE" ? "neutral" : "warning"}
+                >
+                  {row.organization === "ROTATION"
+                    ? "Výměna předmětů"
+                    : row.organization === "SPLIT"
+                      ? "Dvě skupiny"
+                      : "Celá třída"}
+                </StatusBadge>'''.replace("        ", "")
+          if special_badge not in content:
+              raise SystemExit("Special badge marker not found")
+          content = content.replace(special_badge, special_badge_new, 1)
+
+          path.write_text(content)
+          PY
+      - run: npx prettier --write apps/web/app/teaching-plan/review/page.tsx
+      - name: Commit review changes
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/app/teaching-plan/review/page.tsx
+          git commit -m "feat(import-review): verify sport classes and subject rotations"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
