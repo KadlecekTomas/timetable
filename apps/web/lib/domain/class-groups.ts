@@ -90,13 +90,17 @@ export function rotationAssignmentLegs(
   }
 
   return [...rotations.entries()]
-    .filter((entry): entry is [
-      string,
-      {
-        1: [SnapshotAssignment, SnapshotAssignment];
-        2: [SnapshotAssignment, SnapshotAssignment];
-      },
-    ] => Boolean(entry[1][1] && entry[1][2]))
+    .filter(
+      (
+        entry,
+      ): entry is [
+        string,
+        {
+          1: [SnapshotAssignment, SnapshotAssignment];
+          2: [SnapshotAssignment, SnapshotAssignment];
+        },
+      ] => Boolean(entry[1][1] && entry[1][2]),
+    )
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([rotationKey, legs]) => ({
       rotationKey,

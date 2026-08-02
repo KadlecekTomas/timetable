@@ -170,7 +170,9 @@ async function readProject(page: Page) {
         openRequest.onsuccess = () => {
           const database = openRequest.result;
           const transaction = database.transaction("state", "readonly");
-          const request = transaction.objectStore("state").get("active-project");
+          const request = transaction
+            .objectStore("state")
+            .get("active-project");
           request.onerror = () => reject(request.error);
           request.onsuccess = () => resolve(request.result);
           transaction.oncomplete = () => database.close();
@@ -218,10 +220,9 @@ test("sports class keeps its own allocation and Czech-Math groups swap atomicall
   await expect(
     page.getByRole("button", { name: "Dvě skupiny – výměna předmětů" }),
   ).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: "Hned po sobě" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expect(
+    page.getByRole("button", { name: "Hned po sobě" }),
+  ).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("rotation-preview-0")).toContainText(
     "1. rameno",
   );
@@ -241,7 +242,10 @@ test("sports class keeps its own allocation and Czech-Math groups swap atomicall
 
   const stored = await readProject(page);
   expect(
-    stored.classes.map((schoolClass) => [schoolClass.code, schoolClass.profile]),
+    stored.classes.map((schoolClass) => [
+      schoolClass.code,
+      schoolClass.profile,
+    ]),
   ).toEqual([
     ["6.A", "REGULAR"],
     ["6.B", "SPORTS"],
@@ -272,15 +276,17 @@ test("sports class keeps its own allocation and Czech-Math groups swap atomicall
     (assignment) => assignment.rotationKey,
   );
   expect(rotationAssignments).toHaveLength(4);
-  expect(new Set(rotationAssignments.map((item) => item.rotationKey)).size).toBe(1);
   expect(
-    rotationAssignments.map((item) => item.rotationLeg).sort(),
-  ).toEqual([1, 1, 2, 2]);
-  expect(new Set(rotationAssignments.map((item) => item.parallelKey)).size).toBe(2);
+    new Set(rotationAssignments.map((item) => item.rotationKey)).size,
+  ).toBe(1);
+  expect(rotationAssignments.map((item) => item.rotationLeg).sort()).toEqual([
+    1, 1, 2, 2,
+  ]);
   expect(
-    rotationAssignments.every(
-      (item) => item.rotationPlacement === "ADJACENT",
-    ),
+    new Set(rotationAssignments.map((item) => item.parallelKey)).size,
+  ).toBe(2);
+  expect(
+    rotationAssignments.every((item) => item.rotationPlacement === "ADJACENT"),
   ).toBe(true);
   await capture(page, "13-plan-ulozeny-s-profily-a-rotaci.png");
 
@@ -330,12 +336,14 @@ test("sports class keeps its own allocation and Czech-Math groups swap atomicall
   const leg2Lessons = leg2Assignments.map(
     (assignment) => lessonByAssignment.get(assignment.id)!,
   );
-  expect(new Set(leg1Lessons.map((lesson) => `${lesson.day}:${lesson.period}`)).size).toBe(1);
-  expect(new Set(leg2Lessons.map((lesson) => `${lesson.day}:${lesson.period}`)).size).toBe(1);
-  expect(leg1Lessons[0]!.day).toBe(leg2Lessons[0]!.day);
   expect(
-    Math.abs(leg1Lessons[0]!.period - leg2Lessons[0]!.period),
+    new Set(leg1Lessons.map((lesson) => `${lesson.day}:${lesson.period}`)).size,
   ).toBe(1);
+  expect(
+    new Set(leg2Lessons.map((lesson) => `${lesson.day}:${lesson.period}`)).size,
+  ).toBe(1);
+  expect(leg1Lessons[0]!.day).toBe(leg2Lessons[0]!.day);
+  expect(Math.abs(leg1Lessons[0]!.period - leg2Lessons[0]!.period)).toBe(1);
 
   const leg1ByGroup = new Map(
     leg1Assignments.map((assignment) => [assignment.group, assignment]),

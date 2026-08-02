@@ -191,9 +191,7 @@ test("manual move cannot detach one half or one leg of an adjacent exchange", ()
 
   assert.equal(result.valid, false);
   assert.ok(
-    result.issues.some(
-      (item) => item.code === "PARALLEL_GROUP_DESYNCHRONIZED",
-    ),
+    result.issues.some((item) => item.code === "PARALLEL_GROUP_DESYNCHRONIZED"),
   );
   assert.ok(
     result.issues.some((item) => item.code === "ROTATION_NOT_ADJACENT"),

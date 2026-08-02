@@ -128,7 +128,10 @@ test("subject rotation counts both legs and class allocations stay independent",
   assert.equal(rowClassPeriods(rotation), 2);
   assert.equal(rowTeacherPeriods(rotation, "teacher-cj"), 2);
   assert.equal(rowTeacherPeriods(rotation, "teacher-m"), 2);
-  assert.equal(rotationPlacementLabel(rotation.rotationPlacement), "Hned po sobě");
+  assert.equal(
+    rotationPlacementLabel(rotation.rotationPlacement),
+    "Hned po sobě",
+  );
 
   const totals = new Map(
     plan.classes.map((schoolClass) => [
