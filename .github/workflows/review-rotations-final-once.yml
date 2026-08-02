@@ -1,0 +1,145 @@
+name: Apply final rotation review patch once
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Apply resilient review patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("apps/web/app/teaching-plan/review/page.tsx")
+          content = path.read_text()
+
+          content = content.replace(
+              "  humanBlockSummary,\n  loadTeachingPlan,\n  saveTeachingPlan,",
+              "  classProfileLabel,\n  humanBlockSummary,\n  loadTeachingPlan,\n  rotationSummary,\n  rowClassPeriods,\n  rowTeacherPeriods,\n  saveTeachingPlan,\n  type TeachingClassProfile,",
+              1,
+          )
+          content = re.sub(
+              r"function rowTeachers\(row: TeachingPlanRow, staffingPlan: StaffingPlan\): string \{.*?\n\}",
+              '''function rowTeachers(row: TeachingPlanRow, staffingPlan: StaffingPlan): string {
+            const byId = new Map(
+              staffingPlan.teachers.map((teacher) => [teacher.id, teacher] as const),
+            );
+            const primary = teacherLabel(byId.get(row.primaryTeacherId));
+            if (row.organization === "WHOLE") return primary;
+            const secondary = teacherLabel(byId.get(row.secondaryTeacherId));
+            if (row.organization === "ROTATION") {
+              return `${row.subjectCode}: ${primary} / ${row.secondarySubjectCode ?? "2. předmět"}: ${secondary}`;
+            }
+            return `${primary} · skupina 1 / ${secondary} · skupina 2`;
+          }'''.replace("        ", ""),
+              content,
+              count=1,
+              flags=re.S,
+          )
+          content = content.replace(
+              '    if (row.organization === "SPLIT" && row.secondaryTeacherId) {',
+              '    if (row.organization !== "WHOLE" && row.secondaryTeacherId) {',
+              1,
+          )
+          content = content.replace(
+              '(total, row) => total + row.weeklyPeriods,',
+              '(total, row) => total + rowTeacherPeriods(row, teacher.id),',
+              1,
+          )
+          content = content.replace(
+              'row.lessonShape !== "SEPARATE" || row.organization === "SPLIT",',
+              'row.lessonShape !== "SEPARATE" || row.organization !== "WHOLE",',
+              1,
+          )
+          content = re.sub(
+              r"const currentClassPeriods = currentClassRows\.reduce\(\s*\(total, row\) => total \+ row\.weeklyPeriods,\s*0,\s*\);",
+              "const currentClassPeriods = currentClassRows.reduce(\n    (total, row) => total + rowClassPeriods(row),\n    0,\n  );",
+              content,
+              count=1,
+          )
+          content = content.replace(
+              '          classCode={currentClass.code}\n          classIndex={currentClassIndex}',
+              '          classCode={currentClass.code}\n          classProfile={currentClass.profile ?? "REGULAR"}\n          classIndex={currentClassIndex}',
+              1,
+          )
+          content = content.replace(
+              "function ClassReviewStep({\n  classCode,\n  classIndex,",
+              "function ClassReviewStep({\n  classCode,\n  classProfile,\n  classIndex,",
+              1,
+          )
+          content = content.replace(
+              "  classCode: string;\n  classIndex: number;",
+              "  classCode: string;\n  classProfile: TeachingClassProfile;\n  classIndex: number;",
+              1,
+          )
+          content = re.sub(
+              r'''<h2 className="mt-1 text-3xl font-semibold text-text-primary">\s*\{classCode\}\s*</h2>''',
+              '''<div className="mt-1 flex flex-wrap items-center gap-3">
+                <h2 className="text-3xl font-semibold text-text-primary">{classCode}</h2>
+                <StatusBadge tone={classProfile === "SPORTS" ? "success" : "neutral"}>
+                  {classProfileLabel(classProfile)}
+                </StatusBadge>
+              </div>'''.replace("        ", ""),
+              content,
+              count=1,
+          )
+          content = content.replace(
+              "                  {row.weeklyPeriods} h",
+              "                  {rowClassPeriods(row)} h",
+              1,
+          )
+          content = re.sub(
+              r'''<p className="mt-0\.5 text-xs text-text-muted">\s*\{row\.subjectCode\}\s*</p>''',
+              '''<p className="mt-0.5 text-xs text-text-muted">
+                {row.organization === "ROTATION" ? rotationSummary(row) : row.subjectCode}
+              </p>'''.replace("        ", ""),
+              content,
+              count=1,
+          )
+          content = content.replace(
+              "Souhlasí dělení tříd a dvojhodiny?",
+              "Souhlasí dělení tříd, dvojhodiny a výměny?",
+              1,
+          )
+          content = content.replace(
+              "Excel neobsahuje žádné dělené předměty ani dvojhodiny.",
+              "Excel neobsahuje žádné dělené předměty, dvojhodiny ani výměny.",
+              1,
+          )
+
+          required = [
+              "rowTeacherPeriods(row, teacher.id)",
+              "rowClassPeriods(row)",
+              'classProfile={currentClass.profile ?? "REGULAR"}',
+              "classProfileLabel(classProfile)",
+              "rotationSummary(row)",
+          ]
+          missing = [item for item in required if item not in content]
+          if missing:
+              raise SystemExit(f"Final review patch incomplete: {missing}")
+          path.write_text(content)
+          PY
+      - run: npx prettier --write apps/web/app/teaching-plan/review/page.tsx
+      - name: Commit final review patch
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/app/teaching-plan/review/page.tsx
+          git commit -m "feat(import-review): verify sport profiles and subject swaps"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
