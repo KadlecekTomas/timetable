@@ -508,7 +508,7 @@ export async function createTeachingPlanWorkbook(
       result: "",
     };
     rotations.getCell(row, 11).value = {
-      formula: `IF(COUNTA(A${row}:I${row})=0,"",IF(OR(A${row}="",B${row}="",C${row}="",D${row}="",E${row}="",F${row}="",G${row}="",I${row}=""),"DOPLNIT",IF(B${row}=D${row},"STEJNÉ PŘEDMĚTY",IF(C${row}=E${row},"STEJNÝ UČITEL",IF(AND(G${row}="Pouze dvojhodiny",MOD(F${row},2)=1),"LICHÝ POČET",IF(AND(G${row}="Kombinace",OR(H${row}="",2*H${row}>=F${row})),"OPRAVIT KOMBINACI","SEDÍ")))))`,
+      formula: `IF(COUNTA(A${row}:I${row})=0,"",IF(OR(A${row}="",B${row}="",C${row}="",D${row}="",E${row}="",F${row}="",G${row}="",I${row}=""),"DOPLNIT",IF(OR(B${row}=D${row},C${row}=E${row}),"OPRAVIT VÝMĚNU",IF(OR(AND(G${row}="Pouze dvojhodiny",MOD(F${row},2)=1),AND(G${row}="Kombinace",OR(H${row}="",2*H${row}>=F${row}))),"OPRAVIT ROZLOŽENÍ","SEDÍ"))))`,
       result: "",
     };
     rotations.getCell(row, 10).fill = {
