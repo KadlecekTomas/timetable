@@ -6,120 +6,9 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  patch-rotation-core:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: npm install
-      - name: Patch rotation objective and web contracts
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          def replace_once(path: Path, old: str, new: str) -> None:
-              content = path.read_text()
-              if new in content:
-                  print(f"Already patched: {path}")
-                  return
-              if old not in content:
-                  raise SystemExit(f"Expected fragment not found in {path}: {old[:160]}")
-              path.write_text(content.replace(old, new, 1))
-
-          main = Path("apps/solver/app/main.py")
-          replace_once(
-              main,
-              "    parallel_assignment_pairs,\n)",
-              "    parallel_assignment_pairs,\n    rotation_assignment_legs,\n)",
-          )
-          replace_once(
-              main,
-              '''                model.add(
-                    sum(left_at_position) == sum(right_at_position)
-                )
-
-    for assignment in payload.assignments:''',
-              '''                model.add(
-                    sum(left_at_position) == sum(right_at_position)
-                )
-
-    rotation_horizon = max(payload.periods_per_day)
-    for rotation_key, leg_1, leg_2 in rotation_assignment_legs(payload.assignments):
-        leg_1_blocks = sorted(blocks_by_assignment[leg_1[0].id], key=lambda item: item.index)
-        leg_2_blocks = sorted(blocks_by_assignment[leg_2[0].id], key=lambda item: item.index)
-        if [item.duration for item in leg_1_blocks] != [item.duration for item in leg_2_blocks]:
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "code": "ROTATION_SHAPE_MISMATCH",
-                    "message": "Obě ramena výměny předmětů musí mít stejné rozložení hodin.",
-                    "causes": [{"entityIds": [leg_1[0].id, leg_1[1].id, leg_2[0].id, leg_2[1].id]}],
-                },
-            )
-        for block_index, (leg_1_block, leg_2_block) in enumerate(zip(leg_1_blocks, leg_2_blocks, strict=True)):
-            upper_bound = len(payload.periods_per_day) * rotation_horizon - 1
-            leg_1_position = model.new_int_var(0, upper_bound, f"rotation_position_{rotation_key}_1_{block_index}")
-            leg_2_position = model.new_int_var(0, upper_bound, f"rotation_position_{rotation_key}_2_{block_index}")
-            model.add(
-                leg_1_position == sum(
-                    variable * (candidate.day * rotation_horizon + candidate.period)
-                    for candidate, variable in variables[leg_1_block.id]
-                )
-            )
-            model.add(
-                leg_2_position == sum(
-                    variable * (candidate.day * rotation_horizon + candidate.period)
-                    for candidate, variable in variables[leg_2_block.id]
-                )
-            )
-            spread = model.new_int_var(1, upper_bound, f"rotation_spread_{rotation_key}_{block_index}")
-            model.add_abs_equality(spread, leg_1_position - leg_2_position)
-            objective_terms.append(spread * payload.weights.rotation_spread)
-
-    for assignment in payload.assignments:''',
-          )
-
-          contracts = Path("apps/web/lib/domain/contracts.ts")
-          replace_once(contracts, 'export type LessonShape = "SINGLE" | "DOUBLE" | "MIXED";\n', 'export type LessonShape = "SINGLE" | "DOUBLE" | "MIXED";\nexport type ClassProfile = "REGULAR" | "SPORTS" | "CUSTOM";\n')
-          replace_once(contracts, '  grade: number;\n}\n\nexport interface SnapshotSubject', '  grade: number;\n  profile?: ClassProfile;\n}\n\nexport interface SnapshotSubject')
-          replace_once(contracts, '  min_day_gap?: number | null;\n}\n\nexport interface SnapshotAvailabilityRule', '  min_day_gap?: number | null;\n  parallel_key?: string | null;\n  rotation_key?: string | null;\n  rotation_leg?: 1 | 2 | null;\n}\n\nexport interface SnapshotAvailabilityRule')
-          replace_once(contracts, '  late_period: number;\n}\n', '  late_period: number;\n  rotation_spread: number;\n}\n')
-
-          groups = Path("apps/web/lib/domain/class-groups.ts")
-          replace_once(groups, '    const key = `${assignmentClassIds(assignment).sort().join("|")}::${assignment.subject_id}`;', '    const synchronizationKey = assignment.parallel_key || `subject:${assignment.subject_id}`;\n    const key = `${assignmentClassIds(assignment).sort().join("|")}::${synchronizationKey}`;')
-
-          api = Path("apps/web/lib/local/api.ts")
-          replace_once(api, '  late_period: 1,\n};', '  late_period: 1,\n  rotation_spread: 75,\n};')
-          replace_once(api, '  name: string;\n}\n\ninterface LocalRoomType', '  name: string;\n  profile: "REGULAR" | "SPORTS" | "CUSTOM";\n}\n\ninterface LocalRoomType')
-          replace_once(api, '  minDayGap: number | null;\n}\n\ninterface LocalAvailability', '  minDayGap: number | null;\n  parallelKey: string | null;\n  rotationKey: string | null;\n  rotationLeg: 1 | 2 | null;\n}\n\ninterface LocalAvailability')
-          replace_once(api, '      grade: schoolClass.grade,\n    })),', '      grade: schoolClass.grade,\n      profile: schoolClass.profile ?? "REGULAR",\n    })),')
-          replace_once(api, '      min_day_gap: assignment.minDayGap,\n    })),', '      min_day_gap: assignment.minDayGap,\n      parallel_key: assignment.parallelKey,\n      rotation_key: assignment.rotationKey,\n      rotation_leg: assignment.rotationLeg,\n    })),')
-          replace_once(api, '        name: stringField(body, "name"),\n      });\n    } else if (resource === "subjects")', '        name: stringField(body, "name"),\n        profile: (["REGULAR", "SPORTS", "CUSTOM"].includes(stringField(body, "profile"))\n          ? stringField(body, "profile")\n          : "REGULAR") as LocalClass["profile"],\n      });\n    } else if (resource === "subjects")')
-          replace_once(api, '        minDayGap: nullableNumber(body, "minDayGap"),\n      });\n    } else {', '        minDayGap: nullableNumber(body, "minDayGap"),\n        parallelKey: stringField(body, "parallelKey") || null,\n        rotationKey: stringField(body, "rotationKey") || null,\n        rotationLeg: ([1, 2].includes(Number(body.rotationLeg)) ? Number(body.rotationLeg) : null) as 1 | 2 | null,\n      });\n    } else {')
-          PY
-      - run: npx prettier --write apps/web/lib/domain/contracts.ts apps/web/lib/domain/class-groups.ts apps/web/lib/local/api.ts
-      - run: ruff format apps/solver/app/main.py apps/solver/app/models.py apps/solver/app/class_groups.py
-      - name: Commit patch
-        run: |
-          if git diff --quiet; then exit 0; fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/solver/app/main.py apps/solver/app/models.py apps/solver/app/class_groups.py apps/web/lib/domain/contracts.ts apps/web/lib/domain/class-groups.ts apps/web/lib/local/api.ts
-          git commit -m "feat(solver): support cross-subject group rotations"
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
-
   web:
     runs-on: ubuntu-latest
     env:
@@ -195,10 +84,16 @@ jobs:
         run: |
           nohup bash -c 'cd apps/solver && uvicorn app.main:app --host 127.0.0.1 --port 8000' > /tmp/solver.log 2>&1 &
           nohup npm run start --workspace @timetable/web > /tmp/web.log 2>&1 &
+
           for attempt in $(seq 1 90); do
-            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null && curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null && curl --fail --silent http://127.0.0.1:3000/solver/health >/dev/null; then exit 0; fi
+            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null && \
+               curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null && \
+               curl --fail --silent http://127.0.0.1:3000/solver/health >/dev/null; then
+              exit 0
+            fi
             sleep 1
           done
+
           cat /tmp/solver.log || true
           cat /tmp/web.log || true
           exit 1
