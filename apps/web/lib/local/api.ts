@@ -800,6 +800,60 @@ async function createResource(
   );
 }
 
+async function updateResource(
+  resource: ResourceName,
+  id: string,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  let response: Response | null = null;
+  await mutateProject((project) => {
+    response = checkExpectedVersion(project, body);
+    if (response) return;
+
+    if (resource !== "classes") {
+      response = errorResponse(
+        405,
+        "RESOURCE_UPDATE_UNSUPPORTED",
+        "Tento typ položky zatím nelze tímto způsobem upravit.",
+      );
+      return;
+    }
+
+    const schoolClass = project.classes.find((item) => item.id === id);
+    if (!schoolClass) {
+      response = errorResponse(
+        404,
+        "CLASS_NOT_FOUND",
+        "Třída nebyla nalezena.",
+      );
+      return;
+    }
+    const profile = stringField(body, "profile");
+    if (!["REGULAR", "SPORTS", "CUSTOM"].includes(profile)) {
+      response = errorResponse(
+        422,
+        "CLASS_PROFILE_INVALID",
+        "Vyberte běžnou, sportovní nebo vlastní třídu.",
+      );
+      return;
+    }
+
+    schoolClass.profile = profile as LocalClass["profile"];
+    const grade = Number(body.grade);
+    if (Number.isInteger(grade) && grade >= 1 && grade <= 13) {
+      schoolClass.grade = grade;
+    }
+    const name = stringField(body, "name");
+    if (name) schoolClass.name = name;
+    project.version += 1;
+    response = jsonResponse({ schoolYearVersion: project.version });
+  });
+  return (
+    response ??
+    errorResponse(500, "LOCAL_UPDATE_FAILED", "Třídu se nepodařilo upravit.")
+  );
+}
+
 async function deleteResource(
   resource: ResourceName,
   id: string,
@@ -1055,6 +1109,9 @@ function applyImportPayload(
     code: item.class_code,
     grade: item.grade,
     name: item.class_name,
+    profile: /\.(B|D)$/i.test(item.class_code)
+      ? ("SPORTS" as const)
+      : ("REGULAR" as const),
   }));
   const subjects = payload.subjects.map((item) => ({
     id: idFor("subject", item.subject_code),
@@ -1100,6 +1157,10 @@ function applyImportPayload(
       : null,
     maxPerDay: item.max_per_day,
     minDayGap: item.min_day_gap,
+    parallelKey: null,
+    rotationKey: null,
+    rotationLeg: null,
+    rotationPlacement: null,
   }));
   const assignmentByCode = new Map(
     assignments.map((item) => [item.assignmentCode, item.id]),
@@ -1642,6 +1703,9 @@ export async function localApiFetch(
     }
     if (method === "POST" && !id) {
       return createResource(resource, readJsonBody(init));
+    }
+    if (["PATCH", "PUT"].includes(method) && id) {
+      return updateResource(resource, id, readJsonBody(init));
     }
     if (method === "DELETE" && id) {
       return deleteResource(resource, id, readJsonBody(init));

@@ -470,11 +470,32 @@ export default function TeachingPlanPage() {
         version = payload.schoolYearVersion ?? version + 1;
       }
 
-      const existingClassCodes = new Set(
-        classesResponse.items.map((item) => textValue(item, "code")),
+      const existingClassByCode = new Map(
+        classesResponse.items.map((item) => [textValue(item, "code"), item]),
       );
       for (const schoolClass of plan.classes) {
-        if (existingClassCodes.has(schoolClass.code)) continue;
+        const desiredProfile = schoolClass.profile ?? "REGULAR";
+        const existingClass = existingClassByCode.get(schoolClass.code);
+        if (existingClass) {
+          if (textValue(existingClass, "profile") !== desiredProfile) {
+            setProgress(`Aktualizuji profil třídy ${schoolClass.code}…`);
+            const payload = await requestJson<{ schoolYearVersion?: number }>(
+              `/api/school-years/${schoolYearId}/classes/${encodeURIComponent(textValue(existingClass, "id"))}`,
+              {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  expectedSchoolYearVersion: version,
+                  grade: schoolClass.grade,
+                  name: schoolClass.code,
+                  profile: desiredProfile,
+                }),
+              },
+            );
+            version = payload.schoolYearVersion ?? version + 1;
+          }
+          continue;
+        }
         setProgress(`Zakládám třídu ${schoolClass.code}…`);
         const payload = await requestJson<{ schoolYearVersion?: number }>(
           `/api/school-years/${schoolYearId}/classes`,
@@ -486,7 +507,7 @@ export default function TeachingPlanPage() {
               code: schoolClass.code,
               grade: schoolClass.grade,
               name: schoolClass.code,
-              profile: schoolClass.profile ?? "REGULAR",
+              profile: desiredProfile,
             }),
           },
         );
