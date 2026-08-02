@@ -12,7 +12,7 @@ import type {
   ImportPayload,
   ImportSummary,
 } from "@/lib/import/contracts";
-import { analyzeImportWorkbook } from "@/lib/import/workbook";
+import { analyzeClientImportWorkbook } from "@/lib/import/client-workbook";
 
 export const LOCAL_SCHOOL_YEAR_ID = "local-school-year";
 
@@ -29,6 +29,7 @@ const DEFAULT_WEIGHTS = {
   preferred_slot_bonus: 3,
   same_day_concentration: 6,
   late_period: 1,
+  rotation_spread: 75,
 };
 
 type GenerationStatus =
@@ -64,6 +65,7 @@ interface LocalClass {
   code: string;
   grade: number;
   name: string;
+  profile: "REGULAR" | "SPORTS" | "CUSTOM";
 }
 
 interface LocalRoomType {
@@ -92,6 +94,7 @@ interface LocalAssignment {
   id: string;
   assignmentCode: string;
   classId: string;
+  additionalClassIds: string[];
   subjectId: string;
   teacherId: string;
   group: "WHOLE" | "GROUP_1" | "GROUP_2";
@@ -102,6 +105,10 @@ interface LocalAssignment {
   requiredRoomTypeId: string | null;
   maxPerDay: number | null;
   minDayGap: number | null;
+  parallelKey: string | null;
+  rotationKey: string | null;
+  rotationLeg: number | null;
+  rotationPlacement: "ADJACENT" | "SAME_DAY" | "FLEXIBLE" | null;
 }
 
 interface LocalAvailability {
@@ -300,9 +307,34 @@ async function writeStoredProject(project: LocalProject): Promise<void> {
   }
 }
 
+function normalizeStoredProject(project: LocalProject): LocalProject {
+  return {
+    ...project,
+    classes: project.classes.map((schoolClass) => ({
+      ...schoolClass,
+      profile: ["REGULAR", "SPORTS", "CUSTOM"].includes(
+        String(schoolClass.profile),
+      )
+        ? schoolClass.profile
+        : /\.(B|D)$/i.test(schoolClass.code)
+          ? "SPORTS"
+          : "REGULAR",
+    })),
+    assignments: project.assignments.map((assignment) => ({
+      ...assignment,
+      parallelKey: assignment.parallelKey ?? null,
+      rotationKey: assignment.rotationKey ?? null,
+      rotationLeg: assignment.rotationLeg ?? null,
+      rotationPlacement: assignment.rotationPlacement ?? null,
+    })),
+  };
+}
+
 export async function getLocalProject(): Promise<LocalProject> {
   const stored = await readStoredProject();
-  if (stored?.schemaVersion === 1) return stored;
+  if (stored?.schemaVersion === 1) {
+    return normalizeStoredProject(stored);
+  }
   const created = createDefaultProject();
   await writeStoredProject(created);
   return created;
@@ -405,6 +437,7 @@ function projectSnapshot(
       code: schoolClass.code,
       name: schoolClass.name,
       grade: schoolClass.grade,
+      profile: schoolClass.profile,
     })),
     subjects: project.subjects.map((subject) => ({
       id: subject.id,
@@ -424,6 +457,7 @@ function projectSnapshot(
       code: assignment.assignmentCode,
       teacher_id: assignment.teacherId,
       class_id: assignment.classId,
+      additional_class_ids: assignment.additionalClassIds,
       subject_id: assignment.subjectId,
       group: assignment.group,
       weekly_periods: assignment.weeklyPeriods,
@@ -433,6 +467,10 @@ function projectSnapshot(
       required_room_type_id: assignment.requiredRoomTypeId,
       max_per_day: assignment.maxPerDay,
       min_day_gap: assignment.minDayGap,
+      parallel_key: assignment.parallelKey,
+      rotation_key: assignment.rotationKey,
+      rotation_leg: assignment.rotationLeg,
+      rotation_placement: assignment.rotationPlacement,
     })),
     availability: project.availability.map((rule) => ({
       entity_type: rule.entityType,
@@ -475,6 +513,9 @@ function assignmentView(project: LocalProject, assignment: LocalAssignment) {
     ...assignment,
     teacher: project.teachers.find((item) => item.id === assignment.teacherId),
     schoolClass: project.classes.find((item) => item.id === assignment.classId),
+    schoolClasses: [assignment.classId, ...assignment.additionalClassIds]
+      .map((classId) => project.classes.find((item) => item.id === classId))
+      .filter(Boolean),
     subject: project.subjects.find((item) => item.id === assignment.subjectId),
     requiredRoom: project.rooms.find(
       (item) => item.id === assignment.requiredRoomId,
@@ -590,6 +631,13 @@ async function createResource(
         code,
         grade: Number(body.grade),
         name: stringField(body, "name"),
+        profile: ["REGULAR", "SPORTS", "CUSTOM"].includes(
+          stringField(body, "profile"),
+        )
+          ? (stringField(body, "profile") as LocalClass["profile"])
+          : /\.(B|D)$/i.test(code)
+            ? "SPORTS"
+            : "REGULAR",
       });
     } else if (resource === "subjects") {
       const code = stringField(body, "code");
@@ -676,6 +724,14 @@ async function createResource(
         id: idFor("assignment", assignmentCode),
         assignmentCode,
         classId,
+        additionalClassIds: Array.isArray(body.additionalClassIds)
+          ? body.additionalClassIds.filter(
+              (item): item is string =>
+                typeof item === "string" &&
+                item !== classId &&
+                project.classes.some((schoolClass) => schoolClass.id === item),
+            )
+          : [],
         subjectId,
         teacherId,
         group: stringField(body, "group") as LocalAssignment["group"],
@@ -689,6 +745,19 @@ async function createResource(
         requiredRoomTypeId: null,
         maxPerDay: nullableNumber(body, "maxPerDay"),
         minDayGap: nullableNumber(body, "minDayGap"),
+        parallelKey: stringField(body, "parallelKey") || null,
+        rotationKey: stringField(body, "rotationKey") || null,
+        rotationLeg: [1, 2].includes(Number(body.rotationLeg))
+          ? Number(body.rotationLeg)
+          : null,
+        rotationPlacement: ["ADJACENT", "SAME_DAY", "FLEXIBLE"].includes(
+          stringField(body, "rotationPlacement"),
+        )
+          ? (stringField(
+              body,
+              "rotationPlacement",
+            ) as LocalAssignment["rotationPlacement"])
+          : null,
       });
     } else {
       const entityType = stringField(
@@ -731,6 +800,60 @@ async function createResource(
   );
 }
 
+async function updateResource(
+  resource: ResourceName,
+  id: string,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  let response: Response | null = null;
+  await mutateProject((project) => {
+    response = checkExpectedVersion(project, body);
+    if (response) return;
+
+    if (resource !== "classes") {
+      response = errorResponse(
+        405,
+        "RESOURCE_UPDATE_UNSUPPORTED",
+        "Tento typ položky zatím nelze tímto způsobem upravit.",
+      );
+      return;
+    }
+
+    const schoolClass = project.classes.find((item) => item.id === id);
+    if (!schoolClass) {
+      response = errorResponse(
+        404,
+        "CLASS_NOT_FOUND",
+        "Třída nebyla nalezena.",
+      );
+      return;
+    }
+    const profile = stringField(body, "profile");
+    if (!["REGULAR", "SPORTS", "CUSTOM"].includes(profile)) {
+      response = errorResponse(
+        422,
+        "CLASS_PROFILE_INVALID",
+        "Vyberte běžnou, sportovní nebo vlastní třídu.",
+      );
+      return;
+    }
+
+    schoolClass.profile = profile as LocalClass["profile"];
+    const grade = Number(body.grade);
+    if (Number.isInteger(grade) && grade >= 1 && grade <= 13) {
+      schoolClass.grade = grade;
+    }
+    const name = stringField(body, "name");
+    if (name) schoolClass.name = name;
+    project.version += 1;
+    response = jsonResponse({ schoolYearVersion: project.version });
+  });
+  return (
+    response ??
+    errorResponse(500, "LOCAL_UPDATE_FAILED", "Třídu se nepodařilo upravit.")
+  );
+}
+
 async function deleteResource(
   resource: ResourceName,
   id: string,
@@ -754,7 +877,9 @@ async function deleteResource(
     }
     if (
       resource === "classes" &&
-      project.assignments.some((item) => item.classId === id)
+      project.assignments.some(
+        (item) => item.classId === id || item.additionalClassIds.includes(id),
+      )
     ) {
       response = errorResponse(
         409,
@@ -915,7 +1040,7 @@ async function analyzeImport(init?: RequestInit): Promise<Response> {
   }
 
   const analysis = addSchoolYearMismatch(
-    await analyzeImportWorkbook(buffer),
+    await analyzeClientImportWorkbook(buffer),
     project,
   );
   const batch: LocalImportBatch = {
@@ -984,6 +1109,9 @@ function applyImportPayload(
     code: item.class_code,
     grade: item.grade,
     name: item.class_name,
+    profile: /\.(B|D)$/i.test(item.class_code)
+      ? ("SPORTS" as const)
+      : ("REGULAR" as const),
   }));
   const subjects = payload.subjects.map((item) => ({
     id: idFor("subject", item.subject_code),
@@ -1012,6 +1140,9 @@ function applyImportPayload(
     id: idFor("assignment", item.assignment_code),
     assignmentCode: item.assignment_code,
     classId: classByCode.get(item.class_code)!,
+    additionalClassIds: item.additional_class_codes.map(
+      (classCode) => classByCode.get(classCode)!,
+    ),
     subjectId: subjectByCode.get(item.subject_code)!,
     teacherId: teacherByCode.get(item.teacher_code)!,
     group: item.group,
@@ -1026,6 +1157,10 @@ function applyImportPayload(
       : null,
     maxPerDay: item.max_per_day,
     minDayGap: item.min_day_gap,
+    parallelKey: null,
+    rotationKey: null,
+    rotationLeg: null,
+    rotationPlacement: null,
   }));
   const assignmentByCode = new Map(
     assignments.map((item) => [item.assignmentCode, item.id]),
@@ -1327,7 +1462,10 @@ function timetableView(
       if (!entityId) return true;
       const assignment = assignmentById.get(lesson.assignment_id);
       return view === "class"
-        ? assignment?.classId === entityId
+        ? assignment != null &&
+            [assignment.classId, ...assignment.additionalClassIds].includes(
+              entityId,
+            )
         : assignment?.teacherId === entityId;
     })
     .map((lesson) => {
@@ -1338,6 +1476,13 @@ function timetableView(
       const schoolClass = project.classes.find(
         (item) => item.id === assignment?.classId,
       );
+      const schoolClasses = assignment
+        ? [assignment.classId, ...assignment.additionalClassIds]
+            .map((classId) =>
+              project.classes.find((item) => item.id === classId),
+            )
+            .filter((item): item is LocalClass => Boolean(item))
+        : [];
       const subject = project.subjects.find(
         (item) => item.id === assignment?.subjectId,
       );
@@ -1351,6 +1496,11 @@ function timetableView(
               name: `${teacher.firstName} ${teacher.lastName}`.trim(),
             }
           : undefined,
+        schoolClasses: schoolClasses.map((item) => ({
+          id: item.id,
+          code: item.code,
+          name: item.name,
+        })),
         schoolClass: schoolClass
           ? {
               id: schoolClass.id,
@@ -1553,6 +1703,9 @@ export async function localApiFetch(
     }
     if (method === "POST" && !id) {
       return createResource(resource, readJsonBody(init));
+    }
+    if (["PATCH", "PUT"].includes(method) && id) {
+      return updateResource(resource, id, readJsonBody(init));
     }
     if (method === "DELETE" && id) {
       return deleteResource(resource, id, readJsonBody(init));

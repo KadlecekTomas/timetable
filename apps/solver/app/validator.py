@@ -1,5 +1,10 @@
 from collections import defaultdict
 
+from app.class_groups import (
+    class_required_weekly_periods,
+    lesson_class_ids,
+    parallel_assignment_pairs,
+)
 from app.models import (
     AvailabilityEntityType,
     AvailabilityKind,
@@ -9,6 +14,8 @@ from app.models import (
     TeachingGroup,
     ValidationIssue,
 )
+from app.rotations import validate_rotation_schedule
+from app.school_day import crosses_lunch_break
 
 
 def _groups_conflict(left: TeachingGroup, right: TeachingGroup) -> bool:
@@ -71,6 +78,7 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
         if (
             lesson.teacher_id != assignment.teacher_id
             or lesson.class_id != assignment.class_id
+            or lesson.additional_class_ids != assignment.additional_class_ids
             or lesson.subject_id != assignment.subject_id
             or lesson.group != assignment.group
         ):
@@ -101,6 +109,19 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
                     entity_ids=[lesson.block_id],
                     day=lesson.day,
                     period=lesson.period,
+                )
+            )
+            continue
+
+        if crosses_lunch_break(lesson.period, lesson.duration):
+            issues.append(
+                ValidationIssue(
+                    code="LUNCH_BREAK_CROSSED",
+                    message=(f"Blok {lesson.block_id} nesmí spojit dopolední a odpolední vyučování přes obědovou přestávku."),
+                    entity_ids=[lesson.block_id, lesson.class_id],
+                    day=lesson.day,
+                    period=lesson.period,
+                    details={"morningPeriodLimit": 6, "minimumLunchBreakMinutes": 50},
                 )
             )
             continue
@@ -172,7 +193,7 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
 
             unavailable_entities = [
                 (AvailabilityEntityType.TEACHER, lesson.teacher_id),
-                (AvailabilityEntityType.CLASS, lesson.class_id),
+                *((AvailabilityEntityType.CLASS, class_id) for class_id in lesson_class_ids(lesson)),
             ]
             if lesson.room_id:
                 unavailable_entities.append((AvailabilityEntityType.ROOM, lesson.room_id))
@@ -195,8 +216,7 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
                     ValidationIssue(
                         code="TEACHER_COLLISION",
                         message=(
-                            f"Učitel {lesson.teacher_id} má současně bloky "
-                            f"{conflicting_teacher_lesson.block_id} a {lesson.block_id}."
+                            f"Učitel {lesson.teacher_id} má současně bloky {conflicting_teacher_lesson.block_id} a {lesson.block_id}."
                         ),
                         entity_ids=[
                             lesson.teacher_id,
@@ -218,8 +238,7 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
                         ValidationIssue(
                             code="ROOM_COLLISION",
                             message=(
-                                f"Učebna {lesson.room_id} je současně použita bloky "
-                                f"{conflicting_room_lesson.block_id} a {lesson.block_id}."
+                                f"Učebna {lesson.room_id} je současně použita bloky {conflicting_room_lesson.block_id} a {lesson.block_id}."
                             ),
                             entity_ids=[
                                 lesson.room_id,
@@ -233,22 +252,84 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
                 else:
                     room_slots[room_key] = lesson
 
-            class_key = (lesson.class_id, lesson.day, period)
-            for existing in class_slots[class_key]:
-                if _groups_conflict(existing.group, lesson.group):
+            for class_id in lesson_class_ids(lesson):
+                class_key = (class_id, lesson.day, period)
+                for existing in class_slots[class_key]:
+                    if _groups_conflict(existing.group, lesson.group):
+                        issues.append(
+                            ValidationIssue(
+                                code="CLASS_COLLISION",
+                                message=(f"Třída {class_id} má současně bloky {existing.block_id} a {lesson.block_id}."),
+                                entity_ids=[class_id, existing.block_id, lesson.block_id],
+                                day=lesson.day,
+                                period=period,
+                            )
+                        )
+                class_slots[class_key].append(lesson)
+
+    required_periods_by_class = class_required_weekly_periods(payload.assignments)
+    if len(payload.periods_per_day) >= 5:
+        for class_id, weekly_periods in required_periods_by_class.items():
+            if weekly_periods < len(payload.periods_per_day):
+                continue
+            for day, periods in enumerate(payload.periods_per_day):
+                if periods <= 0:
+                    continue
+                if not class_slots.get((class_id, day, 0)):
                     issues.append(
                         ValidationIssue(
-                            code="CLASS_COLLISION",
-                            message=(
-                                f"Třída {lesson.class_id} má současně bloky "
-                                f"{existing.block_id} a {lesson.block_id}."
-                            ),
-                            entity_ids=[lesson.class_id, existing.block_id, lesson.block_id],
-                            day=lesson.day,
-                            period=period,
+                            code="CLASS_DOES_NOT_START_AT_EIGHT",
+                            message=f"Třída {class_id} musí každý vyučovací den začínat první hodinou v 8:00.",
+                            entity_ids=[class_id],
+                            day=day,
+                            period=0,
+                            details={"requiredStartTime": "8:00"},
                         )
                     )
-            class_slots[class_key].append(lesson)
+
+                occupied_periods = [period for period in range(periods) if class_slots.get((class_id, day, period))]
+                if len(occupied_periods) <= 1:
+                    continue
+                for period in range(1, max(occupied_periods)):
+                    if class_slots.get((class_id, day, period)):
+                        continue
+                    issues.append(
+                        ValidationIssue(
+                            code="CLASS_HAS_INTERNAL_GAP",
+                            message=f"Třída {class_id} má uvnitř vyučovacího dne volnou hodinu.",
+                            entity_ids=[class_id],
+                            day=day,
+                            period=period,
+                            details={"requiredShape": "continuousFromEight"},
+                        )
+                    )
+                    break
+
+    lessons_by_assignment: dict[str, list[ScheduledLesson]] = defaultdict(list)
+    for lesson in lessons:
+        lessons_by_assignment[lesson.assignment_id].append(lesson)
+    for left, right in parallel_assignment_pairs(payload.assignments):
+        left_lessons = sorted(lessons_by_assignment[left.id], key=lambda item: item.block_id)
+        right_lessons = sorted(lessons_by_assignment[right.id], key=lambda item: item.block_id)
+        if len(left_lessons) != len(right_lessons):
+            continue
+        for left_lesson, right_lesson in zip(left_lessons, right_lessons, strict=True):
+            if (
+                left_lesson.day != right_lesson.day
+                or left_lesson.period != right_lesson.period
+                or left_lesson.duration != right_lesson.duration
+            ):
+                issues.append(
+                    ValidationIssue(
+                        code="PARALLEL_GROUP_DESYNCHRONIZED",
+                        message="Obě poloviny dělené výuky musí probíhat současně.",
+                        entity_ids=[left_lesson.block_id, right_lesson.block_id],
+                        day=left_lesson.day,
+                        period=left_lesson.period,
+                    )
+                )
+
+    issues.extend(validate_rotation_schedule(payload, lessons_by_assignment))
 
     return sorted(
         issues,

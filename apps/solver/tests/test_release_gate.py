@@ -112,11 +112,7 @@ def test_teacher_capacity_shortage_is_explained_before_solving() -> None:
     assert response.status_code == 422
     detail = response.json()["detail"]
     assert detail["code"] == "INFEASIBLE_INPUT"
-    cause = next(
-        item
-        for item in detail["causes"]
-        if item["code"] == "TEACHER_CAPACITY_EXCEEDED"
-    )
+    cause = next(item for item in detail["causes"] if item["code"] == "TEACHER_CAPACITY_EXCEEDED")
     assert cause["details"] == {"required": 2, "available": 1}
 
 

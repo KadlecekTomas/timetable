@@ -10,6 +10,8 @@ export const DAY_CODES = [
 
 export type TeachingGroup = "WHOLE" | "GROUP_1" | "GROUP_2";
 export type LessonShape = "SINGLE" | "DOUBLE" | "MIXED";
+export type ClassProfile = "REGULAR" | "SPORTS" | "CUSTOM";
+export type RotationPlacement = "ADJACENT" | "SAME_DAY" | "FLEXIBLE";
 export type AvailabilityEntityType = "TEACHER" | "CLASS" | "ROOM";
 export type AvailabilityKind = "UNAVAILABLE" | "PREFERRED" | "DISCOURAGED";
 
@@ -28,6 +30,7 @@ export interface SnapshotClass {
   code: string;
   name: string;
   grade: number;
+  profile: ClassProfile;
 }
 
 export interface SnapshotSubject {
@@ -50,6 +53,7 @@ export interface SnapshotAssignment {
   code?: string;
   teacher_id: string;
   class_id: string;
+  additional_class_ids?: string[];
   subject_id: string;
   group: TeachingGroup;
   weekly_periods: number;
@@ -59,6 +63,10 @@ export interface SnapshotAssignment {
   required_room_type_id?: string | null;
   max_per_day?: number | null;
   min_day_gap?: number | null;
+  parallel_key?: string | null;
+  rotation_key?: string | null;
+  rotation_leg?: number | null;
+  rotation_placement?: RotationPlacement | null;
 }
 
 export interface SnapshotAvailabilityRule {
@@ -87,6 +95,7 @@ export interface SolverWeights {
   preferred_slot_bonus: number;
   same_day_concentration: number;
   late_period: number;
+  rotation_spread: number;
 }
 
 export interface CanonicalSnapshot {
@@ -116,6 +125,7 @@ export interface ScheduledLesson {
   assignment_id: string;
   teacher_id: string;
   class_id: string;
+  additional_class_ids?: string[];
   subject_id: string;
   group: TeachingGroup;
   room_id: string | null;

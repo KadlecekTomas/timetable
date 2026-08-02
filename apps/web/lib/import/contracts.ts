@@ -55,6 +55,7 @@ export interface ImportRoomRow {
 export interface ImportAssignmentRow {
   assignment_code: string;
   class_code: string;
+  additional_class_codes: string[];
   subject_code: string;
   teacher_code: string;
   group: "WHOLE" | "GROUP_1" | "GROUP_2";

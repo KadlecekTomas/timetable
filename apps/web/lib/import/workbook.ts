@@ -780,6 +780,10 @@ export async function analyzeImportWorkbook(
         rowNumber,
         "class_code",
       ),
+      additional_class_codes: (values.additional_class_codes ?? "")
+        .split(/[;,]/)
+        .map((value) => value.trim())
+        .filter(Boolean),
       subject_code: requiredText(
         values.subject_code ?? "",
         issues,
@@ -1042,6 +1046,21 @@ export async function analyzeImportWorkbook(
         "předmět",
       ],
     ];
+    assignment.additional_class_codes.forEach((classCode) => {
+      if (classCode === assignment.class_code || !classCodes.has(classCode)) {
+        issues.push(
+          issue(
+            "ERROR",
+            SHEETS.assignments,
+            sourceRow,
+            "additional_class_codes",
+            "REFERENCE_NOT_FOUND",
+            `Společná třída ${classCode} neexistuje nebo je stejná jako hlavní třída.`,
+            classCode,
+          ),
+        );
+      }
+    });
     for (const [exists, column, value, noun] of references) {
       if (!exists) {
         issues.push(

@@ -31,8 +31,20 @@ function snapshot(): CanonicalSnapshot {
       },
     ],
     classes: [
-      { id: "class-6a", code: "6A", name: "6.A", grade: 6 },
-      { id: "class-7a", code: "7A", name: "7.A", grade: 7 },
+      {
+        id: "class-6a",
+        code: "6A",
+        name: "6.A",
+        grade: 6,
+        profile: "REGULAR",
+      },
+      {
+        id: "class-7a",
+        code: "7A",
+        name: "7.A",
+        grade: 7,
+        profile: "REGULAR",
+      },
     ],
     subjects: [
       { id: "math", code: "M", name: "Matematika" },
@@ -77,6 +89,7 @@ function snapshot(): CanonicalSnapshot {
       preferred_slot_bonus: 3,
       same_day_concentration: 6,
       late_period: 1,
+      rotation_spread: 75,
     },
     random_seed: 1,
     time_limit_seconds: 30,

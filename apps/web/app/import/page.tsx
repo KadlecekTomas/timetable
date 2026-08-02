@@ -14,7 +14,7 @@ import { PageHeader } from "@/components/page-header";
 import { localApiFetch } from "@/lib/local/api";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { createImportTemplate } from "@/lib/import/workbook";
+import { createSchoolClientImportTemplate } from "@/lib/import/school-client-workbook";
 import { importSeverityLabels, importSummaryLabels } from "@/lib/ui-labels";
 
 interface ImportIssueView {
@@ -45,7 +45,7 @@ export default function ImportPage() {
   const [error, setError] = useState<string | null>(null);
 
   async function downloadTemplate() {
-    const bytes = await createImportTemplate();
+    const bytes = await createSchoolClientImportTemplate();
     const templateBytes = new Uint8Array(bytes.byteLength);
     templateBytes.set(bytes);
     const blob = new Blob([templateBytes.buffer], {
@@ -54,7 +54,7 @@ export default function ImportPage() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "rozvrhar-sablona-1.0.0.xlsx";
+    anchor.download = "rozvrhar-klientska-sablona.xlsx";
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -154,7 +154,7 @@ export default function ImportPage() {
             onClick={() => void downloadTemplate()}
           >
             <Download className="size-4" aria-hidden="true" />
-            Stáhnout šablonu 1.0.0
+            Stáhnout klientskou šablonu
           </Button>
         }
       />
