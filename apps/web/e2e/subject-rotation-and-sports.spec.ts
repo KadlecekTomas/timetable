@@ -217,11 +217,15 @@ test("sports class keeps its own allocation and Czech-Math groups swap atomicall
   await page.getByRole("button", { name: /^6\.B/ }).first().click();
   await expect(page.getByRole("heading", { name: "Třída 6.B" })).toBeVisible();
   await expect(page.getByLabel("Profil třídy 6.B")).toHaveValue("SPORTS");
+  const rotationCard = page.getByTestId("teaching-row-0");
   await expect(
-    page.getByRole("button", { name: "Dvě skupiny – výměna předmětů" }),
+    rotationCard.getByRole("button", {
+      name: "Dvě skupiny – výměna předmětů",
+      exact: true,
+    }),
   ).toHaveAttribute("aria-pressed", "true");
   await expect(
-    page.getByRole("button", { name: "Hned po sobě" }),
+    rotationCard.getByRole("button", { name: "Hned po sobě", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("rotation-preview-0")).toContainText(
     "1. rameno",

@@ -93,7 +93,10 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
   await page.getByRole("button", { name: "Přidat předmět" }).click();
   await page.getByLabel("Předmět 2").selectOption("INF");
   await page.getByLabel("Hodin týdně 2").fill("1");
-  await page.getByRole("button", { name: "Dvě skupiny" }).nth(1).click();
+  await page
+    .getByTestId("teaching-row-1")
+    .getByRole("button", { name: "Dvě skupiny", exact: true })
+    .click();
   await page
     .getByLabel("Učitel 1 předmětu 2")
     .selectOption({ label: "Tomáš Kadleček" });

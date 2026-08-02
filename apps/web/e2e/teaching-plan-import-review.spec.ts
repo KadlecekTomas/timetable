@@ -192,7 +192,10 @@ test("Excel is reviewed teacher-by-teacher and class-by-class before it replaces
   await capture(page, "09-kontrola-deleni-a-dvojhodin.png");
 
   await page
-    .getByRole("button", { name: "Dělení a dvojhodiny souhlasí" })
+    .getByRole("button", {
+      name: "Dělení, dvojhodiny a výměny souhlasí",
+      exact: true,
+    })
     .click();
   await expect(page.getByTestId("review-final-step")).toBeVisible();
   await expect(
