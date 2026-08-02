@@ -30,9 +30,14 @@ import {
   type PendingTeachingPlanImport,
 } from "@/lib/local/teaching-plan-import-review";
 import {
+  classProfileLabel,
   humanBlockSummary,
   loadTeachingPlan,
+  rotationSummary,
+  rowClassPeriods,
+  rowTeacherPeriods,
   saveTeachingPlan,
+  type TeachingClassProfile,
   type TeachingPlan,
   type TeachingPlanRow,
 } from "@/lib/local/teaching-plan";
@@ -88,7 +93,11 @@ function rowTeachers(row: TeachingPlanRow, staffingPlan: StaffingPlan): string {
   );
   const primary = teacherLabel(byId.get(row.primaryTeacherId));
   if (row.organization === "WHOLE") return primary;
-  return `${primary} · skupina 1 / ${teacherLabel(byId.get(row.secondaryTeacherId))} · skupina 2`;
+  const secondary = teacherLabel(byId.get(row.secondaryTeacherId));
+  if (row.organization === "ROTATION") {
+    return `${row.subjectCode}: ${primary} / ${row.secondarySubjectCode ?? "2. předmět"}: ${secondary}`;
+  }
+  return `${primary} · skupina 1 / ${secondary} · skupina 2`;
 }
 
 function teacherReviewItems(
@@ -103,7 +112,7 @@ function teacherReviewItems(
         row,
       ]);
     }
-    if (row.organization === "SPLIT" && row.secondaryTeacherId) {
+    if (row.organization !== "WHOLE" && row.secondaryTeacherId) {
       rowsByTeacher.set(row.secondaryTeacherId, [
         ...(rowsByTeacher.get(row.secondaryTeacherId) ?? []),
         row,
@@ -118,7 +127,7 @@ function teacherReviewItems(
       return {
         teacher,
         assignedPeriods: rows.reduce(
-          (total, row) => total + row.weeklyPeriods,
+          (total, row) => total + rowTeacherPeriods(row, teacher.id),
           0,
         ),
         classes: [...new Set(rows.map((row) => row.classCode))].sort((a, b) =>
@@ -186,7 +195,7 @@ export default function TeachingPlanReviewPage() {
       pending
         ? pending.plan.rows.filter(
             (row) =>
-              row.lessonShape !== "SEPARATE" || row.organization === "SPLIT",
+              row.lessonShape !== "SEPARATE" || row.organization !== "WHOLE",
           )
         : [],
     [pending],
@@ -208,7 +217,7 @@ export default function TeachingPlanReviewPage() {
     [currentClass, pending],
   );
   const currentClassPeriods = currentClassRows.reduce(
-    (total, row) => total + row.weeklyPeriods,
+    (total, row) => total + rowClassPeriods(row),
     0,
   );
 
@@ -383,6 +392,7 @@ export default function TeachingPlanReviewPage() {
       {step === 1 && currentClass ? (
         <ClassReviewStep
           classCode={currentClass.code}
+          classProfile={currentClass.profile ?? "REGULAR"}
           classIndex={currentClassIndex}
           classCount={classes.length}
           rows={currentClassRows}
@@ -517,6 +527,7 @@ function TeacherReviewStep({
 
 function ClassReviewStep({
   classCode,
+  classProfile,
   classIndex,
   classCount,
   rows,
@@ -529,6 +540,7 @@ function ClassReviewStep({
   onConfirm,
 }: {
   classCode: string;
+  classProfile: TeachingClassProfile;
   classIndex: number;
   classCount: number;
   rows: TeachingPlanRow[];
@@ -589,9 +601,16 @@ function ClassReviewStep({
               <p className="text-sm font-medium text-text-muted">
                 Třída {classIndex + 1} z {classCount}
               </p>
-              <h2 className="mt-1 text-3xl font-semibold text-text-primary">
-                {classCode}
-              </h2>
+              <div className="mt-1 flex flex-wrap items-center gap-3">
+                <h2 className="text-3xl font-semibold text-text-primary">
+                  {classCode}
+                </h2>
+                <StatusBadge
+                  tone={classProfile === "SPORTS" ? "success" : "neutral"}
+                >
+                  {classProfileLabel(classProfile)}
+                </StatusBadge>
+              </div>
               <p className="mt-2 text-sm text-text-secondary">
                 Zkontrolujte počet hodin každého předmětu i celkovou týdenní
                 dotaci.
@@ -627,11 +646,13 @@ function ClassReviewStep({
                     {subjectLabel(row.subjectCode)}
                   </p>
                   <p className="mt-0.5 text-xs text-text-muted">
-                    {row.subjectCode}
+                    {row.organization === "ROTATION"
+                      ? rotationSummary(row)
+                      : row.subjectCode}
                   </p>
                 </div>
                 <p className="text-lg font-bold text-text-primary">
-                  {row.weeklyPeriods} h
+                  {rowClassPeriods(row)} h
                 </p>
                 <p className="text-sm text-text-secondary">
                   {humanBlockSummary(row)}
@@ -695,7 +716,7 @@ function SpecialRulesReviewStep({
       <div className="mt-1 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-text-primary">
-            Souhlasí dělení tříd a dvojhodiny?
+            Souhlasí dělení tříd, dvojhodiny a výměny?
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-text-secondary">
             Zde jsou vytažena pouze nastavení, která zásadně ovlivňují podobu
@@ -711,7 +732,7 @@ function SpecialRulesReviewStep({
         <div className="mt-6 flex items-center gap-3 rounded-xl border border-success-border bg-success-subtle p-5 text-success-strong">
           <CheckCircle2 className="size-6" aria-hidden="true" />
           <p className="font-semibold">
-            Excel neobsahuje žádné dělené předměty ani dvojhodiny.
+            Excel neobsahuje žádné dělené předměty, dvojhodiny ani výměny.
           </p>
         </div>
       ) : (
