@@ -389,7 +389,9 @@ test("sports class keeps its own allocation and Czech-Math groups swap atomicall
   await expect(page.getByRole("heading", { name: "6.B" })).toBeVisible();
   await expect(page.getByText("Sportovní třída")).toBeVisible();
   await expect(page.getByText("6 hodin")).toBeVisible();
-  await expect(page.getByText(/Hned po sobě/)).toBeVisible();
+  await expect(
+    page.getByText("Výměna · Hned po sobě", { exact: true }),
+  ).toBeVisible();
   await capture(page, "16-kontrola-rozdilnych-dotaci-6a-a-6b.png");
 
   expect(pageErrors).toEqual([]);
