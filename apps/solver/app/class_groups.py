@@ -11,6 +11,10 @@ def lesson_class_ids(lesson: ScheduledLesson) -> tuple[str, ...]:
     return tuple(dict.fromkeys([lesson.class_id, *lesson.additional_class_ids]))
 
 
+def _parallel_key(assignment: Assignment) -> str:
+    return assignment.parallel_key or f"subject:{assignment.subject_id}"
+
+
 def parallel_assignment_pairs(
     assignments: list[Assignment],
 ) -> list[tuple[Assignment, Assignment]]:
@@ -22,7 +26,10 @@ def parallel_assignment_pairs(
     for assignment in assignments:
         if assignment.group == TeachingGroup.WHOLE:
             continue
-        key = (tuple(sorted(assignment_class_ids(assignment))), assignment.subject_id)
+        key = (
+            tuple(sorted(assignment_class_ids(assignment))),
+            _parallel_key(assignment),
+        )
         grouped[key][assignment.group].append(assignment)
 
     pairs: list[tuple[Assignment, Assignment]] = []
@@ -32,6 +39,28 @@ def parallel_assignment_pairs(
         if len(left) == 1 and len(right) == 1:
             pairs.append((left[0], right[0]))
     return pairs
+
+
+def rotation_assignment_legs(
+    assignments: list[Assignment],
+) -> list[tuple[str, tuple[Assignment, Assignment], tuple[Assignment, Assignment]]]:
+    by_rotation: dict[str, dict[int, tuple[Assignment, Assignment]]] = defaultdict(dict)
+    for left, right in parallel_assignment_pairs(assignments):
+        if (
+            left.rotation_key
+            and left.rotation_key == right.rotation_key
+            and left.rotation_leg is not None
+            and left.rotation_leg == right.rotation_leg
+        ):
+            by_rotation[left.rotation_key][left.rotation_leg] = (left, right)
+
+    result: list[
+        tuple[str, tuple[Assignment, Assignment], tuple[Assignment, Assignment]]
+    ] = []
+    for rotation_key, legs in sorted(by_rotation.items()):
+        if 1 in legs and 2 in legs:
+            result.append((rotation_key, legs[1], legs[2]))
+    return result
 
 
 def class_required_weekly_periods(assignments: list[Assignment]) -> dict[str, int]:
