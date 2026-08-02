@@ -33,9 +33,7 @@ test("sport class keeps its own allocation and Czech-Math groups swap atomically
         lastName: "Učitel",
         targetWeeklyLoad: 2,
         unavailableDays: [],
-        subjectLoads: [
-          { id: "load-cj", subjectCode: "CJ", weeklyPeriods: 2 },
-        ],
+        subjectLoads: [{ id: "load-cj", subjectCode: "CJ", weeklyPeriods: 2 }],
       },
       {
         id: "teacher-m",
@@ -43,18 +41,14 @@ test("sport class keeps its own allocation and Czech-Math groups swap atomically
         lastName: "Učitel",
         targetWeeklyLoad: 2,
         unavailableDays: [],
-        subjectLoads: [
-          { id: "load-m", subjectCode: "M", weeklyPeriods: 2 },
-        ],
+        subjectLoads: [{ id: "load-m", subjectCode: "M", weeklyPeriods: 2 }],
       },
     ],
   };
   const plan = {
     version: 1,
     updatedAt: "2026-08-02T00:00:00.000Z",
-    classes: [
-      { id: "class-6b", code: "6.B", grade: 6, profile: "SPORTS" },
-    ],
+    classes: [{ id: "class-6b", code: "6.B", grade: 6, profile: "SPORTS" }],
     rows: [
       {
         id: "rotation-cj-m",
