@@ -6,9 +6,63 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
+  apply-rotation-sports-hardening:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: npm install
+      - run: python -m pip install ruff
+      - run: python .github/scripts/apply-rotation-sports-hardening.py
+      - name: Format changed sources
+        run: |
+          npx prettier --write \
+            apps/web/lib/domain/contracts.ts \
+            apps/web/lib/local/api.ts \
+            apps/web/lib/local/teaching-plan.ts \
+            apps/web/app/teaching-plan/page.tsx \
+            apps/web/lib/import/teaching-plan-workbook.ts \
+            apps/web/app/teaching-plan/review/page.tsx
+          ruff format \
+            apps/solver/app/models.py \
+            apps/solver/app/main.py \
+            apps/solver/app/validator.py \
+            apps/solver/app/rotations.py
+      - name: Commit hardening
+        run: |
+          if git diff --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            apps/solver/app/models.py \
+            apps/solver/app/main.py \
+            apps/solver/app/validator.py \
+            apps/solver/app/rotations.py \
+            apps/web/lib/domain/contracts.ts \
+            apps/web/lib/local/api.ts \
+            apps/web/lib/local/teaching-plan.ts \
+            apps/web/app/teaching-plan/page.tsx \
+            apps/web/lib/import/teaching-plan-workbook.ts \
+            apps/web/app/teaching-plan/review/page.tsx \
+            docs/24-synchronized-subject-rotations.md
+          git commit -m "feat: harden subject rotations and sports class profiles"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
   web:
     runs-on: ubuntu-latest
     env:
