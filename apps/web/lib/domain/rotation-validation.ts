@@ -12,8 +12,7 @@ function intervalsOverlap(
   duration: number,
 ): boolean {
   return !(
-    leftPeriod + duration <= rightPeriod ||
-    rightPeriod + duration <= leftPeriod
+    leftPeriod + duration <= rightPeriod || rightPeriod + duration <= leftPeriod
   );
 }
 
@@ -74,10 +73,7 @@ export function validateRotationSchedule(
         return;
       }
 
-      if (
-        (placement === "ADJACENT" || placement === "SAME_DAY") &&
-        !sameDay
-      ) {
+      if ((placement === "ADJACENT" || placement === "SAME_DAY") && !sameDay) {
         issues.push(
           issue(
             "ROTATION_NOT_SAME_DAY",

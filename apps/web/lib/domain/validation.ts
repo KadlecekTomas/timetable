@@ -17,6 +17,7 @@ import {
   MIN_LUNCH_BREAK_MINUTES,
   MORNING_PERIOD_LIMIT,
 } from "./school-day";
+import { validateRotationSchedule } from "./rotation-validation";
 
 function groupsConflict(left: TeachingGroup, right: TeachingGroup): boolean {
   return left === "WHOLE" || right === "WHOLE" || left === right;
@@ -365,6 +366,8 @@ export function validateSchedule(
       }
     });
   }
+
+  issues.push(...validateRotationSchedule(snapshot, lessonsByAssignment));
 
   return issues.sort((left, right) => {
     const leftKey = `${left.code}:${left.day ?? -1}:${left.period ?? -1}:${left.message}`;
