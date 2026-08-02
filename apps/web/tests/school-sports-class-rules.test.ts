@@ -48,9 +48,18 @@ test("school rules repair an accidentally changed B or D profile", () => {
   }));
 
   const enforced = enforceSchoolTeachingPlanRules(source);
-  assert.equal(enforced.classes.find((item) => item.code === "6.B")?.profile, "SPORTS");
-  assert.equal(enforced.classes.find((item) => item.code === "6.D")?.profile, "SPORTS");
-  assert.equal(enforced.classes.find((item) => item.code === "6.A")?.profile, "REGULAR");
+  assert.equal(
+    enforced.classes.find((item) => item.code === "6.B")?.profile,
+    "SPORTS",
+  );
+  assert.equal(
+    enforced.classes.find((item) => item.code === "6.D")?.profile,
+    "SPORTS",
+  );
+  assert.equal(
+    enforced.classes.find((item) => item.code === "6.A")?.profile,
+    "REGULAR",
+  );
 });
 
 test("sports B and D accept the same subject-hour allocation as A and C", () => {
