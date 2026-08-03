@@ -1,0 +1,28 @@
+name: Format PR 10 artifact
+
+on:
+  push:
+    branches:
+      - feat/combined-school-excel
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: >-
+          npx prettier --write
+          apps/web/lib/import/teaching-plan-workbook-school-final.ts
+          apps/web/lib/local/api-school.ts
+          apps/web/lib/local/teaching-plan-school.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: formatted-pr10-files
+          path: |
+            apps/web/lib/import/teaching-plan-workbook-school-final.ts
+            apps/web/lib/local/api-school.ts
+            apps/web/lib/local/teaching-plan-school.ts
