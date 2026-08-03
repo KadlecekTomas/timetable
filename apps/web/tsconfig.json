@@ -17,9 +17,7 @@
     "paths": {
       "@/lib/local/api": ["./lib/local/api-school"],
       "@/lib/local/teaching-plan": ["./lib/local/teaching-plan-school"],
-      "@/lib/import/client-workbook": [
-        "./lib/import/client-workbook-school"
-      ],
+      "@/lib/import/client-workbook": ["./lib/import/client-workbook-school"],
       "@/lib/import/teaching-plan-workbook": [
         "./lib/import/teaching-plan-workbook-school-entry"
       ],
