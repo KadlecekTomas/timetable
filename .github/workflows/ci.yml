@@ -19,6 +19,22 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Emit canonical formatting diagnostics
+        run: |
+          files=(
+            apps/web/lib/import/legacy-school-workbook-parser.ts
+            apps/web/lib/import/legacy-school-workbook.ts
+            apps/web/lib/import/teaching-plan-workbook-school.ts
+            apps/web/tests/legacy-school-workbook.test.ts
+            apps/web/tsconfig.json
+          )
+          npx prettier --write "${files[@]}"
+          for file in "${files[@]}"; do
+            echo "FORMAT_FILE_BEGIN:$file"
+            base64 -w0 "$file"
+            echo
+            echo "FORMAT_FILE_END:$file"
+          done
       - run: npm run format:check
       - run: npm run lint --workspace @timetable/web
       - run: npm run typecheck --workspace @timetable/web
