@@ -21,6 +21,10 @@ export const importSummaryLabels: Record<string, string> = {
   assignments: "Výukové vazby",
   availabilityRules: "Pravidla dostupnosti",
   fixedLessons: "Pevně umístěné hodiny",
+  requiredWeeklyPeriods: "Požadováno h/týden",
+  coveredWeeklyPeriods: "Pokryto h/týden",
+  uncoveredWeeklyPeriods: "Chybí pokrýt h/týden",
+  coveragePercent: "Pokrytí v %",
 };
 
 export const teachingGroupLabels: Record<string, string> = {
