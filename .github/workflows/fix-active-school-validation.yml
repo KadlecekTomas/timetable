@@ -16,18 +16,20 @@ jobs:
       - run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           plan = Path('apps/web/lib/local/teaching-plan-school.ts')
           text = plan.read_text()
-          old = '''  for (const [grade, classes] of classesByGrade) {
-            const references = classes.filter((schoolClass) =>
-              isSchoolReferenceClass(schoolClass.code),
-            );
-            const sportsClasses = classes.filter((schoolClass) =>
-              isSchoolSportsClass(schoolClass.code),
-            );
-          '''
-          new = '''  for (const [grade, classes] of classesByGrade) {
+          pattern = re.compile(
+              r'  for \(const \[grade, classes\] of classesByGrade\) \{\n'
+              r'    const references = classes\.filter\(\(schoolClass\) =>\n'
+              r'      isSchoolReferenceClass\(schoolClass\.code\),\n'
+              r'    \);\n'
+              r'    const sportsClasses = classes\.filter\(\(schoolClass\) =>\n'
+              r'      isSchoolSportsClass\(schoolClass\.code\),\n'
+              r'    \);'
+          )
+          replacement = '''  for (const [grade, classes] of classesByGrade) {
             const activeClasses = classes.filter(
               (schoolClass) => allocationForClass(plan.rows, schoolClass.code).size > 0,
             );
@@ -36,33 +38,28 @@ jobs:
             );
             const sportsClasses = activeClasses.filter((schoolClass) =>
               isSchoolSportsClass(schoolClass.code),
-            );
-          '''
-          if old not in text:
-              raise SystemExit('validation block not found')
-          plan.write_text(text.replace(old, new))
+            );'''
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'validation block replacements: {count}')
+          plan.write_text(text)
 
           workbook = Path('apps/web/lib/import/teaching-plan-workbook-school-final.ts')
           text = workbook.read_text()
-          old = '''  const kadlecekLabel = kadlecek
-            ? `${teacherCodes.get(kadlecek.id)} · ${kadlecek.firstName} ${kadlecek.lastName}`
-            : "KAD · Tomáš Kadleček";
-
-          const row = 6;
-          sheet.getCell(row, 1).value = "TV";
-          '''
-          new = '''  if (!kadlecek) {
+          pattern = re.compile(
+              r'  const kadlecekLabel = kadlecek\n'
+              r'    \? `\$\{teacherCodes\.get\(kadlecek\.id\)\} · \$\{kadlecek\.firstName\} \$\{kadlecek\.lastName\}`\n'
+              r'    : "KAD · Tomáš Kadleček";'
+          )
+          replacement = '''  if (!kadlecek) {
             sheet.autoFilter = { from: "A5", to: "K5" };
             return;
           }
-          const kadlecekLabel = `${teacherCodes.get(kadlecek.id)} · ${kadlecek.firstName} ${kadlecek.lastName}`;
-
-          const row = 6;
-          sheet.getCell(row, 1).value = "TV";
-          '''
-          if old not in text:
-              raise SystemExit('Kadlecek seed block not found')
-          workbook.write_text(text.replace(old, new))
+          const kadlecekLabel = `${teacherCodes.get(kadlecek.id)} · ${kadlecek.firstName} ${kadlecek.lastName}`;'''
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'Kadlecek seed replacements: {count}')
+          workbook.write_text(text)
           PY
       - run: npx prettier --write apps/web/lib/local/teaching-plan-school.ts apps/web/lib/import/teaching-plan-workbook-school-final.ts
       - uses: actions/upload-artifact@v4
