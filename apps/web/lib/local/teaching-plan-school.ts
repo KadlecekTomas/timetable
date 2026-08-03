@@ -9,6 +9,24 @@ import type {
 
 export * from "./teaching-plan";
 
+declare module "./teaching-plan" {
+  interface TeachingPlanRow {
+    additionalClassCodes?: string[];
+    preferredStartPeriods?: number[];
+    preferenceWeight?: number;
+    sharedGroupLabel?: string;
+  }
+}
+
+const SHARED_METADATA_STORAGE_KEY = "rozvrhar:teaching-plan-shared:v1";
+
+interface SharedRowMetadata {
+  additionalClassCodes: string[];
+  preferredStartPeriods: number[];
+  preferenceWeight: number;
+  sharedGroupLabel: string;
+}
+
 /** School-specific class structure for FZŠ Chodovická. */
 export const SCHOOL_CLASS_CODES = [
   "6.A",
@@ -94,6 +112,95 @@ function ensureSchoolClasses(classes: TeachingPlanClass[]): TeachingPlanClass[] 
   });
 }
 
+function normalizedAdditionalClassCodes(row: TeachingPlanRow): string[] {
+  return [
+    ...new Set(
+      (row.additionalClassCodes ?? [])
+        .map(base.normalizeClassCode)
+        .filter((code) => code && code !== base.normalizeClassCode(row.classCode)),
+    ),
+  ];
+}
+
+function rowMetadata(row: TeachingPlanRow): SharedRowMetadata {
+  return {
+    additionalClassCodes: normalizedAdditionalClassCodes(row),
+    preferredStartPeriods: [
+      ...new Set(
+        (row.preferredStartPeriods ?? []).filter(
+          (period) => Number.isInteger(period) && period >= 0 && period <= 15,
+        ),
+      ),
+    ],
+    preferenceWeight:
+      Number.isFinite(row.preferenceWeight) && Number(row.preferenceWeight) > 0
+        ? Math.min(10_000, Number(row.preferenceWeight))
+        : 0,
+    sharedGroupLabel:
+      typeof row.sharedGroupLabel === "string"
+        ? row.sharedGroupLabel.trim()
+        : "",
+  };
+}
+
+function applyMetadata(
+  plan: TeachingPlan,
+  metadata: Record<string, SharedRowMetadata>,
+): TeachingPlan {
+  return {
+    ...plan,
+    rows: plan.rows.map((row) => {
+      const item = metadata[row.id];
+      return item
+        ? {
+            ...row,
+            additionalClassCodes: item.additionalClassCodes,
+            preferredStartPeriods: item.preferredStartPeriods,
+            preferenceWeight: item.preferenceWeight,
+            sharedGroupLabel: item.sharedGroupLabel,
+          }
+        : row;
+    }),
+  };
+}
+
+function metadataForPlan(
+  plan: TeachingPlan,
+): Record<string, SharedRowMetadata> {
+  return Object.fromEntries(
+    plan.rows
+      .map((row) => [row.id, rowMetadata(row)] as const)
+      .filter(
+        ([, metadata]) =>
+          metadata.additionalClassCodes.length > 0 ||
+          metadata.preferredStartPeriods.length > 0 ||
+          metadata.sharedGroupLabel,
+      ),
+  );
+}
+
+function readStoredMetadata(): Record<string, SharedRowMetadata> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(SHARED_METADATA_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, SharedRowMetadata>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeStoredMetadata(
+  metadata: Record<string, SharedRowMetadata>,
+): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    SHARED_METADATA_STORAGE_KEY,
+    JSON.stringify(metadata),
+  );
+}
+
 export function createEmptyTeachingPlan(): TeachingPlan {
   const plan = base.createEmptyTeachingPlan();
   return {
@@ -108,14 +215,26 @@ export function enforceSchoolTeachingPlanRules(
   return {
     ...plan,
     classes: ensureSchoolClasses(plan.classes),
+    rows: plan.rows.map((row) => ({
+      ...row,
+      classCode: base.normalizeClassCode(row.classCode),
+      additionalClassCodes: normalizedAdditionalClassCodes(row),
+    })),
   };
+}
+
+function rowTargetsClass(row: TeachingPlanRow, classCode: string): boolean {
+  const normalized = base.normalizeClassCode(classCode);
+  return (
+    base.normalizeClassCode(row.classCode) === normalized ||
+    normalizedAdditionalClassCodes(row).includes(normalized)
+  );
 }
 
 function allocationForClass(
   rows: TeachingPlanRow[],
   classCode: string,
 ): Map<string, number> {
-  const normalizedClassCode = base.normalizeClassCode(classCode);
   const allocation = new Map<string, number>();
 
   const add = (subjectCode: string | undefined, periods: number) => {
@@ -124,8 +243,7 @@ function allocationForClass(
   };
 
   for (const row of rows) {
-    if (base.normalizeClassCode(row.classCode) !== normalizedClassCode)
-      continue;
+    if (!rowTargetsClass(row, classCode)) continue;
     add(row.subjectCode, row.weeklyPeriods);
     if (row.organization === "ROTATION") {
       add(row.secondarySubjectCode, row.weeklyPeriods);
@@ -212,6 +330,29 @@ export function validateSchoolClassAllocations(plan: TeachingPlan): string[] {
   return messages;
 }
 
+function validateSharedRows(plan: TeachingPlan): string[] {
+  const messages: string[] = [];
+  const classCodes = new Set(plan.classes.map((item) => item.code));
+  for (const row of plan.rows) {
+    for (const code of normalizedAdditionalClassCodes(row)) {
+      if (!classCodes.has(code)) {
+        messages.push(
+          `${row.classCode} ${row.subjectCode}: společná výuka odkazuje na neexistující třídu ${code}.`,
+        );
+      }
+    }
+    if (
+      (row.preferredStartPeriods?.length ?? 0) > 0 &&
+      (!Number.isFinite(row.preferenceWeight) || Number(row.preferenceWeight) <= 0)
+    ) {
+      messages.push(
+        `${row.classCode} ${row.subjectCode}: preference času musí mít kladnou prioritu.`,
+      );
+    }
+  }
+  return messages;
+}
+
 export function validateTeachingPlan(
   plan: TeachingPlan,
   staffingPlan: StaffingPlan,
@@ -219,14 +360,20 @@ export function validateTeachingPlan(
   const enforcedPlan = enforceSchoolTeachingPlanRules(plan);
   return [
     ...base.validateTeachingPlan(enforcedPlan, staffingPlan),
+    ...validateSharedRows(enforcedPlan),
     ...validateSchoolClassAllocations(enforcedPlan),
   ];
 }
 
 export function loadTeachingPlan(): TeachingPlan {
-  return enforceSchoolTeachingPlanRules(base.loadTeachingPlan());
+  const loaded = applyMetadata(base.loadTeachingPlan(), readStoredMetadata());
+  return enforceSchoolTeachingPlanRules(loaded);
 }
 
 export function saveTeachingPlan(plan: TeachingPlan): TeachingPlan {
-  return base.saveTeachingPlan(enforceSchoolTeachingPlanRules(plan));
+  const enforced = enforceSchoolTeachingPlanRules(plan);
+  const metadata = metadataForPlan(enforced);
+  writeStoredMetadata(metadata);
+  const saved = base.saveTeachingPlan(enforced);
+  return enforceSchoolTeachingPlanRules(applyMetadata(saved, metadata));
 }
