@@ -87,7 +87,10 @@ function removeReplacedRows(
   return {
     ...plan,
     rows: plan.rows.filter(
-      (row) => !replaced.has(`${normalizeClassCode(row.classCode)}|${row.subjectCode}`),
+      (row) =>
+        !replaced.has(
+          `${normalizeClassCode(row.classCode)}|${row.subjectCode}`,
+        ),
     ),
   };
 }
@@ -108,13 +111,22 @@ function parseSharedGroups(
   const replacements: Array<{ classCodes: string[]; subjectCode: string }> = [];
   const issues: TeachingPlanWorkbookIssue[] = [];
 
-  for (let rowNumber = FIRST_SHARED_ROW; rowNumber <= LAST_SHARED_ROW; rowNumber += 1) {
-    const subjectCode = text(sheet.getCell(rowNumber, 1).value).toLocaleUpperCase("cs-CZ");
+  for (
+    let rowNumber = FIRST_SHARED_ROW;
+    rowNumber <= LAST_SHARED_ROW;
+    rowNumber += 1
+  ) {
+    const subjectCode = text(
+      sheet.getCell(rowNumber, 1).value,
+    ).toLocaleUpperCase("cs-CZ");
     const rawClasses = text(sheet.getCell(rowNumber, 2).value);
     const firstGroup = text(sheet.getCell(rowNumber, 3).value);
     const firstTeacherId = teacherId(sheet.getCell(rowNumber, 4).value, lookup);
     const secondGroup = text(sheet.getCell(rowNumber, 5).value);
-    const secondTeacherId = teacherId(sheet.getCell(rowNumber, 6).value, lookup);
+    const secondTeacherId = teacherId(
+      sheet.getCell(rowNumber, 6).value,
+      lookup,
+    );
     const weeklyPeriods = numberValue(sheet.getCell(rowNumber, 7).value);
     const doublePeriodsCount = numberValue(sheet.getCell(rowNumber, 8).value);
 
@@ -130,10 +142,7 @@ function parseSharedGroups(
 
     const classCodes = [
       ...new Set(
-        rawClasses
-          .split(/[,;+]/)
-          .map(normalizeClassCode)
-          .filter(Boolean),
+        rawClasses.split(/[,;+]/).map(normalizeClassCode).filter(Boolean),
       ),
     ];
 
@@ -175,7 +184,9 @@ function parseSharedGroups(
       sheet.getCell(rowNumber, 9).value,
     );
     row.preferenceWeight = preferenceWeight(sheet.getCell(rowNumber, 10).value);
-    row.sharedGroupLabel = [firstGroup, secondGroup].filter(Boolean).join(" / ");
+    row.sharedGroupLabel = [firstGroup, secondGroup]
+      .filter(Boolean)
+      .join(" / ");
 
     rows.push(row);
     replacements.push({ classCodes, subjectCode });
@@ -318,7 +329,11 @@ function addSharedGroupsSheet(
   }
   const teacherLastRow = Math.max(2, teacherLabels.length + 1);
 
-  for (let dataRow = FIRST_SHARED_ROW; dataRow <= LAST_SHARED_ROW; dataRow += 1) {
+  for (
+    let dataRow = FIRST_SHARED_ROW;
+    dataRow <= LAST_SHARED_ROW;
+    dataRow += 1
+  ) {
     for (const column of [4, 6]) {
       sheet.getCell(dataRow, column).dataValidation = {
         type: "list",
@@ -394,9 +409,8 @@ export async function analyzeTeachingPlanWorkbook(
     summary: {
       ...legacy.summary,
       subjects: plan.rows.length,
-      splitSubjects: plan.rows.filter(
-        (row) => row.organization !== "WHOLE",
-      ).length,
+      splitSubjects: plan.rows.filter((row) => row.organization !== "WHOLE")
+        .length,
       doubleBlocks: plan.rows.reduce(
         (total, row) =>
           total +
