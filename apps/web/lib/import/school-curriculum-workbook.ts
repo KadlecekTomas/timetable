@@ -246,8 +246,7 @@ function allocationRows(
 ) {
   return (
     draft?.rows.filter(
-      (row) =>
-        row.classCode === classCode && row.subjectCode === subjectCode,
+      (row) => row.classCode === classCode && row.subjectCode === subjectCode,
     ) ?? []
   );
 }
@@ -426,8 +425,7 @@ export async function analyzeSchoolCurriculumWorkbook(
   ).length;
   const doubleBlocks = plan.rows.reduce(
     (total, row) =>
-      total +
-      (row.lessonShape === "DOUBLE" ? row.weeklyPeriods / 2 : 0),
+      total + (row.lessonShape === "DOUBLE" ? row.weeklyPeriods / 2 : 0),
     0,
   );
 
