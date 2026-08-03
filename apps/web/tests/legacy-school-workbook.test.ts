@@ -16,8 +16,7 @@ function writeClassHeader(
     worksheet.getCell(row + 2, schoolClass.column).value = "Předměty";
     worksheet.getCell(row + 2, schoolClass.column + 1).value =
       "Učitel/učitelka";
-    worksheet.getCell(row + 2, schoolClass.column + 2).value =
-      "Časová dotace";
+    worksheet.getCell(row + 2, schoolClass.column + 2).value = "Časová dotace";
   }
 }
 
