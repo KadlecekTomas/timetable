@@ -1,0 +1,23 @@
+name: Fix ExcelJS types artifact
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sed -i 's/workbook\.xlsx\.load(source);/workbook.xlsx.load(source as never);/g' apps/web/lib/import/staffing-workbook-school.ts
+          sed -i 's/workbook\.xlsx\.load(source);/workbook.xlsx.load(source as never);/g' apps/web/lib/import/teaching-plan-workbook-school.ts
+          sed -i 's/workbook\.xlsx\.load(source);/workbook.xlsx.load(source as never);/g' apps/web/lib/import/teaching-plan-workbook-school-final.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exceljs-type-fixed-files
+          path: |
+            apps/web/lib/import/staffing-workbook-school.ts
+            apps/web/lib/import/teaching-plan-workbook-school.ts
+            apps/web/lib/import/teaching-plan-workbook-school-final.ts
