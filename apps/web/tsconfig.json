@@ -19,6 +19,9 @@
       "@/lib/import/teaching-plan-workbook": [
         "./lib/import/teaching-plan-workbook-school"
       ],
+      "@/lib/import/staffing-workbook": [
+        "./lib/import/staffing-workbook-school"
+      ],
       "@/*": ["./*"]
     }
   },
