@@ -101,17 +101,19 @@ function enforceClassProfile(
 function ensureSchoolClasses(
   classes: TeachingPlanClass[],
 ): TeachingPlanClass[] {
-  const byCode = new Map(
-    classes.map((schoolClass) => [
-      base.normalizeClassCode(schoolClass.code),
-      enforceClassProfile(schoolClass),
-    ]),
-  );
-
-  return SCHOOL_CLASS_CODES.map((code) => {
-    const existing = byCode.get(code);
-    return existing ?? createTeachingPlanClass(code);
-  });
+  const byCode = new Map<string, TeachingPlanClass>();
+  for (const schoolClass of classes) {
+    const code = base.normalizeClassCode(schoolClass.code);
+    if (!code || byCode.has(code)) continue;
+    byCode.set(
+      code,
+      enforceClassProfile({
+        ...schoolClass,
+        code,
+      }),
+    );
+  }
+  return [...byCode.values()];
 }
 
 function normalizedAdditionalClassCodes(row: TeachingPlanRow): string[] {
