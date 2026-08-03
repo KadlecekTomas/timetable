@@ -16,13 +16,14 @@
     "plugins": [{ "name": "next" }],
     "paths": {
       "@/lib/local/api": ["./lib/local/api-school"],
-      "@/lib/local/teaching-plan": ["./lib/local/teaching-plan-school"],
+      "@/lib/local/staffing-plan": ["./lib/local/staffing-plan-school-v2"],
+      "@/lib/local/teaching-plan": ["./lib/local/teaching-plan-school-v2"],
       "@/lib/import/client-workbook": ["./lib/import/client-workbook-school"],
       "@/lib/import/teaching-plan-workbook": [
-        "./lib/import/teaching-plan-workbook-school-entry"
+        "./lib/import/teaching-plan-workbook-school-v2"
       ],
       "@/lib/import/staffing-workbook": [
-        "./lib/import/staffing-workbook-school"
+        "./lib/import/staffing-workbook-school-v2"
       ],
       "@/*": ["./*"]
     }
