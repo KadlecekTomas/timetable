@@ -34,77 +34,168 @@ const SCHOOL_CLASSES = [
   "9.C",
 ] as const;
 
+type SubjectAllocation = Array<{
+  subjectCode: string;
+  weeklyPeriods: number;
+}>;
+
 /**
- * Pracovní vzor pro prázdný projekt. Není to náhrada školního ŠVP.
- * Všechny třídy stejného ročníku dostanou shodnou dotaci, takže B/D
- * zůstávají sportovní profilem, nikoliv automaticky jiným učebním plánem.
+ * Hodinové dotace podle ŠVP FZŠ Chodovická platného od 1. 9. 2023.
+ * B a D jsou sportovní třídy, A a C běžné třídy.
+ * Volitelné předměty jsou předvyplněné technickými zástupci a vedení školy
+ * je musí nahradit skutečnou nabídkou pro daný školní rok.
  */
-const SAMPLE_SUBJECTS_BY_GRADE: Record<
-  number,
-  Array<{ subjectCode: string; weeklyPeriods: number }>
-> = {
+const REGULAR_SUBJECTS_BY_GRADE: Record<number, SubjectAllocation> = {
   6: [
-    { subjectCode: "CJ", weeklyPeriods: 4 },
+    { subjectCode: "CJ", weeklyPeriods: 5 },
     { subjectCode: "M", weeklyPeriods: 4 },
-    { subjectCode: "JAZ1", weeklyPeriods: 3 },
-    { subjectCode: "JAZ2", weeklyPeriods: 2 },
+    { subjectCode: "JAZ1", weeklyPeriods: 4 },
     { subjectCode: "INF", weeklyPeriods: 1 },
     { subjectCode: "DEJ", weeklyPeriods: 2 },
-    { subjectCode: "ZEM", weeklyPeriods: 2 },
+    { subjectCode: "OV", weeklyPeriods: 1 },
+    { subjectCode: "FY", weeklyPeriods: 2 },
     { subjectCode: "PRI", weeklyPeriods: 2 },
-    { subjectCode: "TV", weeklyPeriods: 2 },
-    { subjectCode: "VV", weeklyPeriods: 2 },
+    { subjectCode: "ZEM", weeklyPeriods: 2 },
     { subjectCode: "HV", weeklyPeriods: 1 },
+    { subjectCode: "VV", weeklyPeriods: 2 },
+    { subjectCode: "TV", weeklyPeriods: 2 },
+    { subjectCode: "PC", weeklyPeriods: 1 },
+    { subjectCode: "PKCJ", weeklyPeriods: 1 },
   ],
   7: [
     { subjectCode: "CJ", weeklyPeriods: 4 },
-    { subjectCode: "M", weeklyPeriods: 4 },
+    { subjectCode: "M", weeklyPeriods: 5 },
     { subjectCode: "JAZ1", weeklyPeriods: 3 },
-    { subjectCode: "JAZ2", weeklyPeriods: 2 },
     { subjectCode: "INF", weeklyPeriods: 1 },
     { subjectCode: "DEJ", weeklyPeriods: 2 },
-    { subjectCode: "ZEM", weeklyPeriods: 2 },
+    { subjectCode: "OV", weeklyPeriods: 1 },
     { subjectCode: "FY", weeklyPeriods: 2 },
     { subjectCode: "PRI", weeklyPeriods: 2 },
-    { subjectCode: "TV", weeklyPeriods: 2 },
-    { subjectCode: "VV", weeklyPeriods: 2 },
+    { subjectCode: "ZEM", weeklyPeriods: 2 },
     { subjectCode: "HV", weeklyPeriods: 1 },
+    { subjectCode: "VV", weeklyPeriods: 2 },
+    { subjectCode: "TV", weeklyPeriods: 2 },
+    { subjectCode: "VZ", weeklyPeriods: 1 },
+    { subjectCode: "PC", weeklyPeriods: 1 },
+    { subjectCode: "PKCJ", weeklyPeriods: 1 },
+    { subjectCode: "PRPK", weeklyPeriods: 1 },
   ],
   8: [
     { subjectCode: "CJ", weeklyPeriods: 4 },
     { subjectCode: "M", weeklyPeriods: 4 },
     { subjectCode: "JAZ1", weeklyPeriods: 3 },
-    { subjectCode: "JAZ2", weeklyPeriods: 2 },
+    { subjectCode: "JAZ2", weeklyPeriods: 3 },
     { subjectCode: "INF", weeklyPeriods: 1 },
     { subjectCode: "DEJ", weeklyPeriods: 2 },
-    { subjectCode: "ZEM", weeklyPeriods: 2 },
-    { subjectCode: "FY", weeklyPeriods: 2 },
+    { subjectCode: "OV", weeklyPeriods: 1 },
+    { subjectCode: "FY", weeklyPeriods: 1 },
     { subjectCode: "CH", weeklyPeriods: 2 },
     { subjectCode: "PRI", weeklyPeriods: 2 },
-    { subjectCode: "TV", weeklyPeriods: 2 },
-    { subjectCode: "VV", weeklyPeriods: 1 },
+    { subjectCode: "ZEM", weeklyPeriods: 1 },
     { subjectCode: "HV", weeklyPeriods: 1 },
+    { subjectCode: "VV", weeklyPeriods: 1 },
+    { subjectCode: "TV", weeklyPeriods: 2 },
+    { subjectCode: "VZ", weeklyPeriods: 1 },
+    { subjectCode: "PC", weeklyPeriods: 1 },
+    { subjectCode: "PKCJ", weeklyPeriods: 1 },
   ],
   9: [
     { subjectCode: "CJ", weeklyPeriods: 4 },
     { subjectCode: "M", weeklyPeriods: 4 },
-    { subjectCode: "JAZ1", weeklyPeriods: 3 },
-    { subjectCode: "JAZ2", weeklyPeriods: 2 },
+    { subjectCode: "JAZ1", weeklyPeriods: 4 },
+    { subjectCode: "JAZ2", weeklyPeriods: 3 },
     { subjectCode: "INF", weeklyPeriods: 1 },
     { subjectCode: "DEJ", weeklyPeriods: 2 },
-    { subjectCode: "ZEM", weeklyPeriods: 2 },
+    { subjectCode: "OV", weeklyPeriods: 1 },
     { subjectCode: "FY", weeklyPeriods: 2 },
     { subjectCode: "CH", weeklyPeriods: 2 },
     { subjectCode: "PRI", weeklyPeriods: 1 },
-    { subjectCode: "OV", weeklyPeriods: 1 },
-    { subjectCode: "VZ", weeklyPeriods: 1 },
-    { subjectCode: "TV", weeklyPeriods: 2 },
+    { subjectCode: "ZEM", weeklyPeriods: 2 },
     { subjectCode: "VV", weeklyPeriods: 1 },
+    { subjectCode: "TV", weeklyPeriods: 2 },
+    { subjectCode: "PKCJ", weeklyPeriods: 1 },
   ],
 };
 
+const SPORTS_SUBJECTS_BY_GRADE: Record<number, SubjectAllocation> = {
+  6: [
+    { subjectCode: "CJ", weeklyPeriods: 4 },
+    { subjectCode: "M", weeklyPeriods: 4 },
+    { subjectCode: "JAZ1", weeklyPeriods: 3 },
+    { subjectCode: "INF", weeklyPeriods: 1 },
+    { subjectCode: "DEJ", weeklyPeriods: 2 },
+    { subjectCode: "OV", weeklyPeriods: 1 },
+    { subjectCode: "FY", weeklyPeriods: 2 },
+    { subjectCode: "PRI", weeklyPeriods: 2 },
+    { subjectCode: "ZEM", weeklyPeriods: 2 },
+    { subjectCode: "HV", weeklyPeriods: 1 },
+    { subjectCode: "VV", weeklyPeriods: 2 },
+    { subjectCode: "TV", weeklyPeriods: 5 },
+    { subjectCode: "PC", weeklyPeriods: 1 },
+  ],
+  7: [
+    { subjectCode: "CJ", weeklyPeriods: 4 },
+    { subjectCode: "M", weeklyPeriods: 4 },
+    { subjectCode: "JAZ1", weeklyPeriods: 3 },
+    { subjectCode: "INF", weeklyPeriods: 1 },
+    { subjectCode: "DEJ", weeklyPeriods: 2 },
+    { subjectCode: "OV", weeklyPeriods: 1 },
+    { subjectCode: "FY", weeklyPeriods: 2 },
+    { subjectCode: "PRI", weeklyPeriods: 2 },
+    { subjectCode: "ZEM", weeklyPeriods: 2 },
+    { subjectCode: "HV", weeklyPeriods: 1 },
+    { subjectCode: "VV", weeklyPeriods: 2 },
+    { subjectCode: "TV", weeklyPeriods: 5 },
+    { subjectCode: "PC", weeklyPeriods: 1 },
+  ],
+  8: [
+    { subjectCode: "CJ", weeklyPeriods: 5 },
+    { subjectCode: "M", weeklyPeriods: 4 },
+    { subjectCode: "JAZ1", weeklyPeriods: 3 },
+    { subjectCode: "JAZ2", weeklyPeriods: 3 },
+    { subjectCode: "INF", weeklyPeriods: 1 },
+    { subjectCode: "DEJ", weeklyPeriods: 2 },
+    { subjectCode: "OV", weeklyPeriods: 1 },
+    { subjectCode: "FY", weeklyPeriods: 1 },
+    { subjectCode: "CH", weeklyPeriods: 2 },
+    { subjectCode: "PRI", weeklyPeriods: 1 },
+    { subjectCode: "ZEM", weeklyPeriods: 1 },
+    { subjectCode: "HV", weeklyPeriods: 1 },
+    { subjectCode: "VV", weeklyPeriods: 1 },
+    { subjectCode: "TV", weeklyPeriods: 5 },
+    { subjectCode: "PC", weeklyPeriods: 1 },
+  ],
+  9: [
+    { subjectCode: "CJ", weeklyPeriods: 4 },
+    { subjectCode: "M", weeklyPeriods: 5 },
+    { subjectCode: "JAZ1", weeklyPeriods: 3 },
+    { subjectCode: "JAZ2", weeklyPeriods: 3 },
+    { subjectCode: "INF", weeklyPeriods: 1 },
+    { subjectCode: "DEJ", weeklyPeriods: 2 },
+    { subjectCode: "OV", weeklyPeriods: 1 },
+    { subjectCode: "FY", weeklyPeriods: 1 },
+    { subjectCode: "CH", weeklyPeriods: 2 },
+    { subjectCode: "PRI", weeklyPeriods: 1 },
+    { subjectCode: "ZEM", weeklyPeriods: 1 },
+    { subjectCode: "VV", weeklyPeriods: 1 },
+    { subjectCode: "TV", weeklyPeriods: 4 },
+    { subjectCode: "PKCJ", weeklyPeriods: 1 },
+  ],
+};
+
+function isSportsClass(code: string): boolean {
+  return /\.(B|D)$/.test(code);
+}
+
 function classProfile(code: string): string {
-  return /\.(B|D)$/.test(code) ? "Sportovní třída" : "Běžná třída";
+  return isSportsClass(code) ? "Sportovní třída" : "Běžná třída";
+}
+
+function subjectsForClass(code: string): SubjectAllocation {
+  const grade = Number(code.split(".")[0]);
+  return (isSportsClass(code)
+    ? SPORTS_SUBJECTS_BY_GRADE
+    : REGULAR_SUBJECTS_BY_GRADE)[grade] ?? [];
 }
 
 function ensureSchoolClasses(workbook: ExcelJS.Workbook): void {
@@ -134,9 +225,7 @@ function seedSampleTeachingRows(workbook: ExcelJS.Workbook): void {
 
   let row = 6;
   for (const classCode of SCHOOL_CLASSES) {
-    const grade = Number(classCode.split(".")[0]);
-    const subjects = SAMPLE_SUBJECTS_BY_GRADE[grade] ?? [];
-    for (const subject of subjects) {
+    for (const subject of subjectsForClass(classCode)) {
       plan.getCell(row, 1).value = classCode;
       plan.getCell(row, 2).value = subject.subjectCode;
       plan.getCell(row, 3).value = subject.weeklyPeriods;
@@ -156,11 +245,11 @@ function simplifyTeachingSheet(workbook: ExcelJS.Workbook): void {
 
   plan.getCell("A1").value = "PŘIŘAZENÍ UČITELŮ K VÝUCE";
   plan.getCell("A2").value =
-    "Třídy, předměty a pracovní hodinové dotace jsou předvyplněné. V běžném řádku pouze vyberte učitele.";
+    "Třídy, předměty a hodinové dotace jsou předvyplněné podle ŠVP FZŠ Chodovická platného od 1. 9. 2023.";
   plan.getCell("A3").value =
-    "DŮLEŽITÉ: hodinové dotace jsou vzor k ověření podle platného ŠVP školy; před ostrým použitím je potvrďte nebo upravte.";
+    "DŮLEŽITÉ: u volitelných předmětů nahraďte zástupné řádky skutečnou nabídkou pro daný školní rok.";
   plan.getCell("A4").value =
-    "Druhého učitele vyplňte jen u dělené výuky. Sportovní B/D mají stejnou dotaci jako ostatní třídy stejného ročníku.";
+    "Sportovní třídy B/D mají samostatnou dotaci podle ŠVP. Druhého učitele vyplňte jen u dělené výuky.";
 
   plan.getCell(5, 1).value = "Třída";
   plan.getCell(5, 2).value = "Předmět";
