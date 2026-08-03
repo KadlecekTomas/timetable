@@ -34,6 +34,75 @@ const SCHOOL_CLASSES = [
   "9.C",
 ] as const;
 
+/**
+ * Pracovní vzor pro prázdný projekt. Není to náhrada školního ŠVP.
+ * Všechny třídy stejného ročníku dostanou shodnou dotaci, takže B/D
+ * zůstávají sportovní profilem, nikoliv automaticky jiným učebním plánem.
+ */
+const SAMPLE_SUBJECTS_BY_GRADE: Record<
+  number,
+  Array<{ subjectCode: string; weeklyPeriods: number }>
+> = {
+  6: [
+    { subjectCode: "CJ", weeklyPeriods: 4 },
+    { subjectCode: "M", weeklyPeriods: 4 },
+    { subjectCode: "JAZ1", weeklyPeriods: 3 },
+    { subjectCode: "JAZ2", weeklyPeriods: 2 },
+    { subjectCode: "INF", weeklyPeriods: 1 },
+    { subjectCode: "DEJ", weeklyPeriods: 2 },
+    { subjectCode: "ZEM", weeklyPeriods: 2 },
+    { subjectCode: "PRI", weeklyPeriods: 2 },
+    { subjectCode: "TV", weeklyPeriods: 2 },
+    { subjectCode: "VV", weeklyPeriods: 2 },
+    { subjectCode: "HV", weeklyPeriods: 1 },
+  ],
+  7: [
+    { subjectCode: "CJ", weeklyPeriods: 4 },
+    { subjectCode: "M", weeklyPeriods: 4 },
+    { subjectCode: "JAZ1", weeklyPeriods: 3 },
+    { subjectCode: "JAZ2", weeklyPeriods: 2 },
+    { subjectCode: "INF", weeklyPeriods: 1 },
+    { subjectCode: "DEJ", weeklyPeriods: 2 },
+    { subjectCode: "ZEM", weeklyPeriods: 2 },
+    { subjectCode: "FY", weeklyPeriods: 2 },
+    { subjectCode: "PRI", weeklyPeriods: 2 },
+    { subjectCode: "TV", weeklyPeriods: 2 },
+    { subjectCode: "VV", weeklyPeriods: 2 },
+    { subjectCode: "HV", weeklyPeriods: 1 },
+  ],
+  8: [
+    { subjectCode: "CJ", weeklyPeriods: 4 },
+    { subjectCode: "M", weeklyPeriods: 4 },
+    { subjectCode: "JAZ1", weeklyPeriods: 3 },
+    { subjectCode: "JAZ2", weeklyPeriods: 2 },
+    { subjectCode: "INF", weeklyPeriods: 1 },
+    { subjectCode: "DEJ", weeklyPeriods: 2 },
+    { subjectCode: "ZEM", weeklyPeriods: 2 },
+    { subjectCode: "FY", weeklyPeriods: 2 },
+    { subjectCode: "CH", weeklyPeriods: 2 },
+    { subjectCode: "PRI", weeklyPeriods: 2 },
+    { subjectCode: "TV", weeklyPeriods: 2 },
+    { subjectCode: "VV", weeklyPeriods: 1 },
+    { subjectCode: "HV", weeklyPeriods: 1 },
+  ],
+  9: [
+    { subjectCode: "CJ", weeklyPeriods: 4 },
+    { subjectCode: "M", weeklyPeriods: 4 },
+    { subjectCode: "JAZ1", weeklyPeriods: 3 },
+    { subjectCode: "JAZ2", weeklyPeriods: 2 },
+    { subjectCode: "INF", weeklyPeriods: 1 },
+    { subjectCode: "DEJ", weeklyPeriods: 2 },
+    { subjectCode: "ZEM", weeklyPeriods: 2 },
+    { subjectCode: "FY", weeklyPeriods: 2 },
+    { subjectCode: "CH", weeklyPeriods: 2 },
+    { subjectCode: "PRI", weeklyPeriods: 1 },
+    { subjectCode: "OV", weeklyPeriods: 1 },
+    { subjectCode: "VZ", weeklyPeriods: 1 },
+    { subjectCode: "TV", weeklyPeriods: 2 },
+    { subjectCode: "VV", weeklyPeriods: 1 },
+  ],
+};
+
 function classProfile(code: string): string {
   return /\.(B|D)$/.test(code) ? "Sportovní třída" : "Běžná třída";
 }
@@ -52,17 +121,46 @@ function ensureSchoolClasses(workbook: ExcelJS.Workbook): void {
   classes.state = "veryHidden";
 }
 
+function hasTeachingRows(plan: ExcelJS.Worksheet): boolean {
+  for (let row = 6; row <= 305; row += 1) {
+    if (String(plan.getCell(row, 1).value ?? "").trim()) return true;
+  }
+  return false;
+}
+
+function seedSampleTeachingRows(workbook: ExcelJS.Workbook): void {
+  const plan = workbook.getWorksheet(TEACHING_PLAN_SHEET);
+  if (!plan || hasTeachingRows(plan)) return;
+
+  let row = 6;
+  for (const classCode of SCHOOL_CLASSES) {
+    const grade = Number(classCode.split(".")[0]);
+    const subjects = SAMPLE_SUBJECTS_BY_GRADE[grade] ?? [];
+    for (const subject of subjects) {
+      plan.getCell(row, 1).value = classCode;
+      plan.getCell(row, 2).value = subject.subjectCode;
+      plan.getCell(row, 3).value = subject.weeklyPeriods;
+      plan.getCell(row, 4).value = "Samostatné hodiny";
+      plan.getCell(row, 5).value = null;
+      plan.getCell(row, 6).value = "Celá třída";
+      plan.getCell(row, 7).value = null;
+      plan.getCell(row, 8).value = null;
+      row += 1;
+    }
+  }
+}
+
 function simplifyTeachingSheet(workbook: ExcelJS.Workbook): void {
   const plan = workbook.getWorksheet(TEACHING_PLAN_SHEET);
   if (!plan) return;
 
   plan.getCell("A1").value = "PŘIŘAZENÍ UČITELŮ K VÝUCE";
   plan.getCell("A2").value =
-    "Třídy, předměty a hodinové dotace jsou připravené systémem. V běžném řádku pouze vyberte učitele.";
+    "Třídy, předměty a pracovní hodinové dotace jsou předvyplněné. V běžném řádku pouze vyberte učitele.";
   plan.getCell("A3").value =
-    "Druhého učitele vyplňte jen u dělené výuky. Ostatní technická nastavení lze později upravit přímo v aplikaci.";
+    "DŮLEŽITÉ: hodinové dotace jsou vzor k ověření podle platného ŠVP školy; před ostrým použitím je potvrďte nebo upravte.";
   plan.getCell("A4").value =
-    "Sportovní třídy systém rozpozná automaticky; jejich dotace zůstává stejná jako v daném ročníku.";
+    "Druhého učitele vyplňte jen u dělené výuky. Sportovní B/D mají stejnou dotaci jako ostatní třídy stejného ročníku.";
 
   plan.getCell(5, 1).value = "Třída";
   plan.getCell(5, 2).value = "Předmět";
@@ -99,6 +197,7 @@ export async function createTeachingPlanWorkbook(
   await workbook.xlsx.load(source);
 
   ensureSchoolClasses(workbook);
+  seedSampleTeachingRows(workbook);
   simplifyTeachingSheet(workbook);
   hideAdvancedSheets(workbook);
 
