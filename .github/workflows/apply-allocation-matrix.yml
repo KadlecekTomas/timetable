@@ -1,0 +1,154 @@
+name: Apply subject allocation matrix
+
+on:
+  push:
+    branches: [feat/subject-allocation-matrix]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/subject-allocation-matrix
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('apps/web/lib/import/teaching-plan-workbook-school-final.ts')
+          text = p.read_text()
+          text = text.replace('const SHARED_GROUPS_SHEET = "Společné skupiny";\n', '''const SHARED_GROUPS_SHEET = "Společné skupiny";
+const ALLOCATION_MATRIX_SHEET = "Předměty a dotace";
+const SCHOOL_CLASSES = [
+  "6.A", "6.B", "6.C", "6.D",
+  "7.A", "7.B", "7.C",
+  "8.A", "8.B", "8.C",
+  "9.A", "9.B", "9.C",
+] as const;
+''')
+          marker = 'function addSharedGroupsSheet(\n'
+          insert = r'''
+function subjectDictionary(workbook: ExcelJS.Workbook): Array<{ code: string; label: string }> {
+  const dictionary = workbook.getWorksheet("Číselníky");
+  if (!dictionary) return [];
+  const subjects: Array<{ code: string; label: string }> = [];
+  for (let row = 2; row <= 100; row += 1) {
+    const code = text(dictionary.getCell(row, 1).value).toLocaleUpperCase("cs-CZ");
+    const label = text(dictionary.getCell(row, 2).value);
+    if (code) subjects.push({ code, label: label || code });
+  }
+  return subjects;
+}
+
+function addAllocationMatrixSheet(workbook: ExcelJS.Workbook): void {
+  const technical = workbook.getWorksheet(TEACHING_PLAN_SHEET);
+  if (!technical) return;
+  const allocations = new Map<string, number>();
+  for (let row = 6; row <= 305; row += 1) {
+    const classCode = normalizeClassCode(text(technical.getCell(row, 1).value));
+    const subjectCode = text(technical.getCell(row, 2).value).toLocaleUpperCase("cs-CZ");
+    const hours = numberValue(technical.getCell(row, 3).value);
+    if (classCode && subjectCode && hours > 0) allocations.set(`${subjectCode}|${classCode}`, hours);
+  }
+  const old = workbook.getWorksheet(ALLOCATION_MATRIX_SHEET);
+  if (old) workbook.removeWorksheet(old.id);
+  const sheet = workbook.addWorksheet(ALLOCATION_MATRIX_SHEET, { views: [{ state: "frozen", ySplit: 5, xSplit: 2 }] });
+  sheet.properties.tabColor = { argb: "FF3157C8" };
+  sheet.mergeCells("A1:O1");
+  sheet.getCell("A1").value = "PŘEDMĚTY A HODINOVÉ DOTACE VŠECH TŘÍD";
+  sheet.getCell("A1").font = { bold: true, size: 17, color: { argb: "FFFFFFFF" } };
+  sheet.getCell("A1").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF3157C8" } };
+  sheet.getRow(1).height = 34;
+  sheet.mergeCells("A2:O2");
+  sheet.getCell("A2").value = "Každý předmět je jen jeden řádek. V jeho řádku zkontrolujte nebo opravte počet hodin pro všech 13 tříd.";
+  sheet.getCell("A2").font = { bold: true, color: { argb: "FF172B4D" } };
+  sheet.getCell("A2").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEAF1FF" } };
+  sheet.mergeCells("A3:O3");
+  sheet.getCell("A3").value = "B a D jsou sportovní třídy, ale mají stejnou předmětovou dotaci jako ostatní třídy stejného ročníku.";
+  sheet.getCell("A3").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF4CC" } };
+  sheet.mergeCells("A4:O4");
+  sheet.getCell("A4").value = "Prázdná buňka nebo 0 znamená, že se předmět v dané třídě neučí. Společnou výuku nastavte na listu Společné skupiny.";
+  sheet.getCell("A4").font = { italic: true, color: { argb: "FF667085" } };
+  sheet.getRow(5).values = ["Zkratka", "Předmět", ...SCHOOL_CLASSES];
+  sheet.getRow(5).height = 38;
+  sheet.getRow(5).font = { bold: true, color: { argb: "FFFFFFFF" } };
+  sheet.getRow(5).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF17355C" } };
+  sheet.getRow(5).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  sheet.columns = [{ width: 12 }, { width: 30 }, ...SCHOOL_CLASSES.map(() => ({ width: 9 }))];
+  const subjects = subjectDictionary(workbook);
+  subjects.forEach((subject, index) => {
+    const row = index + 6;
+    sheet.getCell(row, 1).value = subject.code;
+    sheet.getCell(row, 2).value = subject.label;
+    SCHOOL_CLASSES.forEach((classCode, classIndex) => {
+      const cell = sheet.getCell(row, classIndex + 3);
+      cell.value = allocations.get(`${subject.code}|${classCode}`) ?? null;
+      cell.dataValidation = { type: "whole", operator: "between", allowBlank: true, formulae: [0, 15], showErrorMessage: true, errorTitle: "Neplatná hodinová dotace", error: "Zadejte celé číslo od 0 do 15." };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+    });
+    sheet.getRow(row).height = 22;
+    if (index % 2 === 0) sheet.getRow(row).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFD" } };
+  });
+  sheet.autoFilter = { from: "A5", to: `O${Math.max(6, subjects.length + 5)}` };
+  technical.state = "veryHidden";
+}
+
+function syncAllocationMatrixIntoTechnicalSheet(workbook: ExcelJS.Workbook): void {
+  const matrix = workbook.getWorksheet(ALLOCATION_MATRIX_SHEET);
+  const technical = workbook.getWorksheet(TEACHING_PLAN_SHEET);
+  if (!matrix || !technical) return;
+  technical.spliceRows(6, Math.max(0, technical.rowCount - 5));
+  let targetRow = 6;
+  for (let matrixRow = 6; matrixRow <= matrix.rowCount; matrixRow += 1) {
+    const subjectCode = text(matrix.getCell(matrixRow, 1).value).toLocaleUpperCase("cs-CZ");
+    if (!subjectCode) continue;
+    SCHOOL_CLASSES.forEach((classCode, classIndex) => {
+      const hours = numberValue(matrix.getCell(matrixRow, classIndex + 3).value);
+      if (hours <= 0) return;
+      technical.getCell(targetRow, 1).value = classCode;
+      technical.getCell(targetRow, 2).value = subjectCode;
+      technical.getCell(targetRow, 3).value = hours;
+      technical.getCell(targetRow, 4).value = subjectCode === "TV" && ["9.A", "9.C"].includes(classCode) ? "Pouze dvojhodiny" : "Samostatné hodiny";
+      technical.getCell(targetRow, 5).value = null;
+      technical.getCell(targetRow, 6).value = "Celá třída";
+      technical.getCell(targetRow, 7).value = null;
+      technical.getCell(targetRow, 8).value = null;
+      targetRow += 1;
+    });
+  }
+}
+
+'''
+          if insert not in text: text = text.replace(marker, insert + marker)
+          text = text.replace('  removeIncorrectSeparateTvExamples(workbook);\n  addSharedGroupsSheet(workbook, staffingPlan);', '  removeIncorrectSeparateTvExamples(workbook);\n  addAllocationMatrixSheet(workbook);\n  addSharedGroupsSheet(workbook, staffingPlan);')
+          old = '''  const legacy = await analyzeSchoolTeachingPlanWorkbook(input, staffingPlan);
+  const workbook = new ExcelJS.Workbook();
+  const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+  await workbook.xlsx.load(bytes as never);
+
+  const shared = parseSharedGroups(workbook, staffingPlan);'''
+          new = '''  const workbook = new ExcelJS.Workbook();
+  const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+  await workbook.xlsx.load(bytes as never);
+  syncAllocationMatrixIntoTechnicalSheet(workbook);
+  const normalized = new Uint8Array(await workbook.xlsx.writeBuffer());
+  const legacy = await analyzeSchoolTeachingPlanWorkbook(normalized, staffingPlan);
+
+  const shared = parseSharedGroups(workbook, staffingPlan);'''
+          if old not in text: raise SystemExit('analyze block not found')
+          text = text.replace(old, new, 1)
+          p.write_text(text)
+          PY
+          npx prettier --write apps/web/lib/import/teaching-plan-workbook-school-final.ts
+          rm -f .github/workflows/apply-allocation-matrix.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add apps/web/lib/import/teaching-plan-workbook-school-final.ts .github/workflows
+          git commit -m "feat: add subject allocation matrix"
+          git push origin HEAD:feat/subject-allocation-matrix
