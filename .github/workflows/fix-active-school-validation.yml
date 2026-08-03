@@ -1,0 +1,73 @@
+name: Fix active school validation artifact
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          plan = Path('apps/web/lib/local/teaching-plan-school.ts')
+          text = plan.read_text()
+          old = '''  for (const [grade, classes] of classesByGrade) {
+            const references = classes.filter((schoolClass) =>
+              isSchoolReferenceClass(schoolClass.code),
+            );
+            const sportsClasses = classes.filter((schoolClass) =>
+              isSchoolSportsClass(schoolClass.code),
+            );
+          '''
+          new = '''  for (const [grade, classes] of classesByGrade) {
+            const activeClasses = classes.filter(
+              (schoolClass) => allocationForClass(plan.rows, schoolClass.code).size > 0,
+            );
+            const references = activeClasses.filter((schoolClass) =>
+              isSchoolReferenceClass(schoolClass.code),
+            );
+            const sportsClasses = activeClasses.filter((schoolClass) =>
+              isSchoolSportsClass(schoolClass.code),
+            );
+          '''
+          if old not in text:
+              raise SystemExit('validation block not found')
+          plan.write_text(text.replace(old, new))
+
+          workbook = Path('apps/web/lib/import/teaching-plan-workbook-school-final.ts')
+          text = workbook.read_text()
+          old = '''  const kadlecekLabel = kadlecek
+            ? `${teacherCodes.get(kadlecek.id)} · ${kadlecek.firstName} ${kadlecek.lastName}`
+            : "KAD · Tomáš Kadleček";
+
+          const row = 6;
+          sheet.getCell(row, 1).value = "TV";
+          '''
+          new = '''  if (!kadlecek) {
+            sheet.autoFilter = { from: "A5", to: "K5" };
+            return;
+          }
+          const kadlecekLabel = `${teacherCodes.get(kadlecek.id)} · ${kadlecek.firstName} ${kadlecek.lastName}`;
+
+          const row = 6;
+          sheet.getCell(row, 1).value = "TV";
+          '''
+          if old not in text:
+              raise SystemExit('Kadlecek seed block not found')
+          workbook.write_text(text.replace(old, new))
+          PY
+      - run: npx prettier --write apps/web/lib/local/teaching-plan-school.ts apps/web/lib/import/teaching-plan-workbook-school-final.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: active-school-validation-files
+          path: |
+            apps/web/lib/local/teaching-plan-school.ts
+            apps/web/lib/import/teaching-plan-workbook-school-final.ts
