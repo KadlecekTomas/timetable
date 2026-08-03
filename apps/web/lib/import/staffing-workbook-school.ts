@@ -74,7 +74,7 @@ function seedTeacherExamples(workbook: ExcelJS.Workbook): void {
 export async function createStaffingWorkbookTemplate(): Promise<Uint8Array> {
   const source = await createLegacyStaffingWorkbookTemplate();
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(source);
+  await workbook.xlsx.load(source as never);
   seedTeacherExamples(workbook);
   return new Uint8Array(await workbook.xlsx.writeBuffer());
 }
