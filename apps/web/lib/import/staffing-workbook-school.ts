@@ -25,7 +25,6 @@ function seedTeacherExamples(workbook: ExcelJS.Workbook): void {
   worksheet.getCell("A4").value =
     "Kadleček: 17 h = INF 13 + TV 4. Vašáková: INF 12 h, učí pouze v úterý a ve středu.";
 
-  // Tomáš Kadleček: 13 hodin informatiky + 4 hodiny TV.
   worksheet.getCell(6, 1).value = "Tomáš";
   worksheet.getCell(6, 2).value = "Kadleček";
   worksheet.getCell(6, 3).value = 17;
@@ -37,33 +36,36 @@ function seedTeacherExamples(workbook: ExcelJS.Workbook): void {
     worksheet.getCell(6, FIRST_DAY_COLUMN + index).value = "Ne";
   }
 
-  // Křestní jméno nebylo zadáno, proto zůstává prázdné a vedení ho musí doplnit.
   worksheet.getCell(7, 1).value = null;
   worksheet.getCell(7, 2).value = "Vašáková";
   worksheet.getCell(7, 3).value = 12;
   worksheet.getCell(7, 4).value = "INF";
   worksheet.getCell(7, 5).value = 12;
-  worksheet.getCell(7, FIRST_DAY_COLUMN + 0).value = "Ano"; // pondělí
-  worksheet.getCell(7, FIRST_DAY_COLUMN + 1).value = "Ne"; // úterý
-  worksheet.getCell(7, FIRST_DAY_COLUMN + 2).value = "Ne"; // středa
-  worksheet.getCell(7, FIRST_DAY_COLUMN + 3).value = "Ano"; // čtvrtek
-  worksheet.getCell(7, FIRST_DAY_COLUMN + 4).value = "Ano"; // pátek
+  worksheet.getCell(7, FIRST_DAY_COLUMN + 0).value = "Ano";
+  worksheet.getCell(7, FIRST_DAY_COLUMN + 1).value = "Ne";
+  worksheet.getCell(7, FIRST_DAY_COLUMN + 2).value = "Ne";
+  worksheet.getCell(7, FIRST_DAY_COLUMN + 3).value = "Ano";
+  worksheet.getCell(7, FIRST_DAY_COLUMN + 4).value = "Ano";
 
   const example = workbook.getWorksheet("Příklad");
   if (example) {
     example.spliceRows(1, example.rowCount);
     example.addRows([
-      ["Učitel", "Úvazek", "Předměty", "Učí pouze"],
+      ["Učitel / skupina", "Úvazek", "Předměty", "Organizace"],
       ["Tomáš Kadleček", 17, "INF 13 + TV 4", "bez omezení dnů"],
-      ["Vašáková (doplnit jméno)", 12, "INF 12", "Út + St"],
-      ["TV 9.A kluci", 2, "jedna dvojhodina", "dělená výuka"],
-      ["TV 9.C kluci", 2, "jedna dvojhodina", "dělená výuka"],
+      ["Vašáková (doplnit jméno)", 12, "INF 12", "učí pouze Út + St"],
+      [
+        "Kluci 9.A + 9.C",
+        4,
+        "TV · 2× dvojhodina",
+        "jedna společná skupina; souběh s paralelní skupinou dle nastavení vedení",
+      ],
     ]);
     example.columns = [
-      { width: 30 },
+      { width: 32 },
       { width: 12 },
-      { width: 24 },
-      { width: 24 },
+      { width: 25 },
+      { width: 54 },
     ];
     example.getRow(1).font = { bold: true };
   }
