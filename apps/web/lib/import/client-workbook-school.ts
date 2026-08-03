@@ -10,7 +10,8 @@ export async function analyzeClientImportWorkbook(
   const workbook = new ExcelJS.Workbook();
   try {
     await workbook.xlsx.load(buffer as never);
-  } catch {
+  } catch (error) {
+    console.error("LEGACY_WORKBOOK_LOAD_FAILED", error);
     return analyzeBaseClientImportWorkbook(buffer);
   }
 
