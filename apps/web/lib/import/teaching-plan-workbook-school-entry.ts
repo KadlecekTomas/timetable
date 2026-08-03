@@ -42,17 +42,17 @@ export async function createTeachingPlanWorkbook(
   existingPlan?: TeachingPlan,
 ): Promise<Uint8Array> {
   const workbook = await createSchoolWorkbook(staffingPlan, existingPlan);
-  return hasKadlecek(staffingPlan)
-    ? workbook
-    : withoutSchoolExample(workbook);
+  if (hasKadlecek(staffingPlan)) return workbook;
+  return withoutSchoolExample(workbook);
 }
 
 export async function analyzeTeachingPlanWorkbook(
   input: ArrayBuffer | Uint8Array,
   staffingPlan: StaffingPlan,
 ): Promise<TeachingPlanWorkbookAnalysis> {
-  const workbook = hasKadlecek(staffingPlan)
-    ? input
-    : await withoutSchoolExample(input);
+  if (hasKadlecek(staffingPlan)) {
+    return analyzeSchoolWorkbook(input, staffingPlan);
+  }
+  const workbook = await withoutSchoolExample(input);
   return analyzeSchoolWorkbook(workbook, staffingPlan);
 }
