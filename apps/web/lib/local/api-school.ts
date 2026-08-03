@@ -1,8 +1,5 @@
 import * as base from "./api";
-import {
-  loadTeachingPlan,
-  type TeachingPlanRow,
-} from "./teaching-plan-school";
+import { loadTeachingPlan, type TeachingPlanRow } from "./teaching-plan-school";
 
 export * from "./api";
 
@@ -179,7 +176,8 @@ export async function localApiFetch(
     resources(`/api/school-years/${schoolYearId}/subjects`),
   ]);
   const classCode = classes.find((item) => item.id === classId)?.code ?? "";
-  const subjectCode = subjects.find((item) => item.id === subjectId)?.code ?? "";
+  const subjectCode =
+    subjects.find((item) => item.id === subjectId)?.code ?? "";
   const sharedRow = sharedRowFor(classCode, subjectCode);
 
   if (!sharedRow) return base.localApiFetch(input, init);
