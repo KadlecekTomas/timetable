@@ -31,13 +31,14 @@ Doporučený postup je stáhnout zálohu po každé významné změně a uložit
 
 1. Nastavit školu a školní rok.
 2. Stáhnout Excel šablonu.
-3. Vyplnit učitele, třídy, předměty, učebny, vazby a omezení.
-4. Nechat soubor analyzovat bez zápisu.
-5. Potvrdit validní import do lokálního projektu.
-6. Spustit přímý výpočet rozvrhu.
-7. Zkontrolovat kvalitu a konflikty.
-8. Ručně přesouvat a zamykat hodiny.
-9. Stáhnout zálohu projektu.
+3. V matici **Předměty a dotace** ověřit každý předmět jednou napříč třídami 6.A–9.C.
+4. Vyplnit učitele, učebny, vazby a omezení.
+5. Nechat soubor analyzovat bez zápisu.
+6. Potvrdit validní import do lokálního projektu.
+7. Spustit přímý výpočet rozvrhu.
+8. Zkontrolovat kvalitu a konflikty.
+9. Ručně přesouvat a zamykat hodiny.
+10. Stáhnout zálohu projektu.
 
 ## Základní pravidla
 
