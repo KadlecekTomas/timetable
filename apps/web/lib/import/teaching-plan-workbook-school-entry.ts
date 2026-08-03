@@ -37,6 +37,37 @@ async function withoutSchoolExample(
   return new Uint8Array(await workbook.xlsx.writeBuffer());
 }
 
+function activeAnalysis(
+  analysis: TeachingPlanWorkbookAnalysis,
+): TeachingPlanWorkbookAnalysis {
+  const activeClassCodes = new Set(
+    analysis.plan.rows.flatMap((row) => [
+      row.classCode,
+      ...(row.additionalClassCodes ?? []),
+    ]),
+  );
+  const seen = new Set<string>();
+  const classes = analysis.plan.classes.filter((schoolClass) => {
+    if (!activeClassCodes.has(schoolClass.code) || seen.has(schoolClass.code)) {
+      return false;
+    }
+    seen.add(schoolClass.code);
+    return true;
+  });
+
+  return {
+    ...analysis,
+    plan: {
+      ...analysis.plan,
+      classes,
+    },
+    summary: {
+      ...analysis.summary,
+      classes: classes.length,
+    },
+  };
+}
+
 export async function createTeachingPlanWorkbook(
   staffingPlan: StaffingPlan,
   existingPlan?: TeachingPlan,
@@ -50,9 +81,8 @@ export async function analyzeTeachingPlanWorkbook(
   input: ArrayBuffer | Uint8Array,
   staffingPlan: StaffingPlan,
 ): Promise<TeachingPlanWorkbookAnalysis> {
-  if (hasKadlecek(staffingPlan)) {
-    return analyzeSchoolWorkbook(input, staffingPlan);
-  }
-  const workbook = await withoutSchoolExample(input);
-  return analyzeSchoolWorkbook(workbook, staffingPlan);
+  const workbook = hasKadlecek(staffingPlan)
+    ? input
+    : await withoutSchoolExample(input);
+  return activeAnalysis(await analyzeSchoolWorkbook(workbook, staffingPlan));
 }
