@@ -200,7 +200,8 @@ test("unfinished staffing workbook imports as editable capacity plan", async () 
   const workbook = await createLegacyStaffingWorkbook();
   const analysis = analyzeLegacyStaffingPlan(workbook);
   assert.ok(analysis);
-  if (!analysis) throw new Error("Legacy staffing workbook was not recognized.");
+  if (!analysis)
+    throw new Error("Legacy staffing workbook was not recognized.");
   assert.equal(analysis.valid, true);
   assert.equal(analysis.summary.unassignedClassPeriods, 6);
 
