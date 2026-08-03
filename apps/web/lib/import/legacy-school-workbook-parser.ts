@@ -131,7 +131,10 @@ export function columnLetter(column: number): string {
 }
 
 export function teacherTokens(value: string): string[] {
-  return value.split(/[\/;]+/).map(cleanName).filter(Boolean);
+  return value
+    .split(/[\/;]+/)
+    .map(cleanName)
+    .filter(Boolean);
 }
 
 function issue(
@@ -225,7 +228,7 @@ function mergeTeacherSeed(
 
 function findClassBlocks(worksheet: Worksheet): ClassBlock[] {
   const blocks: ClassBlock[] = [];
-  for (let row = 1; row <= worksheet.actualRowCount; row += 1) {
+  for (let row = 1; row <= worksheet.rowCount; row += 1) {
     const slots = CLASS_COLUMNS.flatMap((column) => {
       const code = normalizeClassCode(cellText(worksheet.getCell(row, column)));
       return code
@@ -249,7 +252,11 @@ function findSubjectHeaderRow(
   endRow: number,
   subjectColumn: number,
 ): number | null {
-  for (let row = blockRow + 1; row <= Math.min(endRow, blockRow + 6); row += 1) {
+  for (
+    let row = blockRow + 1;
+    row <= Math.min(endRow, blockRow + 6);
+    row += 1
+  ) {
     if (
       asciiKey(cellText(worksheet.getCell(row, subjectColumn))) === "predmety"
     ) {
@@ -268,7 +275,7 @@ function parseRequirements(
   blocks.forEach((block, blockIndex) => {
     const endRow = blocks[blockIndex + 1]?.row
       ? blocks[blockIndex + 1]!.row - 1
-      : worksheet.actualRowCount;
+      : worksheet.rowCount;
     for (const slot of block.slots) {
       const headerRow = findSubjectHeaderRow(
         worksheet,
@@ -358,12 +365,8 @@ export function parseLegacySchoolWorkbook(
   }
 
   const classCodes = [
-    ...new Set(
-      blocks.flatMap((block) => block.slots.map((slot) => slot.code)),
-    ),
-  ].sort((left, right) =>
-    left.localeCompare(right, "cs", { numeric: true }),
-  );
+    ...new Set(blocks.flatMap((block) => block.slots.map((slot) => slot.code))),
+  ].sort((left, right) => left.localeCompare(right, "cs", { numeric: true }));
 
   return {
     sheetName: staffingSheet.name,
