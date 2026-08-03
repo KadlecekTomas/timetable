@@ -25,6 +25,7 @@ jobs:
             apps/web/lib/import/legacy-school-workbook-parser.ts \
             apps/web/lib/import/legacy-school-workbook.ts \
             apps/web/lib/import/teaching-plan-workbook-school.ts \
+            apps/web/tests/legacy-school-workbook-diagnostics.test.ts \
             apps/web/tests/legacy-school-workbook.test.ts \
             apps/web/tsconfig.json
       - name: Upload canonical formatting artifact
@@ -35,6 +36,7 @@ jobs:
             apps/web/lib/import/legacy-school-workbook-parser.ts
             apps/web/lib/import/legacy-school-workbook.ts
             apps/web/lib/import/teaching-plan-workbook-school.ts
+            apps/web/tests/legacy-school-workbook-diagnostics.test.ts
             apps/web/tests/legacy-school-workbook.test.ts
             apps/web/tsconfig.json
           if-no-files-found: error
