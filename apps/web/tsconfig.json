@@ -17,7 +17,7 @@
     "paths": {
       "@/lib/local/teaching-plan": ["./lib/local/teaching-plan-school"],
       "@/lib/import/teaching-plan-workbook": [
-        "./lib/import/teaching-plan-workbook-school"
+        "./lib/import/teaching-plan-workbook-school-final"
       ],
       "@/lib/import/staffing-workbook": [
         "./lib/import/staffing-workbook-school"
