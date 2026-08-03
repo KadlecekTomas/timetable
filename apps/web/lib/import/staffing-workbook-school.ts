@@ -37,7 +37,9 @@ function teacherStartRow(index: number): number {
 }
 
 function subjectLabel(code: string): string {
-  return STAFFING_SUBJECTS.find((subject) => subject.code === code)?.label ?? "";
+  return (
+    STAFFING_SUBJECTS.find((subject) => subject.code === code)?.label ?? ""
+  );
 }
 
 function addListValidation(
@@ -160,7 +162,8 @@ function createCompactTeacherSheet(workbook: ExcelJS.Workbook): Worksheet {
   if (dictionary) {
     dictionary.getCell("C1").value = "Zobrazení";
     STAFFING_SUBJECTS.forEach((subject, index) => {
-      dictionary.getCell(index + 2, 3).value = `${subject.code} · ${subject.label}`;
+      dictionary.getCell(index + 2, 3).value =
+        `${subject.code} · ${subject.label}`;
     });
   }
   const subjectListFormula = `'${SUBJECT_DICTIONARY_SHEET}'!$C$2:$C$$${
@@ -205,7 +208,11 @@ function createCompactTeacherSheet(workbook: ExcelJS.Workbook): Worksheet {
     }
 
     for (let dayIndex = 0; dayIndex < STAFFING_DAYS.length; dayIndex += 1) {
-      addListValidation(worksheet, `${String.fromCharCode(71 + dayIndex)}${start}`, '"Ne,Ano"');
+      addListValidation(
+        worksheet,
+        `${String.fromCharCode(71 + dayIndex)}${start}`,
+        '"Ne,Ano"',
+      );
     }
 
     worksheet.getCell(start, 12).value = {
@@ -317,7 +324,8 @@ function fillTeacherExamples(worksheet: Worksheet): void {
   worksheet.getCell(tomas, 6).value = 13;
   worksheet.getCell(tomas + 1, 4).value = `TV · ${subjectLabel("TV")}`;
   worksheet.getCell(tomas + 1, 6).value = 4;
-  for (let day = 0; day < 5; day += 1) worksheet.getCell(tomas, 7 + day).value = "Ne";
+  for (let day = 0; day < 5; day += 1)
+    worksheet.getCell(tomas, 7 + day).value = "Ne";
 
   const vasakova = teacherStartRow(1);
   worksheet.getCell(vasakova, 1).value = null;
@@ -366,8 +374,9 @@ async function convertCompactToLegacy(
     const firstName = compact.getCell(start, 1).text.trim();
     const lastName = compact.getCell(start, 2).text.trim();
     const targetLoad = compact.getCell(start, 3).text.trim();
-    const hasSubjects = Array.from({ length: SUBJECT_ROWS_PER_TEACHER }, (_, index) =>
-      compact.getCell(start + index, 4).text.trim(),
+    const hasSubjects = Array.from(
+      { length: SUBJECT_ROWS_PER_TEACHER },
+      (_, index) => compact.getCell(start + index, 4).text.trim(),
     ).some(Boolean);
     if (!firstName && !lastName && !targetLoad && !hasSubjects) continue;
 
@@ -375,7 +384,11 @@ async function convertCompactToLegacy(
     legacy.getCell(legacyRow, 2).value = lastName || null;
     legacy.getCell(legacyRow, 3).value = targetLoad ? Number(targetLoad) : null;
 
-    for (let subjectIndex = 0; subjectIndex < SUBJECT_ROWS_PER_TEACHER; subjectIndex += 1) {
+    for (
+      let subjectIndex = 0;
+      subjectIndex < SUBJECT_ROWS_PER_TEACHER;
+      subjectIndex += 1
+    ) {
       const compactRow = start + subjectIndex;
       const display = compact.getCell(compactRow, 4).text.trim();
       const hours = compact.getCell(compactRow, 6).text.trim();
@@ -408,8 +421,18 @@ export async function createStaffingWorkbookTemplate(): Promise<Uint8Array> {
     example.spliceRows(1, example.rowCount);
     example.addRows([
       ["Učitel / skupina", "Úvazek", "Předměty pod sebou", "Organizace"],
-      ["Tomáš Kadleček", 17, "INF · Informatika 13 h\nTV · Tělesná výchova 4 h", "bez omezení dnů"],
-      ["Vašáková (doplnit jméno)", 12, "INF · Informatika 12 h", "učí pouze Út + St"],
+      [
+        "Tomáš Kadleček",
+        17,
+        "INF · Informatika 13 h\nTV · Tělesná výchova 4 h",
+        "bez omezení dnů",
+      ],
+      [
+        "Vašáková (doplnit jméno)",
+        12,
+        "INF · Informatika 12 h",
+        "učí pouze Út + St",
+      ],
       [
         "Kluci 9.A + 9.C",
         4,
