@@ -387,9 +387,24 @@ export async function analyzeTeachingPlanWorkbook(
     legacy.plan,
     shared.replacements,
   );
+  const rows = [...withoutReplacedRows.rows, ...shared.rows];
+  const activeClassCodes = new Set(
+    rows.flatMap((row) => [row.classCode, ...(row.additionalClassCodes ?? [])]),
+  );
+  const seenClassCodes = new Set<string>();
   const plan: TeachingPlan = {
     ...withoutReplacedRows,
-    rows: [...withoutReplacedRows.rows, ...shared.rows],
+    classes: withoutReplacedRows.classes.filter((schoolClass) => {
+      if (
+        !activeClassCodes.has(schoolClass.code) ||
+        seenClassCodes.has(schoolClass.code)
+      ) {
+        return false;
+      }
+      seenClassCodes.add(schoolClass.code);
+      return true;
+    }),
+    rows,
   };
   const validationIssues = validateTeachingPlan(plan, staffingPlan).map(
     (message): TeachingPlanWorkbookIssue => ({
@@ -408,6 +423,7 @@ export async function analyzeTeachingPlanWorkbook(
     issues,
     summary: {
       ...legacy.summary,
+      classes: plan.classes.length,
       subjects: plan.rows.length,
       splitSubjects: plan.rows.filter((row) => row.organization !== "WHOLE")
         .length,
