@@ -19,27 +19,6 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Create canonical formatting artifact
-        run: |
-          npx prettier --write \
-            apps/web/lib/import/legacy-school-workbook-parser.ts \
-            apps/web/lib/import/legacy-school-workbook.ts \
-            apps/web/lib/import/teaching-plan-workbook-school.ts \
-            apps/web/tests/legacy-school-workbook-diagnostics.test.ts \
-            apps/web/tests/legacy-school-workbook.test.ts \
-            apps/web/tsconfig.json
-      - name: Upload canonical formatting artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: canonical-formatted-import-files
-          path: |
-            apps/web/lib/import/legacy-school-workbook-parser.ts
-            apps/web/lib/import/legacy-school-workbook.ts
-            apps/web/lib/import/teaching-plan-workbook-school.ts
-            apps/web/tests/legacy-school-workbook-diagnostics.test.ts
-            apps/web/tests/legacy-school-workbook.test.ts
-            apps/web/tsconfig.json
-          if-no-files-found: error
       - run: npm run format:check
       - run: npm run lint --workspace @timetable/web
       - run: npm run typecheck --workspace @timetable/web
