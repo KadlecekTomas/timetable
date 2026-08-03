@@ -193,9 +193,11 @@ function classProfile(code: string): string {
 
 function subjectsForClass(code: string): SubjectAllocation {
   const grade = Number(code.split(".")[0]);
-  return (isSportsClass(code)
-    ? SPORTS_SUBJECTS_BY_GRADE
-    : REGULAR_SUBJECTS_BY_GRADE)[grade] ?? [];
+  return (
+    (isSportsClass(code)
+      ? SPORTS_SUBJECTS_BY_GRADE
+      : REGULAR_SUBJECTS_BY_GRADE)[grade] ?? []
+  );
 }
 
 function ensureSchoolClasses(workbook: ExcelJS.Workbook): void {
