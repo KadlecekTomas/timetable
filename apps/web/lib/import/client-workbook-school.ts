@@ -10,10 +10,17 @@ export async function analyzeClientImportWorkbook(
   const workbook = new ExcelJS.Workbook();
   try {
     await workbook.xlsx.load(buffer as never);
+  } catch {
+    return analyzeBaseClientImportWorkbook(buffer);
+  }
+
+  try {
     const legacyAnalysis = analyzeLegacySchoolWorkbook(workbook);
     if (legacyAnalysis) return legacyAnalysis;
-  } catch {
-    // The base analyzer returns the canonical invalid-workbook result.
+  } catch (error) {
+    console.error("LEGACY_WORKBOOK_ANALYSIS_FAILED", error);
+    throw error;
   }
+
   return analyzeBaseClientImportWorkbook(buffer);
 }
