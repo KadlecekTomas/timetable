@@ -62,10 +62,7 @@ function teacherCodeBase(teacher: TeacherAggregate): string {
     correctedTeacherKey(value).toLocaleUpperCase("cs-CZ");
   const surname = normalize(teacher.lastName);
   const firstName = normalize(teacher.firstName);
-  return (surname.slice(0, 3) || firstName.slice(0, 3) || "UCI").padEnd(
-    3,
-    "X",
-  );
+  return (surname.slice(0, 3) || firstName.slice(0, 3) || "UCI").padEnd(3, "X");
 }
 
 function teacherCodes(teachers: TeacherAggregate[]): Map<string, string> {
@@ -205,7 +202,7 @@ export function analyzeLegacySchoolWorkbook(
           ? index === 0
             ? "GROUP_1"
             : "GROUP_2"
-          : requirement.subject.forcedGroup ?? "WHOLE";
+          : (requirement.subject.forcedGroup ?? "WHOLE");
       const shape = lessonShape(requirement);
       teacher.weeklyPeriods += requirement.weeklyPeriods;
       teacher.subjects.add(requirement.subject.code);
@@ -255,11 +252,7 @@ export function analyzeLegacySchoolWorkbook(
     (draft, index) => {
       const teacherCode = codeByTeacher.get(draft.teacherKey)!;
       const groupCode =
-        draft.group === "WHOLE"
-          ? "C"
-          : draft.group === "GROUP_1"
-            ? "S1"
-            : "S2";
+        draft.group === "WHOLE" ? "C" : draft.group === "GROUP_1" ? "S1" : "S2";
       return {
         assignment_code: `${draft.classCode.replace(".", "")}-${draft.subjectCode}-${groupCode}-${teacherCode}-${index + 1}`,
         class_code: draft.classCode,
