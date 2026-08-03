@@ -55,7 +55,9 @@ function subjectDictionary(
   if (!dictionary) return [];
   const subjects: Array<{ code: string; label: string }> = [];
   for (let row = 2; row <= 100; row += 1) {
-    const code = text(dictionary.getCell(row, 1).value).toLocaleUpperCase("cs-CZ");
+    const code = text(dictionary.getCell(row, 1).value).toLocaleUpperCase(
+      "cs-CZ",
+    );
     if (!code) continue;
     subjects.push({
       code,
@@ -71,8 +73,12 @@ function addAllocationMatrix(workbook: ExcelJS.Workbook): void {
 
   const allocation = new Map<string, number>();
   for (let row = 6; row <= 305; row += 1) {
-    const classCode = text(technical.getCell(row, 1).value).toLocaleUpperCase("cs-CZ");
-    const subjectCode = text(technical.getCell(row, 2).value).toLocaleUpperCase("cs-CZ");
+    const classCode = text(technical.getCell(row, 1).value).toLocaleUpperCase(
+      "cs-CZ",
+    );
+    const subjectCode = text(technical.getCell(row, 2).value).toLocaleUpperCase(
+      "cs-CZ",
+    );
     const weeklyHours = hours(technical.getCell(row, 3).value);
     if (classCode && subjectCode && weeklyHours > 0) {
       allocation.set(`${subjectCode}|${classCode}`, weeklyHours);
@@ -186,10 +192,14 @@ function syncMatrixIntoTechnicalSheet(workbook: ExcelJS.Workbook): void {
   technical.spliceRows(6, Math.max(0, technical.rowCount - 5));
   let targetRow = 6;
   for (let matrixRow = 6; matrixRow <= matrix.rowCount; matrixRow += 1) {
-    const subjectCode = text(matrix.getCell(matrixRow, 1).value).toLocaleUpperCase("cs-CZ");
+    const subjectCode = text(
+      matrix.getCell(matrixRow, 1).value,
+    ).toLocaleUpperCase("cs-CZ");
     if (!subjectCode) continue;
     SCHOOL_CLASSES.forEach((classCode, classIndex) => {
-      const weeklyHours = hours(matrix.getCell(matrixRow, classIndex + 3).value);
+      const weeklyHours = hours(
+        matrix.getCell(matrixRow, classIndex + 3).value,
+      );
       if (weeklyHours <= 0) return;
       technical.getCell(targetRow, 1).value = classCode;
       technical.getCell(targetRow, 2).value = subjectCode;
