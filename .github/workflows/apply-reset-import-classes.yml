@@ -1,0 +1,42 @@
+name: Apply import class reset
+
+on:
+  push:
+    branches:
+      - feat/combined-school-excel
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/combined-school-excel
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('apps/web/lib/import/teaching-plan-workbook.ts')
+          text = path.read_text()
+          old = '  const plan = createEmptyTeachingPlan();\n\n  if (!classesSheet || !planSheet) {'
+          new = '  const plan = createEmptyTeachingPlan();\n  plan.classes = [];\n\n  if (!classesSheet || !planSheet) {'
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit('analyzer initialization not found')
+          path.write_text(text)
+          PY
+          rm -f .github/workflows/reset-import-classes.yml
+          rm -f .github/workflows/apply-reset-import-classes.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add apps/web/lib/import/teaching-plan-workbook.ts .github/workflows
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: reset classes before workbook import"
+          git push origin HEAD:feat/combined-school-excel
