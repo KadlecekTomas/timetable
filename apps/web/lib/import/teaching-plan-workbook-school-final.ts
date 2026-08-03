@@ -28,7 +28,8 @@ function removeIncorrectSeparateTvExamples(workbook: ExcelJS.Workbook): void {
   for (let row = 6; row <= 305; row += 1) {
     const classCode = String(sheet.getCell(row, 1).value ?? "").trim();
     const subjectCode = String(sheet.getCell(row, 2).value ?? "").trim();
-    if (!["9.A", "9.C"].includes(classCode) || subjectCode !== "TV") continue;
+    if (!["9.A", "9.C"].includes(classCode) || subjectCode !== "TV")
+      continue;
 
     // Dotace třídy zůstává 2 h. Konkrétní společná skupina kluků se nesmí
     // modelovat jako dvě samostatné výuky, jinak by solver započítal učitele 2×.
@@ -51,7 +52,11 @@ function addSharedGroupsSheet(workbook: ExcelJS.Workbook): void {
 
   sheet.mergeCells("A1:K1");
   sheet.getCell("A1").value = "SPOLEČNÁ A DĚLENÁ VÝUKA VÍCE TŘÍD";
-  sheet.getCell("A1").font = { bold: true, size: 16, color: { argb: "FFFFFFFF" } };
+  sheet.getCell("A1").font = {
+    bold: true,
+    size: 16,
+    color: { argb: "FFFFFFFF" },
+  };
   sheet.getCell("A1").fill = {
     type: "pattern",
     pattern: "solid",
@@ -87,7 +92,11 @@ function addSharedGroupsSheet(workbook: ExcelJS.Workbook): void {
     pattern: "solid",
     fgColor: { argb: "FF17355C" },
   };
-  sheet.getRow(5).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  sheet.getRow(5).alignment = {
+    horizontal: "center",
+    vertical: "middle",
+    wrapText: true,
+  };
 
   sheet.columns = [
     { width: 16 },
@@ -140,7 +149,9 @@ function addSharedGroupsSheet(workbook: ExcelJS.Workbook): void {
     sheet.getCell(dataRow, 9).dataValidation = {
       type: "list",
       allowBlank: true,
-      formulae: ['"Bez preference,1.–2. hodina,3.–4. hodina,5.–6. hodina,6.–7. hodina,7.–8. hodina"'],
+      formulae: [
+        '"Bez preference,1.–2. hodina,3.–4. hodina,5.–6. hodina,6.–7. hodina,7.–8. hodina"',
+      ],
     };
     sheet.getCell(dataRow, 10).dataValidation = {
       type: "list",
@@ -156,7 +167,10 @@ export async function createTeachingPlanWorkbook(
   staffingPlan: StaffingPlan,
   existingPlan?: TeachingPlan,
 ): Promise<Uint8Array> {
-  const source = await createSchoolTeachingPlanWorkbook(staffingPlan, existingPlan);
+  const source = await createSchoolTeachingPlanWorkbook(
+    staffingPlan,
+    existingPlan,
+  );
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(source);
   removeIncorrectSeparateTvExamples(workbook);
