@@ -666,6 +666,7 @@ export async function analyzeTeachingPlanWorkbook(
   const rotationsSheet = workbook.getWorksheet(TEACHING_ROTATIONS_SHEET);
   const issues: TeachingPlanWorkbookIssue[] = [];
   const plan = createEmptyTeachingPlan();
+  plan.classes = [];
 
   if (!classesSheet || !planSheet) {
     issue(
