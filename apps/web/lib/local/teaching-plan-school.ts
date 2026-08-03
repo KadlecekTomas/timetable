@@ -288,10 +288,13 @@ export function validateSchoolClassAllocations(plan: TeachingPlan): string[] {
   }
 
   for (const [grade, classes] of classesByGrade) {
-    const references = classes.filter((schoolClass) =>
+    const activeClasses = classes.filter(
+      (schoolClass) => allocationForClass(plan.rows, schoolClass.code).size > 0,
+    );
+    const references = activeClasses.filter((schoolClass) =>
       isSchoolReferenceClass(schoolClass.code),
     );
-    const sportsClasses = classes.filter((schoolClass) =>
+    const sportsClasses = activeClasses.filter((schoolClass) =>
       isSchoolSportsClass(schoolClass.code),
     );
     if (sportsClasses.length === 0) continue;
