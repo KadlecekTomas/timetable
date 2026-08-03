@@ -98,7 +98,9 @@ function enforceClassProfile(
   };
 }
 
-function ensureSchoolClasses(classes: TeachingPlanClass[]): TeachingPlanClass[] {
+function ensureSchoolClasses(
+  classes: TeachingPlanClass[],
+): TeachingPlanClass[] {
   const byCode = new Map(
     classes.map((schoolClass) => [
       base.normalizeClassCode(schoolClass.code),
@@ -117,7 +119,9 @@ function normalizedAdditionalClassCodes(row: TeachingPlanRow): string[] {
     ...new Set(
       (row.additionalClassCodes ?? [])
         .map(base.normalizeClassCode)
-        .filter((code) => code && code !== base.normalizeClassCode(row.classCode)),
+        .filter(
+          (code) => code && code !== base.normalizeClassCode(row.classCode),
+        ),
     ),
   ];
 }
@@ -343,7 +347,8 @@ function validateSharedRows(plan: TeachingPlan): string[] {
     }
     if (
       (row.preferredStartPeriods?.length ?? 0) > 0 &&
-      (!Number.isFinite(row.preferenceWeight) || Number(row.preferenceWeight) <= 0)
+      (!Number.isFinite(row.preferenceWeight) ||
+        Number(row.preferenceWeight) <= 0)
     ) {
       messages.push(
         `${row.classCode} ${row.subjectCode}: preference času musí mít kladnou prioritu.`,
