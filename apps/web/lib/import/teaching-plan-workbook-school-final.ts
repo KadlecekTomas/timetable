@@ -367,7 +367,7 @@ export async function createTeachingPlanWorkbook(
     existingPlan,
   );
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(source);
+  await workbook.xlsx.load(source as never);
   removeIncorrectSeparateTvExamples(workbook);
   addSharedGroupsSheet(workbook, staffingPlan);
   return new Uint8Array(await workbook.xlsx.writeBuffer());
