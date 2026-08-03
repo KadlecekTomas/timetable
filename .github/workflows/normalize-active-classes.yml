@@ -16,16 +16,11 @@ jobs:
       - run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           path = Path('apps/web/lib/import/teaching-plan-workbook-school-final.ts')
           text = path.read_text()
-          old = '''  const plan: TeachingPlan = {
-            ...withoutReplacedRows,
-            rows: [...withoutReplacedRows.rows, ...shared.rows],
-          };
-          const validationIssues = validateTeachingPlan(plan, staffingPlan).map(
-          '''
-          new = '''  const rows = [...withoutReplacedRows.rows, ...shared.rows];
+          replacement = '''  const rows = [...withoutReplacedRows.rows, ...shared.rows];
           const activeClassCodes = new Set(
             rows.flatMap((row) => [
               row.classCode,
@@ -47,23 +42,24 @@ jobs:
             }),
             rows,
           };
-          const validationIssues = validateTeachingPlan(plan, staffingPlan).map(
-          '''
-          if old not in text:
-              raise SystemExit('plan block not found')
-          text = text.replace(old, new)
-          old_summary = '''    summary: {
-              ...legacy.summary,
-              subjects: plan.rows.length,
-          '''
-          new_summary = '''    summary: {
-              ...legacy.summary,
-              classes: plan.classes.length,
-              subjects: plan.rows.length,
-          '''
-          if old_summary not in text:
-              raise SystemExit('summary block not found')
-          path.write_text(text.replace(old_summary, new_summary))
+          const validationIssues = validateTeachingPlan(plan, staffingPlan).map('''
+          text, count = re.subn(
+              r'  const plan: TeachingPlan = \{\n    \.\.\.withoutReplacedRows,\n    rows: \[\.\.\.withoutReplacedRows\.rows, \.\.\.shared\.rows\],\n  \};\n  const validationIssues = validateTeachingPlan\(plan, staffingPlan\)\.map\(',
+              replacement,
+              text,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit(f'plan block replacements: {count}')
+          text, count = re.subn(
+              r'    summary: \{\n      \.\.\.legacy\.summary,\n      subjects: plan\.rows\.length,',
+              '    summary: {\n      ...legacy.summary,\n      classes: plan.classes.length,\n      subjects: plan.rows.length,',
+              text,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit(f'summary block replacements: {count}')
+          path.write_text(text)
           PY
       - run: npx prettier --write apps/web/lib/import/teaching-plan-workbook-school-final.ts
       - uses: actions/upload-artifact@v4
