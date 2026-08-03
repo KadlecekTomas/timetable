@@ -37,6 +37,7 @@ async function withoutSchoolExample(
   return new Uint8Array(await workbook.xlsx.writeBuffer());
 }
 
+// Keep imported class metadata aligned with the rows that are actually active.
 function activeAnalysis(
   analysis: TeachingPlanWorkbookAnalysis,
 ): TeachingPlanWorkbookAnalysis {
