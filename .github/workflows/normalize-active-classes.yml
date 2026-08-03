@@ -1,0 +1,72 @@
+name: Normalize active classes artifact
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/web/lib/import/teaching-plan-workbook-school-final.ts')
+          text = path.read_text()
+          old = '''  const plan: TeachingPlan = {
+            ...withoutReplacedRows,
+            rows: [...withoutReplacedRows.rows, ...shared.rows],
+          };
+          const validationIssues = validateTeachingPlan(plan, staffingPlan).map(
+          '''
+          new = '''  const rows = [...withoutReplacedRows.rows, ...shared.rows];
+          const activeClassCodes = new Set(
+            rows.flatMap((row) => [
+              row.classCode,
+              ...(row.additionalClassCodes ?? []),
+            ]),
+          );
+          const seenClassCodes = new Set<string>();
+          const plan: TeachingPlan = {
+            ...withoutReplacedRows,
+            classes: withoutReplacedRows.classes.filter((schoolClass) => {
+              if (
+                !activeClassCodes.has(schoolClass.code) ||
+                seenClassCodes.has(schoolClass.code)
+              ) {
+                return false;
+              }
+              seenClassCodes.add(schoolClass.code);
+              return true;
+            }),
+            rows,
+          };
+          const validationIssues = validateTeachingPlan(plan, staffingPlan).map(
+          '''
+          if old not in text:
+              raise SystemExit('plan block not found')
+          text = text.replace(old, new)
+          old_summary = '''    summary: {
+              ...legacy.summary,
+              subjects: plan.rows.length,
+          '''
+          new_summary = '''    summary: {
+              ...legacy.summary,
+              classes: plan.classes.length,
+              subjects: plan.rows.length,
+          '''
+          if old_summary not in text:
+              raise SystemExit('summary block not found')
+          path.write_text(text.replace(old_summary, new_summary))
+          PY
+      - run: npx prettier --write apps/web/lib/import/teaching-plan-workbook-school-final.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: normalized-active-classes
+          path: apps/web/lib/import/teaching-plan-workbook-school-final.ts
