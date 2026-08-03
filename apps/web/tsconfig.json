@@ -15,6 +15,7 @@
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "paths": {
+      "@/lib/local/api": ["./lib/local/api-school"],
       "@/lib/local/teaching-plan": ["./lib/local/teaching-plan-school"],
       "@/lib/import/teaching-plan-workbook": [
         "./lib/import/teaching-plan-workbook-school-final"
