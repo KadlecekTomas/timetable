@@ -27,6 +27,7 @@ import {
 import { LOCAL_SCHOOL_YEAR_ID, localApiFetch } from "@/lib/local/api";
 import {
   STAFFING_DAYS,
+  MAX_WEEKLY_TEACHER_LOAD,
   STAFFING_SUBJECTS,
   assignedWeeklyLoad,
   createEmptyStaffingTeacher,
@@ -648,7 +649,7 @@ export default function StaffingPage() {
                       <input
                         type="number"
                         min={0}
-                        max={60}
+                        max={MAX_WEEKLY_TEACHER_LOAD}
                         step={1}
                         value={teacher.targetWeeklyLoad}
                         onChange={(event) =>

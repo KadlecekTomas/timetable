@@ -95,10 +95,20 @@ test("ExcelJS can load the empty drawing/person parts emitted by the real workbo
   assert.ok(workbook.getWorksheet("Úvazky 20252026"));
 });
 
-test("the sanitized real 2027 workbook reaches a valid staffing analysis", async () => {
+test("the sanitized real 2027 workbook preserves overloads as blocking issues", async () => {
   const bytes = await sanitizedRealWorkbook();
   const analysis = await analyzeStaffingWorkbook(bytes);
 
-  assert.equal(analysis.valid, true);
+  assert.equal(analysis.valid, false);
   assert.ok(analysis.plan.teachers.length > 0);
+  assert.ok(
+    analysis.issues.some(
+      (issue) =>
+        issue.severity === "ERROR" && issue.message.includes("Maximum je 22"),
+    ),
+  );
+  assert.ok(
+    analysis.plan.teachers.some((teacher) => teacher.targetWeeklyLoad > 22),
+    "The importer must preserve the original overload for manual correction.",
+  );
 });

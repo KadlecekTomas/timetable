@@ -1,5 +1,6 @@
 export const STAFFING_PLAN_STORAGE_KEY = "rozvrhar:staffing-plan:v1";
 export const STAFFING_PLAN_CHANGE_EVENT = "rozvrhar:staffing-plan-changed";
+export const MAX_WEEKLY_TEACHER_LOAD = 22;
 
 export const STAFFING_DAYS = [
   { code: "MON", shortLabel: "Po", label: "Pondělí", dayIndex: 0 },
@@ -109,8 +110,14 @@ export function validateStaffingTeacher(
 
   if (!teacher.firstName.trim()) messages.push("Doplňte jméno.");
   if (!teacher.lastName.trim()) messages.push("Doplňte příjmení.");
-  if (!Number.isInteger(target) || target < 0 || target > 60) {
-    messages.push("Úvazek musí být celé číslo od 0 do 60 hodin.");
+  if (
+    !Number.isInteger(target) ||
+    target < 0 ||
+    target > MAX_WEEKLY_TEACHER_LOAD
+  ) {
+    messages.push(
+      `Úvazek musí být celé číslo od 0 do ${MAX_WEEKLY_TEACHER_LOAD} hodin.`,
+    );
   }
 
   const usedSubjects = new Set<string>();
