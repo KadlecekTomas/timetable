@@ -3,10 +3,7 @@ import type {
   StaffingAllocationDraftRow,
 } from "./staffing-allocation-draft";
 import { loadStaffingAllocationDraft } from "./staffing-allocation-draft";
-import {
-  createDefaultSchoolCurriculum,
-  SCHOOL_SPLIT_SUBJECT_CODES,
-} from "./school-default-data";
+import { createDefaultSchoolCurriculum } from "./school-default-data";
 import {
   loadSchoolCurriculum,
   saveSchoolCurriculum,
@@ -86,6 +83,17 @@ function profileForClass(code: string): "REGULAR" | "SPORTS" {
   return /\.(B|D)$/.test(code) ? "SPORTS" : "REGULAR";
 }
 
+const ELECTIVE_ALLOCATION_CODES = new Set(["VOL", "PRPK", "SVS"]);
+
+function allocationSubjectMatches(
+  planSubjectCode: string,
+  draftSubjectCode: string,
+): boolean {
+  return planSubjectCode === "VOL"
+    ? ELECTIVE_ALLOCATION_CODES.has(draftSubjectCode)
+    : planSubjectCode === draftSubjectCode;
+}
+
 function allocationRows(
   draft: StaffingAllocationDraft | null,
   classCode: string,
@@ -93,7 +101,9 @@ function allocationRows(
 ): StaffingAllocationDraftRow[] {
   return (
     draft?.rows.filter(
-      (row) => row.classCode === classCode && row.subjectCode === subjectCode,
+      (row) =>
+        row.classCode === classCode &&
+        allocationSubjectMatches(subjectCode, row.subjectCode),
     ) ?? []
   );
 }
@@ -102,7 +112,11 @@ function candidateTeacherIds(
   draft: StaffingAllocationDraft | null,
   classCode: string,
   subjectCode: string,
-): { primaryTeacherId: string; secondaryTeacherId: string } {
+): {
+  primaryTeacherId: string;
+  secondaryTeacherId: string;
+  split: boolean;
+} {
   const candidates = allocationRows(draft, classCode, subjectCode);
   const group1 = candidates.find((item) => item.group === "GROUP_1");
   const group2 = candidates.find((item) => item.group === "GROUP_2");
@@ -110,23 +124,48 @@ function candidateTeacherIds(
   const all = [
     ...new Set(candidates.flatMap((item) => item.teacherIds).filter(Boolean)),
   ];
-  const primaryTeacherId =
-    group1?.teacherIds[0] ?? whole?.teacherIds[0] ?? all[0] ?? "";
-  const secondaryTeacherId =
-    group2?.teacherIds[0] ??
-    whole?.teacherIds.find((teacherId) => teacherId !== primaryTeacherId) ??
-    all.find((teacherId) => teacherId !== primaryTeacherId) ??
-    "";
-  return { primaryTeacherId, secondaryTeacherId };
+  const explicitGroupCount = candidates.filter(
+    (item) => item.group !== "WHOLE",
+  ).length;
+  const split = explicitGroupCount >= 2 || all.length >= 2;
+
+  if (!split) {
+    return {
+      primaryTeacherId:
+        group1?.teacherIds[0] ??
+        group2?.teacherIds[0] ??
+        whole?.teacherIds[0] ??
+        all[0] ??
+        "",
+      secondaryTeacherId: "",
+      split: false,
+    };
+  }
+
+  const primaryTeacherId = group1
+    ? (group1.teacherIds[0] ?? "")
+    : (whole?.teacherIds[0] ?? all[0] ?? "");
+  const secondaryTeacherId = group2
+    ? (group2.teacherIds[0] ?? "")
+    : (all.find((teacherId) => teacherId !== primaryTeacherId) ?? "");
+  return { primaryTeacherId, secondaryTeacherId, split: true };
 }
 
 function organizationForRow(
   row: TeachingPlanRow,
-  mustSplit: boolean,
+  enforceSchoolDefaults: boolean,
+  hasAllocationDraft: boolean,
+  candidateSplit: boolean,
   candidateSecondaryTeacherId: string,
 ): TeachingOrganization {
   if (row.organization === "ROTATION") return "ROTATION";
-  if (mustSplit) return "SPLIT";
+  if (enforceSchoolDefaults && hasAllocationDraft) {
+    if (candidateSplit) return "SPLIT";
+    if (row.organization === "SPLIT" && row.secondaryTeacherId) {
+      return "SPLIT";
+    }
+    return "WHOLE";
+  }
   if (row.organization === "SPLIT" || candidateSecondaryTeacherId) {
     return "SPLIT";
   }
@@ -139,11 +178,11 @@ function operationalRow(
   enforceSchoolDefaults: boolean,
 ): TeachingPlanRow {
   const candidates = candidateTeacherIds(draft, row.classCode, row.subjectCode);
-  const mustSplit =
-    enforceSchoolDefaults && SCHOOL_SPLIT_SUBJECT_CODES.has(row.subjectCode);
   const organization = organizationForRow(
     row,
-    mustSplit,
+    enforceSchoolDefaults,
+    draft !== null,
+    candidates.split,
     candidates.secondaryTeacherId,
   );
   const isNinthGradeRegularTv =
