@@ -307,7 +307,7 @@ export function buildCoverageOverview(
   const usedSubjectCodes = new Set(
     finalizedCells.map((cell) => cell.subjectCode),
   );
-  const knownSubjectOrder = new Map(
+  const knownSubjectOrder = new Map<string, number>(
     STAFFING_SUBJECTS.map((subject, index) => [subject.code, index]),
   );
   const subjects = [...usedSubjectCodes]
@@ -394,7 +394,7 @@ export function buildCoverageOverview(
       );
 
   const teachers: TeacherCoverage[] = staffingPlan.teachers
-    .map((teacher) => {
+    .map((teacher): TeacherCoverage => {
       const scheduledTeachingHours = rounded(
         scheduledByTeacher.get(teacher.id) ?? 0,
       );
