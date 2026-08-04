@@ -72,11 +72,17 @@ test("legacy staffing matrix reports uncovered subject allocation", async () => 
   );
 
   assert.equal(analysis.templateVersion, "legacy-school-matrix-1");
-  assert.equal(analysis.status, "VALIDATION_FAILED");
+  assert.equal(analysis.status, "READY");
+  assert.ok(analysis.payload);
   assert.equal(analysis.summary.requiredWeeklyPeriods, 22);
   assert.equal(analysis.summary.coveredWeeklyPeriods, 16);
   assert.equal(analysis.summary.uncoveredWeeklyPeriods, 6);
   assert.equal(analysis.summary.coveragePercent, 72.7);
+  assert.ok(
+    analysis.issues
+      .filter((issue) => issue.code === "TEACHING_COVERAGE_MISSING")
+      .every((issue) => issue.severity === "WARNING"),
+  );
   assert.deepEqual(
     analysis.issues
       .filter((issue) => issue.code === "TEACHING_COVERAGE_MISSING")

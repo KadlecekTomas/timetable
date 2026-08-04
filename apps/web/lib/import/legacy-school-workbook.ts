@@ -118,7 +118,7 @@ export function analyzeLegacySchoolWorkbook(
   for (const requirement of requirements) {
     if (teacherTokens(requirement.rawTeacher).length > 0) continue;
     issues.push({
-      severity: "ERROR",
+      severity: "WARNING",
       sheet: sheetName,
       row: requirement.row,
       column: columnLetter(requirement.teacherColumn),
@@ -126,7 +126,7 @@ export function analyzeLegacySchoolWorkbook(
       message: `${requirement.classCode} · ${requirement.subject.name}: chybí učitel pro ${requirement.weeklyPeriods} h týdně.`,
       rawValue: null,
       suggestion:
-        "Doplňte učitele do sloupce Učitel/učitelka. Bez něj nelze výuku bezpečně uložit.",
+        "Doplňte učitele do sloupce Učitel/učitelka. Pokryté vazby lze uložit a toto místo zůstane viditelné k doplnění.",
     });
   }
 
