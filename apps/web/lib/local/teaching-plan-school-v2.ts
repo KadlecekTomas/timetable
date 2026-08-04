@@ -59,8 +59,7 @@ function allocationRows(
 ): StaffingAllocationDraftRow[] {
   return (
     draft?.rows.filter(
-      (row) =>
-        row.classCode === classCode && row.subjectCode === subjectCode,
+      (row) => row.classCode === classCode && row.subjectCode === subjectCode,
     ) ?? []
   );
 }
@@ -104,11 +103,7 @@ function operationalRow(
   row: TeachingPlanRow,
   draft: StaffingAllocationDraft | null,
 ): TeachingPlanRow {
-  const candidates = candidateTeacherIds(
-    draft,
-    row.classCode,
-    row.subjectCode,
-  );
+  const candidates = candidateTeacherIds(draft, row.classCode, row.subjectCode);
   const mustSplit = SCHOOL_SPLIT_SUBJECT_CODES.has(row.subjectCode);
   const organization = organizationForRow(
     row,
@@ -175,10 +170,7 @@ function addNonTeachingCredits(
   return { ...plan, rows };
 }
 
-function readStoredWorkloadCredits(): Record<
-  string,
-  Record<string, number>
-> {
+function readStoredWorkloadCredits(): Record<string, Record<string, number>> {
   if (typeof window === "undefined") return {};
   try {
     const raw = window.localStorage.getItem(WORKLOAD_CREDITS_STORAGE_KEY);
@@ -265,7 +257,8 @@ export function loadTeachingPlan(): TeachingPlan {
   const staffingPlan = loadStaffingPlan();
   const allocationDraft = loadStaffingAllocationDraft();
   const curriculum =
-    loadSchoolCurriculum() ?? saveSchoolCurriculum(createDefaultSchoolCurriculum());
+    loadSchoolCurriculum() ??
+    saveSchoolCurriculum(createDefaultSchoolCurriculum());
   const loaded = applyStoredWorkloadCredits(school.loadTeachingPlan());
   const plan =
     loaded.rows.length > 0
