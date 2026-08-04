@@ -26,11 +26,15 @@ async function materializeSanitizedWorkbook(): Promise<string> {
   return output;
 }
 
-test("coverage page imports the sanitized real 2027 workbook", async ({ page }) => {
+test("coverage page imports the sanitized real 2027 workbook", async ({
+  page,
+}) => {
   const workbookPath = await materializeSanitizedWorkbook();
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
-  page.on("pageerror", (error) => pageErrors.push(error.stack ?? error.message));
+  page.on("pageerror", (error) =>
+    pageErrors.push(error.stack ?? error.message),
+  );
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
   });
