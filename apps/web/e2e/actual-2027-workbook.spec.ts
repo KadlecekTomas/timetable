@@ -272,9 +272,7 @@ function writeClassSubjects(
       worksheet,
       row,
       column,
-      RAW_SUBJECT[
-        subjectCode as Exclude<CurriculumCode, "VOL" | "JAZ2">
-      ],
+      RAW_SUBJECT[subjectCode as Exclude<CurriculumCode, "VOL" | "JAZ2">],
       assignedTeacher,
       hours,
     );
