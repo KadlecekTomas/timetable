@@ -61,7 +61,9 @@ function isObsoleteEqualProfileMessage(message: string): boolean {
 }
 
 function isCurrentSchoolPlan(plan: TeachingPlan): boolean {
-  const classCodes = new Set(plan.classes.map((schoolClass) => schoolClass.code));
+  const classCodes = new Set(
+    plan.classes.map((schoolClass) => schoolClass.code),
+  );
   return CURRENT_SCHOOL_CLASS_CODES.every((code) => classCodes.has(code));
 }
 
@@ -333,8 +335,6 @@ export function validateTeachingPlan(
     ...school
       .validateTeachingPlan(plan, staffingPlan)
       .filter((message) => !isObsoleteEqualProfileMessage(message)),
-    ...(curriculum
-      ? validatePlanAgainstSchoolCurriculum(plan, curriculum)
-      : []),
+    ...(curriculum ? validatePlanAgainstSchoolCurriculum(plan, curriculum) : []),
   ];
 }
