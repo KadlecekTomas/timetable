@@ -36,12 +36,33 @@ declare module "./teaching-plan" {
 const WORKLOAD_CREDITS_STORAGE_KEY =
   "rozvrhar:teaching-plan-workload-credits:v1";
 
+const CURRENT_SCHOOL_CLASS_CODES = [
+  "6.A",
+  "6.B",
+  "6.C",
+  "6.D",
+  "7.A",
+  "7.B",
+  "7.C",
+  "8.A",
+  "8.B",
+  "8.C",
+  "9.A",
+  "9.B",
+  "9.C",
+] as const;
+
 function isObsoleteEqualProfileMessage(message: string): boolean {
   return (
     message.includes(
       "sportovní třída musí mít stejnou předmětovou hodinovou dotaci",
     ) || message.includes("sportovní třídy B/D nemají referenční třídu")
   );
+}
+
+function isCurrentSchoolPlan(plan: TeachingPlan): boolean {
+  const classCodes = new Set(plan.classes.map((schoolClass) => schoolClass.code));
+  return CURRENT_SCHOOL_CLASS_CODES.every((code) => classCodes.has(code));
 }
 
 function gradeForClass(code: string): number {
@@ -305,11 +326,15 @@ export function validateTeachingPlan(
   plan: TeachingPlan,
   staffingPlan: StaffingPlan,
 ): string[] {
-  const curriculum = loadSchoolCurriculum() ?? createDefaultSchoolCurriculum();
+  const curriculum = isCurrentSchoolPlan(plan)
+    ? (loadSchoolCurriculum() ?? createDefaultSchoolCurriculum())
+    : null;
   return [
     ...school
       .validateTeachingPlan(plan, staffingPlan)
       .filter((message) => !isObsoleteEqualProfileMessage(message)),
-    ...validatePlanAgainstSchoolCurriculum(plan, curriculum),
+    ...(curriculum
+      ? validatePlanAgainstSchoolCurriculum(plan, curriculum)
+      : []),
   ];
 }
