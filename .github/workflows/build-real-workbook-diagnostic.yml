@@ -1,0 +1,36 @@
+name: Build real workbook diagnostic
+
+on:
+  push:
+    branches:
+      - fix/real-2027-import-crash
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/real-2027-import-crash
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Build standalone diagnostic
+        run: >-
+          npx --yes esbuild@0.25.8 scripts/diagnose-real-workbook.ts
+          --bundle
+          --platform=node
+          --format=cjs
+          --target=node22
+          --tsconfig=apps/web/tsconfig.json
+          --outfile=diagnostic/diagnose-real-workbook.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: real-workbook-diagnostic
+          path: diagnostic/diagnose-real-workbook.cjs
+          if-no-files-found: error
+          retention-days: 1
