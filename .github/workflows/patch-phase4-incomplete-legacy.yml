@@ -31,12 +31,8 @@ jobs:
                 sheet: sheetName,
                 row: requirement.row,
                 column: columnLetter(requirement.teacherColumn),
-                code: "TEACHING_COVERAGE_MISSING",'''
-          new = '''      severity: "WARNING",
-                sheet: sheetName,
-                row: requirement.row,
-                column: columnLetter(requirement.teacherColumn),
-                code: "TEACHING_COVERAGE_MISSING",'''
+                code: "TEACHING_COVERAGE_MISSING",'''.replace('                ', '      ')
+          new = old.replace('severity: "ERROR"', 'severity: "WARNING"')
           if old in text:
               text = text.replace(old, new, 1)
           elif new not in text:
@@ -60,16 +56,16 @@ jobs:
               raise SystemExit('Legacy test status assertion was not found')
 
           marker = '''  assert.deepEqual(
-              analysis.issues
-                .filter((issue) => issue.code === "TEACHING_COVERAGE_MISSING")'''
+            analysis.issues
+              .filter((issue) => issue.code === "TEACHING_COVERAGE_MISSING")'''.replace('            ', '    ').replace('              ', '      ')
           replacement = '''  assert.ok(
-              analysis.issues
-                .filter((issue) => issue.code === "TEACHING_COVERAGE_MISSING")
-                .every((issue) => issue.severity === "WARNING"),
-            );
-            assert.deepEqual(
-              analysis.issues
-                .filter((issue) => issue.code === "TEACHING_COVERAGE_MISSING")'''
+            analysis.issues
+              .filter((issue) => issue.code === "TEACHING_COVERAGE_MISSING")
+              .every((issue) => issue.severity === "WARNING"),
+          );
+          assert.deepEqual(
+            analysis.issues
+              .filter((issue) => issue.code === "TEACHING_COVERAGE_MISSING")'''.replace('            ', '    ').replace('              ', '      ').replace('          );', '  );').replace('          assert', '  assert')
           if marker in text:
               text = text.replace(marker, replacement, 1)
           elif replacement not in text:
