@@ -61,10 +61,12 @@ function isObsoleteEqualProfileMessage(message: string): boolean {
 }
 
 function isCurrentSchoolPlan(plan: TeachingPlan): boolean {
-  const classCodes = new Set(
-    plan.classes.map((schoolClass) => schoolClass.code),
+  const knownCodes = new Set<string>(CURRENT_SCHOOL_CLASS_CODES);
+  const classCodes = new Set(plan.classes.map((schoolClass) => schoolClass.code));
+  return (
+    classCodes.size >= 10 &&
+    [...classCodes].every((code) => knownCodes.has(code))
   );
-  return CURRENT_SCHOOL_CLASS_CODES.every((code) => classCodes.has(code));
 }
 
 function hasStoredTeachingPlan(): boolean {
@@ -132,15 +134,18 @@ function organizationForRow(
 function operationalRow(
   row: TeachingPlanRow,
   draft: StaffingAllocationDraft | null,
+  enforceSchoolDefaults: boolean,
 ): TeachingPlanRow {
   const candidates = candidateTeacherIds(draft, row.classCode, row.subjectCode);
-  const mustSplit = SCHOOL_SPLIT_SUBJECT_CODES.has(row.subjectCode);
+  const mustSplit =
+    enforceSchoolDefaults && SCHOOL_SPLIT_SUBJECT_CODES.has(row.subjectCode);
   const organization = organizationForRow(
     row,
     mustSplit,
     candidates.secondaryTeacherId,
   );
   const isNinthGradeRegularTv =
+    enforceSchoolDefaults &&
     row.subjectCode === "TV" &&
     ["9.A", "9.C"].includes(row.classCode) &&
     row.weeklyPeriods === 2;
@@ -245,9 +250,12 @@ export function applySchoolOperationalRules(
   staffingPlan: StaffingPlan,
   allocationDraft: StaffingAllocationDraft | null = null,
 ): TeachingPlan {
+  const enforceSchoolDefaults = isCurrentSchoolPlan(plan);
   const enforced = school.enforceSchoolTeachingPlanRules({
     ...plan,
-    rows: plan.rows.map((row) => operationalRow(row, allocationDraft)),
+    rows: plan.rows.map((row) =>
+      operationalRow(row, allocationDraft, enforceSchoolDefaults),
+    ),
   });
   return addNonTeachingCredits(enforced, staffingPlan);
 }
