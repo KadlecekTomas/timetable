@@ -24,6 +24,16 @@ jobs:
       - run: npm run typecheck --workspace @timetable/web
       - run: npm run test --workspace @timetable/web
       - run: npm run build --workspace @timetable/web
+      - name: Upload complete standalone web build for local verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: standalone-web-real-workbook-complete
+          path: |
+            apps/web/.next/standalone
+            apps/web/.next/static
+            apps/web/public
+          include-hidden-files: true
+          if-no-files-found: error
 
   solver:
     runs-on: ubuntu-latest
