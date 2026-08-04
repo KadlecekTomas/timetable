@@ -19,14 +19,6 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Create canonical school-scope formatting
-        run: npx prettier --write apps/web/lib/local/teaching-plan-school-v2.ts
-      - name: Upload canonical school-scope file
-        uses: actions/upload-artifact@v4
-        with:
-          name: canonical-school-scope-file
-          path: apps/web/lib/local/teaching-plan-school-v2.ts
-          if-no-files-found: error
       - run: npm run format:check
       - run: npm run lint --workspace @timetable/web
       - run: npm run typecheck --workspace @timetable/web
