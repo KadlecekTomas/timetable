@@ -239,6 +239,17 @@ function parseProfile(
   return { profile, sourceSheet: sheet.name, subjects };
 }
 
+const ELECTIVE_ALLOCATION_CODES = new Set(["VOL", "PRPK", "SVS"]);
+
+function allocationSubjectMatches(
+  planSubjectCode: string,
+  draftSubjectCode: string,
+): boolean {
+  return planSubjectCode === "VOL"
+    ? ELECTIVE_ALLOCATION_CODES.has(draftSubjectCode)
+    : planSubjectCode === draftSubjectCode;
+}
+
 function allocationRows(
   draft: StaffingAllocationDraft | null,
   classCode: string,
@@ -246,7 +257,9 @@ function allocationRows(
 ) {
   return (
     draft?.rows.filter(
-      (row) => row.classCode === classCode && row.subjectCode === subjectCode,
+      (row) =>
+        row.classCode === classCode &&
+        allocationSubjectMatches(subjectCode, row.subjectCode),
     ) ?? []
   );
 }
@@ -273,9 +286,23 @@ function assignmentForRow(
 
   const group1 = candidates.find((item) => item.group === "GROUP_1");
   const group2 = candidates.find((item) => item.group === "GROUP_2");
-  if (group1 || group2) {
-    const primaryTeacherId = group1?.teacherIds[0] ?? "";
-    const secondaryTeacherId = group2?.teacherIds[0] ?? "";
+  const whole = candidates.find((item) => item.group === "WHOLE");
+  const allTeacherIds = [
+    ...new Set(candidates.flatMap((item) => item.teacherIds).filter(Boolean)),
+  ];
+  const explicitGroupCount = candidates.filter(
+    (item) => item.group !== "WHOLE",
+  ).length;
+  const shouldSplit = explicitGroupCount >= 2 || allTeacherIds.length >= 2;
+
+  if (shouldSplit) {
+    const primaryTeacherId = group1
+      ? (group1.teacherIds[0] ?? "")
+      : (whole?.teacherIds[0] ?? allTeacherIds[0] ?? "");
+    const secondaryTeacherId = group2
+      ? (group2.teacherIds[0] ?? "")
+      : (allTeacherIds.find((teacherId) => teacherId !== primaryTeacherId) ??
+        "");
     if (!primaryTeacherId || !secondaryTeacherId) {
       issues.push(
         issue(
@@ -287,8 +314,8 @@ function assignmentForRow(
         ),
       );
     }
-    for (const candidate of [group1, group2]) {
-      if (candidate && candidate.weeklyPeriods !== row.weeklyPeriods) {
+    for (const candidate of candidates) {
+      if (candidate.weeklyPeriods !== row.weeklyPeriods) {
         issues.push(
           issue(
             "WARNING",
@@ -367,11 +394,13 @@ function buildPlan(
   }
 
   if (draft) {
-    const activeKeys = new Set(
-      plan.rows.map((row) => `${row.classCode}|${row.subjectCode}`),
-    );
     for (const item of draft.rows) {
-      if (!activeKeys.has(`${item.classCode}|${item.subjectCode}`)) {
+      const active = plan.rows.some(
+        (row) =>
+          row.classCode === item.classCode &&
+          allocationSubjectMatches(row.subjectCode, item.subjectCode),
+      );
+      if (!active) {
         issues.push(
           issue(
             "WARNING",
