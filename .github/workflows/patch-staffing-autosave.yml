@@ -29,6 +29,19 @@ jobs:
         run: npm run typecheck --workspace @timetable/web
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+      - name: Start web
+        shell: bash
+        run: |
+          npm run dev --workspace @timetable/web > /tmp/timetable-web.log 2>&1 &
+          echo $! > /tmp/timetable-web.pid
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:3000/ > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/timetable-web.log
+          exit 1
       - name: Run staffing browser tests
         run: npx playwright test e2e/staffing.spec.ts
         working-directory: apps/web
