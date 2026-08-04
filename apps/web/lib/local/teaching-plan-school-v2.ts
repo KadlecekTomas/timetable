@@ -335,6 +335,8 @@ export function validateTeachingPlan(
     ...school
       .validateTeachingPlan(plan, staffingPlan)
       .filter((message) => !isObsoleteEqualProfileMessage(message)),
-    ...(curriculum ? validatePlanAgainstSchoolCurriculum(plan, curriculum) : []),
+    ...(curriculum
+      ? validatePlanAgainstSchoolCurriculum(plan, curriculum)
+      : []),
   ];
 }
