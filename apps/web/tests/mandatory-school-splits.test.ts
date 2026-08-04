@@ -34,8 +34,7 @@ test("current school plan always requires two groups for mandatory split subject
 
   for (const subjectCode of mandatorySubjects) {
     const row = enforced.rows.find(
-      (item) =>
-        item.classCode === "6.A" && item.subjectCode === subjectCode,
+      (item) => item.classCode === "6.A" && item.subjectCode === subjectCode,
     );
     assert.equal(row?.organization, "SPLIT", subjectCode);
   }

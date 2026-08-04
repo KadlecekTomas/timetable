@@ -10,16 +10,16 @@ export * from "./teaching-plan-school-v2";
 
 function isCurrentSchoolPlan(plan: TeachingPlan): boolean {
   const allowedCodes = new Set<string>(SCHOOL_CLASS_CODES);
-  const classCodes = new Set(plan.classes.map((schoolClass) => schoolClass.code));
+  const classCodes = new Set(
+    plan.classes.map((schoolClass) => schoolClass.code),
+  );
   return (
     classCodes.size >= 10 &&
     [...classCodes].every((classCode) => allowedCodes.has(classCode))
   );
 }
 
-export function enforceMandatorySchoolSplits(
-  plan: TeachingPlan,
-): TeachingPlan {
+export function enforceMandatorySchoolSplits(plan: TeachingPlan): TeachingPlan {
   if (!isCurrentSchoolPlan(plan)) return plan;
 
   return {
