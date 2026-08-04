@@ -5,6 +5,7 @@ import {
   Download,
   HardDrive,
   Save,
+  Share2,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -16,14 +17,18 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
-  exportLocalBackup,
   getLocalProject,
-  importLocalBackup,
   resetLocalProject,
   subscribeLocalProject,
   updateLocalProjectSettings,
   type LocalProject,
 } from "@/lib/local/api";
+import {
+  applyBrowserProjectShare,
+  browserProjectShareBlob,
+  captureBrowserProjectShare,
+  readBrowserProjectShareFile,
+} from "@/lib/local/project-share";
 
 const dayNames = ["Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek"];
 const inputClass =
@@ -103,10 +108,13 @@ export default function SettingsPage() {
     setMessage(null);
     setError(null);
     try {
-      const blob = await exportLocalBackup();
+      const envelope = await captureBrowserProjectShare();
       const school = safeFilePart(project.schoolName) || "skola";
       const year = project.label.replace("/", "-");
-      downloadBlob(blob, `rozvrhar-${school}-${year}.rozvrhar.json`);
+      downloadBlob(
+        browserProjectShareBlob(envelope),
+        `rozvrhar-${school}-${year}.rozvrhar.json`,
+      );
       setMessage(
         "Záloha byla stažena. Uložte ji také na školní Google Disk nebo jiné bezpečné místo.",
       );
@@ -131,9 +139,13 @@ export default function SettingsPage() {
     setMessage(null);
     setError(null);
     try {
-      const restored = await importLocalBackup(file);
+      const envelope = await readBrowserProjectShareFile(file);
+      await applyBrowserProjectShare(envelope);
+      const restored = await getLocalProject();
       setProject(restored);
-      setMessage("Projekt byl úspěšně obnoven z ověřené zálohy.");
+      setMessage(
+        "Projekt byl úspěšně obnoven včetně pracovních úvazků a učebního plánu.",
+      );
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Zálohu nelze obnovit.",
@@ -180,7 +192,7 @@ export default function SettingsPage() {
       <PageHeader
         eyebrow="Nastavení"
         title="Lokální projekt školy"
-        description="Data jsou uložena pouze v IndexedDB tohoto prohlížeče. Nevzniká žádný účet ani placená serverová databáze."
+        description="Data jsou uložena pouze v tomto prohlížeči. Nevzniká žádný účet ani placená serverová databáze."
         actions={
           <Button
             type="button"
@@ -193,6 +205,28 @@ export default function SettingsPage() {
           </Button>
         }
       />
+
+      <section className="rounded-xl border border-primary/30 bg-primary-subtle p-5">
+        <div className="flex items-start gap-3">
+          <Share2 className="mt-0.5 size-5 text-primary" aria-hidden="true" />
+          <div>
+            <h2 className="font-semibold text-text-primary">
+              Sdílet projekt bez databáze
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-text-secondary">
+              Vytvořte odkaz nebo soubor, který kolegyně otevře na jiném
+              počítači. Projekt se neukládá na Vercel ani do serverové databáze.
+            </p>
+            <Button asChild className="mt-4">
+              <Link
+                href={`/share?schoolYearId=${encodeURIComponent(schoolYearId)}`}
+              >
+                Sdílet nebo převzít projekt
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </section>
 
       <section className="rounded-xl border border-border bg-surface p-5">
         <h2 className="font-semibold text-text-primary">
@@ -343,9 +377,9 @@ export default function SettingsPage() {
             Záloha a přenos na jiné zařízení
           </h2>
           <p className="mt-2 text-sm leading-6 text-text-secondary">
-            Záloha obsahuje vstupní data, importy, vytvořené rozvrhy, zámky i
-            historii vrácení změn. Soubor má kontrolní součet a poškozenou
-            zálohu aplikace odmítne.
+            Záloha obsahuje pracovní úvazky, učební plán, importy, připravená
+            solverová data, vytvořené rozvrhy, zámky i historii vrácení změn.
+            Soubor má kontrolní součet a poškozenou zálohu aplikace odmítne.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Button

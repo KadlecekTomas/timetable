@@ -50,6 +50,12 @@ function utf8(value: string): Uint8Array {
   return new TextEncoder().encode(value);
 }
 
+function ownedArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = "";
   const chunkSize = 0x8000;
@@ -74,7 +80,10 @@ function base64UrlToBytes(value: string): Uint8Array {
 }
 
 async function sha256Hex(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", utf8(value));
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    ownedArrayBuffer(utf8(value)),
+  );
   return [...new Uint8Array(digest)]
     .map((item) => item.toString(16).padStart(2, "0"))
     .join("");
@@ -82,7 +91,7 @@ async function sha256Hex(value: string): Promise<string> {
 
 async function gzip(bytes: Uint8Array): Promise<Uint8Array | null> {
   if (typeof CompressionStream === "undefined") return null;
-  const stream = new Blob([bytes])
+  const stream = new Blob([ownedArrayBuffer(bytes)])
     .stream()
     .pipeThrough(new CompressionStream("gzip"));
   return new Uint8Array(await new Response(stream).arrayBuffer());
@@ -94,14 +103,18 @@ async function gunzip(bytes: Uint8Array): Promise<Uint8Array> {
       "Tento prohlížeč neumí rozbalit sdílený projekt. Použijte aktuální Chrome, Edge, Firefox nebo Safari.",
     );
   }
-  const stream = new Blob([bytes])
+  const stream = new Blob([ownedArrayBuffer(bytes)])
     .stream()
     .pipeThrough(new DecompressionStream("gzip"));
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
 function normalizeShareData(value: unknown): BrowserProjectShareData {
-  if (!isRecord(value) || !isRecord(value.localStorage)) {
+  if (!isRecord(value)) {
+    throw new Error("Sdílený projekt nemá platnou strukturu pracovních dat.");
+  }
+  const localStorageValue = value.localStorage;
+  if (!isRecord(localStorageValue)) {
     throw new Error("Sdílený projekt nemá platnou strukturu pracovních dat.");
   }
   if (!isRecord(value.project)) {
@@ -123,7 +136,7 @@ function normalizeShareData(value: unknown): BrowserProjectShareData {
 
   const localStorage = Object.fromEntries(
     BROWSER_PROJECT_LOCAL_STORAGE_KEYS.map((key) => {
-      const item = value.localStorage[key];
+      const item = localStorageValue[key];
       if (item !== null && item !== undefined && typeof item !== "string") {
         throw new Error(`Sdílený projekt má neplatnou hodnotu ${key}.`);
       }
@@ -248,7 +261,8 @@ export async function decodeBrowserProjectShare(
   const encoded = payload.slice(separator + 1);
   let bytes = base64UrlToBytes(encoded);
   if (mode === "g") bytes = await gunzip(bytes);
-  else if (mode !== "j") throw new Error("Sdílený odkaz používá neznámý formát.");
+  else if (mode !== "j")
+    throw new Error("Sdílený odkaz používá neznámý formát.");
   const value = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
   return validateBrowserProjectShareEnvelope(value);
 }

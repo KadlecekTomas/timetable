@@ -63,7 +63,9 @@ function SummaryCards({ summary }: { summary: BrowserProjectShareSummary }) {
           className="rounded-xl border border-border bg-surface-subtle p-4"
         >
           <p className="text-xs font-medium text-text-muted">{label}</p>
-          <p className="mt-2 text-2xl font-semibold text-text-primary">{value}</p>
+          <p className="mt-2 text-2xl font-semibold text-text-primary">
+            {value}
+          </p>
         </article>
       ))}
     </div>
@@ -79,8 +81,9 @@ export default function SharePage() {
   const [linkTooLarge, setLinkTooLarge] = useState(false);
   const [outgoingSummary, setOutgoingSummary] =
     useState<BrowserProjectShareSummary | null>(null);
-  const [incoming, setIncoming] =
-    useState<BrowserProjectShareEnvelope | null>(null);
+  const [incoming, setIncoming] = useState<BrowserProjectShareEnvelope | null>(
+    null,
+  );
   const [incomingSummary, setIncomingSummary] =
     useState<BrowserProjectShareSummary | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -145,7 +148,9 @@ export default function SharePage() {
       await navigator.clipboard.writeText(shareLink);
       setMessage("Odkaz byl zkopírován do schránky.");
     } catch {
-      setError("Odkaz se nepodařilo zkopírovat. Označte jej a zkopírujte ručně.");
+      setError(
+        "Odkaz se nepodařilo zkopírovat. Označte jej a zkopírujte ručně.",
+      );
     }
   }
 
@@ -186,7 +191,9 @@ export default function SharePage() {
       const envelope = await readBrowserProjectShareFile(file);
       setIncoming(envelope);
       setIncomingSummary(summarizeBrowserProjectShare(envelope));
-      setMessage("Soubor je v pořádku. Zkontrolujte souhrn a potvrďte načtení.");
+      setMessage(
+        "Soubor je v pořádku. Zkontrolujte souhrn a potvrďte načtení.",
+      );
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -410,9 +417,7 @@ export default function SharePage() {
 
       {outgoingSummary ? (
         <section className="rounded-xl border border-border bg-surface p-5">
-          <h2 className="font-semibold text-text-primary">
-            Co bude přeneseno
-          </h2>
+          <h2 className="font-semibold text-text-primary">Co bude přeneseno</h2>
           <div className="mt-4">
             <SummaryCards summary={outgoingSummary} />
           </div>

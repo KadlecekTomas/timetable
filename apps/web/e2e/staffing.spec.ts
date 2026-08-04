@@ -148,3 +148,32 @@ test("beginner staffing flow records exact subject load and a whole unavailable 
   expect(pageErrors).toEqual([]);
   expect(serverErrors).toEqual([]);
 });
+
+test("invalid staffing draft is automatically saved without confirmation", async ({
+  page,
+}) => {
+  await page.goto("/staffing?schoolYearId=local-school-year");
+  await page.getByRole("button", { name: "Přidat učitele ručně" }).click();
+  await page.getByLabel("Jméno").fill("Testovací");
+  await page.getByLabel("Příjmení").fill("Učitelka");
+  await page.getByLabel("Úvazek týdně").fill("25");
+  await page.locator('select[aria-label="Předmět"]').selectOption("M");
+  await page.locator('input[aria-label="Počet hodin předmětu"]').fill("22");
+
+  await expect(page.getByTestId("staffing-autosave-status")).toContainText(
+    "Automaticky uloženo",
+  );
+  await expect(
+    page.getByText("Úvazek musí být celé číslo od 0 do 22 hodin.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByLabel("Jméno")).toHaveValue("Testovací");
+  await expect(page.getByLabel("Příjmení")).toHaveValue("Učitelka");
+  await expect(page.getByLabel("Úvazek týdně")).toHaveValue("25");
+  await expect(
+    page.locator('input[aria-label="Počet hodin předmětu"]'),
+  ).toHaveValue("22");
+});
