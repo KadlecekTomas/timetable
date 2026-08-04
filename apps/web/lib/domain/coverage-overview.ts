@@ -4,10 +4,7 @@ import {
   type StaffingPlan,
   type StaffingTeacher,
 } from "@/lib/local/staffing-plan";
-import type {
-  TeachingPlan,
-  TeachingPlanRow,
-} from "@/lib/local/teaching-plan";
+import type { TeachingPlan, TeachingPlanRow } from "@/lib/local/teaching-plan";
 
 export type CoverageStatus = "FULL" | "PARTIAL" | "MISSING";
 
@@ -172,7 +169,10 @@ function rolesForRow(row: TeachingPlanRow): CoverageRole[] {
   ];
 }
 
-function statusFor(assignedSlots: number, requiredSlots: number): CoverageStatus {
+function statusFor(
+  assignedSlots: number,
+  requiredSlots: number,
+): CoverageStatus {
   if (requiredSlots > 0 && assignedSlots >= requiredSlots) return "FULL";
   if (assignedSlots > 0) return "PARTIAL";
   return "MISSING";
@@ -382,7 +382,8 @@ export function buildCoverageOverview(
           label: labelFor(code),
           requiredClassPeriods: rounded(required),
           missingClassPeriods: rounded(missing),
-          problemCells: matching.filter((cell) => cell.status !== "FULL").length,
+          problemCells: matching.filter((cell) => cell.status !== "FULL")
+            .length,
         };
       })
       .filter((item) => item.requiredClassPeriods > 0)
@@ -407,9 +408,7 @@ export function buildCoverageOverview(
           .filter((item) => item.subjectCode === "REZERVA")
           .reduce((total, item) => total + item.weeklyPeriods, 0),
       );
-      const totalUsedHours = rounded(
-        scheduledTeachingHours + nonTeachingHours,
-      );
+      const totalUsedHours = rounded(scheduledTeachingHours + nonTeachingHours);
       const difference = rounded(teacher.targetWeeklyLoad - totalUsedHours);
       return {
         teacherId: teacher.id,
@@ -420,8 +419,7 @@ export function buildCoverageOverview(
         targetWeeklyLoad: teacher.targetWeeklyLoad,
         totalUsedHours,
         difference,
-        status:
-          difference === 0 ? "FULL" : difference > 0 ? "UNDER" : "OVER",
+        status: difference === 0 ? "FULL" : difference > 0 ? "UNDER" : "OVER",
       };
     })
     .sort((left, right) => {
@@ -452,7 +450,11 @@ export function buildCoverageOverview(
     classes,
     subjects,
     problems,
-    classBreakdown: breakdown(classes, (cell) => cell.classCode, (code) => code),
+    classBreakdown: breakdown(
+      classes,
+      (cell) => cell.classCode,
+      (code) => code,
+    ),
     subjectBreakdown: breakdown(
       subjects.map((subject) => subject.code),
       (cell) => cell.subjectCode,
