@@ -1,0 +1,63 @@
+name: Patch mandatory split E2E
+
+on:
+  push:
+    branches:
+      - fix/mandatory-split-coverage
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/mandatory-split-coverage
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Update mandatory split expectations
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/web/e2e/actual-2027-workbook.spec.ts')
+          text = path.read_text()
+          replacements = {
+            'test("actual 2027 staffing layout produces a small concrete breakdown instead of invented missing groups", async ({':
+              'test("actual 2027 staffing layout exposes every mandatory split group", async ({',
+            'page.getByText("Chybí pokrýt 8 učitelských hodin")':
+              'page.getByText("Chybí pokrýt 124 učitelských hodin")',
+            'await expect(czech).toHaveAttribute("data-status", "FULL");':
+              'await expect(czech).toHaveAttribute("data-status", "PARTIAL");',
+            'await expect(czech).toContainText("1/1");':
+              'await expect(czech).toContainText("1/2");',
+            'await expect(german9A).toHaveAttribute("data-status", "FULL");':
+              'await expect(german9A).toHaveAttribute("data-status", "PARTIAL");',
+            'await expect(german9A).toContainText("1/1");':
+              'await expect(german9A).toContainText("1/2");',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'Expected text not found: {old}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+      - run: npx prettier --write apps/web/e2e/actual-2027-workbook.spec.ts
+      - name: Commit test update
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "Already updated"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/e2e/actual-2027-workbook.spec.ts
+          git commit -m "test(coverage): expect mandatory split groups"
+          git push origin HEAD:fix/mandatory-split-coverage
