@@ -10,7 +10,11 @@ const EMPTY_DRAWING = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 const EMPTY_PERSON_LIST = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <x18tc:personList xmlns:x18tc="http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments"/>`;
 
-function appendBeforeClosingTag(xml: string, closingTag: string, value: string): string {
+function appendBeforeClosingTag(
+  xml: string,
+  closingTag: string,
+  value: string,
+): string {
   assert.ok(xml.includes(closingTag), `Missing ${closingTag}`);
   return xml.replace(closingTag, `${value}${closingTag}`);
 }
@@ -29,11 +33,7 @@ async function workbookWithOfficeEmptyParts(): Promise<Uint8Array> {
   const sheetXml = await zip.file(sheetPath)!.async("text");
   zip.file(
     sheetPath,
-    appendBeforeClosingTag(
-      sheetXml,
-      "</worksheet>",
-      '<drawing r:id="rId1"/>',
-    ),
+    appendBeforeClosingTag(sheetXml, "</worksheet>", '<drawing r:id="rId1"/>'),
   );
   zip.file(
     "xl/worksheets/_rels/sheet1.xml.rels",
