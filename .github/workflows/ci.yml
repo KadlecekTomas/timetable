@@ -19,25 +19,6 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Polish coverage summary copy
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          path = Path("apps/web/app/coverage/page.tsx")
-          text = path.read_text()
-          old = '? `Chybí pokrýt ${formatHours(overview.summary.missingTeacherHours)} učitelských hodin`'
-          new = '? `Nepokryto: ${formatHours(overview.summary.missingTeacherHours)} h učitelské práce týdně`'
-          if old not in text:
-              raise SystemExit("Expected coverage summary was not found")
-          path.write_text(text.replace(old, new))
-          PY
-          npx prettier --write apps/web/app/coverage/page.tsx
-      - name: Upload polished coverage page
-        uses: actions/upload-artifact@v4
-        with:
-          name: polished-coverage-page
-          path: apps/web/app/coverage/page.tsx
-          if-no-files-found: error
       - run: npm run format:check
       - run: npm run lint --workspace @timetable/web
       - run: npm run typecheck --workspace @timetable/web
