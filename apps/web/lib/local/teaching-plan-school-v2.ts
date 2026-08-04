@@ -67,6 +67,13 @@ function isCurrentSchoolPlan(plan: TeachingPlan): boolean {
   return CURRENT_SCHOOL_CLASS_CODES.every((code) => classCodes.has(code));
 }
 
+function hasStoredTeachingPlan(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.localStorage.getItem(school.TEACHING_PLAN_STORAGE_KEY) !== null
+  );
+}
+
 function gradeForClass(code: string): number {
   return Number(code.split(".")[0]);
 }
@@ -114,8 +121,8 @@ function organizationForRow(
   mustSplit: boolean,
   candidateSecondaryTeacherId: string,
 ): TeachingOrganization {
-  if (mustSplit) return "SPLIT";
   if (row.organization === "ROTATION") return "ROTATION";
+  if (mustSplit) return "SPLIT";
   if (row.organization === "SPLIT" || candidateSecondaryTeacherId) {
     return "SPLIT";
   }
@@ -279,12 +286,13 @@ export function createEmptyTeachingPlan(): TeachingPlan {
 export function loadTeachingPlan(): TeachingPlan {
   const staffingPlan = loadStaffingPlan();
   const allocationDraft = loadStaffingAllocationDraft();
+  const storedPlanExists = hasStoredTeachingPlan();
   const curriculum =
     loadSchoolCurriculum() ??
     saveSchoolCurriculum(createDefaultSchoolCurriculum());
   const loaded = applyStoredWorkloadCredits(school.loadTeachingPlan());
   const plan =
-    loaded.rows.length > 0
+    loaded.rows.length > 0 || storedPlanExists
       ? applySchoolOperationalRules(loaded, staffingPlan, allocationDraft)
       : createDefaultSchoolTeachingPlan(
           curriculum,
@@ -292,7 +300,7 @@ export function loadTeachingPlan(): TeachingPlan {
           allocationDraft,
         );
 
-  if (typeof window !== "undefined" && loaded.rows.length === 0) {
+  if (typeof window !== "undefined" && !storedPlanExists) {
     return saveTeachingPlan(plan);
   }
   return plan;
