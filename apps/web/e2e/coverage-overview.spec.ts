@@ -110,7 +110,9 @@ test("coverage page shows full, partial and missing teaching at a glance", async
   await expect(
     page.getByRole("heading", { name: "Pokrytí hodinové dotace" }),
   ).toBeVisible();
-  await expect(page.getByText("Chybí pokrýt 3 učitelských hodin")).toBeVisible();
+  await expect(
+    page.getByText("Chybí pokrýt 3 učitelských hodin"),
+  ).toBeVisible();
 
   const czech = page.getByTestId("coverage-6.A-CJ");
   const informatics = page.getByTestId("coverage-6.A-INF");
