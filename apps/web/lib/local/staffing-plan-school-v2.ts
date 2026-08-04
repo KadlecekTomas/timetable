@@ -2,10 +2,7 @@ import * as base from "./staffing-plan";
 
 export * from "./staffing-plan";
 
-export const NON_TEACHING_SUBJECT_CODES = new Set([
-  "ICT_VEDENI",
-  "NEVYUKA",
-]);
+export const NON_TEACHING_SUBJECT_CODES = new Set(["ICT_VEDENI", "NEVYUKA"]);
 
 /**
  * School planning needs explicit pseudo-subjects:
