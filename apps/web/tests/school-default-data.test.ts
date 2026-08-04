@@ -92,7 +92,7 @@ function allocationDraft(): StaffingAllocationDraft {
   };
 }
 
-test("supplied curriculum is seeded directly into the teaching tab", () => {
+test("supplied curriculum is seeded and staffing evidence decides split teaching", () => {
   const curriculum = createDefaultSchoolCurriculum();
   const regularTotal = curriculum.profiles.REGULAR.subjects.reduce(
     (total, subject) =>
@@ -126,14 +126,21 @@ test("supplied curriculum is seeded directly into the teaching tab", () => {
     396,
   );
 
-  for (const subjectCode of ["CJ", "M", "INF", "TV", "JAZ1", "JAZ2"]) {
-    const rows = plan.rows.filter((row) => row.subjectCode === subjectCode);
-    assert.ok(rows.length > 0, `${subjectCode} must be present.`);
-    assert.ok(
-      rows.every((row) => row.organization === "SPLIT"),
-      `${subjectCode} must always be split into two groups.`,
-    );
-  }
+  const informatics = plan.rows.filter((row) => row.subjectCode === "INF");
+  assert.equal(informatics.length, 13);
+  assert.ok(
+    informatics.every(
+      (row) =>
+        row.organization === "WHOLE" &&
+        row.primaryTeacherId === "teacher-kadlecek",
+    ),
+    "One teacher in the staffing matrix must mean one whole-class assignment.",
+  );
+
+  const czech6A = plan.rows.find(
+    (row) => row.classCode === "6.A" && row.subjectCode === "CJ",
+  );
+  assert.equal(czech6A?.organization, "WHOLE");
 
   const tv9A = plan.rows.find(
     (row) => row.classCode === "9.A" && row.subjectCode === "TV",
