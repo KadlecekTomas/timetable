@@ -19,6 +19,21 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Create canonical formatting artifact
+        run: |
+          npx prettier --write \
+            apps/web/lib/import/staffing-workbook-school-v2.ts \
+            apps/web/lib/local/staffing-plan-school-v2.ts \
+            apps/web/lib/local/teaching-plan-school-v2.ts
+      - name: Upload canonical formatting artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: canonical-school-default-files
+          path: |
+            apps/web/lib/import/staffing-workbook-school-v2.ts
+            apps/web/lib/local/staffing-plan-school-v2.ts
+            apps/web/lib/local/teaching-plan-school-v2.ts
+          if-no-files-found: error
       - run: npm run format:check
       - run: npm run lint --workspace @timetable/web
       - run: npm run typecheck --workspace @timetable/web
