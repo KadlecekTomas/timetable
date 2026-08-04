@@ -143,7 +143,7 @@ function addNonTeachingCredits(
   plan: TeachingPlan,
   staffingPlan: StaffingPlan,
 ): TeachingPlan {
-  const rows = plan.rows.map((row) => ({
+  const rows: TeachingPlanRow[] = plan.rows.map((row) => ({
     ...row,
     workloadCredits: undefined,
   }));
