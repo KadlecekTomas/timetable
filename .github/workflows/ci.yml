@@ -19,6 +19,368 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Prepare exact 2027 workbook compatibility patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              if old not in text:
+                  raise SystemExit(f"Expected block not found in {path}: {old[:80]!r}")
+              file.write_text(text.replace(old, new, 1))
+
+          teaching = "apps/web/lib/local/teaching-plan-school-v2.ts"
+          replace(
+              teaching,
+              '''import {
+            createDefaultSchoolCurriculum,
+            SCHOOL_SPLIT_SUBJECT_CODES,
+          } from "./school-default-data";''',
+              '''import { createDefaultSchoolCurriculum } from "./school-default-data";''',
+          )
+          replace(
+              teaching,
+              '''function allocationRows(
+            draft: StaffingAllocationDraft | null,
+            classCode: string,
+            subjectCode: string,
+          ): StaffingAllocationDraftRow[] {
+            return (
+              draft?.rows.filter(
+                (row) => row.classCode === classCode && row.subjectCode === subjectCode,
+              ) ?? []
+            );
+          }
+
+          function candidateTeacherIds(
+            draft: StaffingAllocationDraft | null,
+            classCode: string,
+            subjectCode: string,
+          ): { primaryTeacherId: string; secondaryTeacherId: string } {
+            const candidates = allocationRows(draft, classCode, subjectCode);
+            const group1 = candidates.find((item) => item.group === "GROUP_1");
+            const group2 = candidates.find((item) => item.group === "GROUP_2");
+            const whole = candidates.find((item) => item.group === "WHOLE");
+            const all = [
+              ...new Set(candidates.flatMap((item) => item.teacherIds).filter(Boolean)),
+            ];
+            const primaryTeacherId =
+              group1?.teacherIds[0] ?? whole?.teacherIds[0] ?? all[0] ?? "";
+            const secondaryTeacherId =
+              group2?.teacherIds[0] ??
+              whole?.teacherIds.find((teacherId) => teacherId !== primaryTeacherId) ??
+              all.find((teacherId) => teacherId !== primaryTeacherId) ??
+              "";
+            return { primaryTeacherId, secondaryTeacherId };
+          }
+
+          function organizationForRow(
+            row: TeachingPlanRow,
+            mustSplit: boolean,
+            candidateSecondaryTeacherId: string,
+          ): TeachingOrganization {
+            if (row.organization === "ROTATION") return "ROTATION";
+            if (mustSplit) return "SPLIT";
+            if (row.organization === "SPLIT" || candidateSecondaryTeacherId) {
+              return "SPLIT";
+            }
+            return "WHOLE";
+          }''',
+              '''const ELECTIVE_ALLOCATION_CODES = new Set(["VOL", "PRPK", "SVS"]);
+
+          function allocationSubjectMatches(
+            planSubjectCode: string,
+            draftSubjectCode: string,
+          ): boolean {
+            return planSubjectCode === "VOL"
+              ? ELECTIVE_ALLOCATION_CODES.has(draftSubjectCode)
+              : planSubjectCode === draftSubjectCode;
+          }
+
+          function allocationRows(
+            draft: StaffingAllocationDraft | null,
+            classCode: string,
+            subjectCode: string,
+          ): StaffingAllocationDraftRow[] {
+            return (
+              draft?.rows.filter(
+                (row) =>
+                  row.classCode === classCode &&
+                  allocationSubjectMatches(subjectCode, row.subjectCode),
+              ) ?? []
+            );
+          }
+
+          function candidateTeacherIds(
+            draft: StaffingAllocationDraft | null,
+            classCode: string,
+            subjectCode: string,
+          ): {
+            primaryTeacherId: string;
+            secondaryTeacherId: string;
+            split: boolean;
+          } {
+            const candidates = allocationRows(draft, classCode, subjectCode);
+            const group1 = candidates.find((item) => item.group === "GROUP_1");
+            const group2 = candidates.find((item) => item.group === "GROUP_2");
+            const whole = candidates.find((item) => item.group === "WHOLE");
+            const all = [
+              ...new Set(candidates.flatMap((item) => item.teacherIds).filter(Boolean)),
+            ];
+            const explicitGroupCount = candidates.filter(
+              (item) => item.group !== "WHOLE",
+            ).length;
+            const split = explicitGroupCount >= 2 || all.length >= 2;
+
+            if (!split) {
+              return {
+                primaryTeacherId:
+                  group1?.teacherIds[0] ??
+                  group2?.teacherIds[0] ??
+                  whole?.teacherIds[0] ??
+                  all[0] ??
+                  "",
+                secondaryTeacherId: "",
+                split: false,
+              };
+            }
+
+            const primaryTeacherId = group1
+              ? (group1.teacherIds[0] ?? "")
+              : (whole?.teacherIds[0] ?? all[0] ?? "");
+            const secondaryTeacherId = group2
+              ? (group2.teacherIds[0] ?? "")
+              : (all.find((teacherId) => teacherId !== primaryTeacherId) ?? "");
+            return { primaryTeacherId, secondaryTeacherId, split: true };
+          }
+
+          function organizationForRow(
+            row: TeachingPlanRow,
+            enforceSchoolDefaults: boolean,
+            hasAllocationDraft: boolean,
+            candidateSplit: boolean,
+            candidateSecondaryTeacherId: string,
+          ): TeachingOrganization {
+            if (row.organization === "ROTATION") return "ROTATION";
+            if (enforceSchoolDefaults && hasAllocationDraft) {
+              if (candidateSplit) return "SPLIT";
+              if (row.organization === "SPLIT" && row.secondaryTeacherId) {
+                return "SPLIT";
+              }
+              return "WHOLE";
+            }
+            if (row.organization === "SPLIT" || candidateSecondaryTeacherId) {
+              return "SPLIT";
+            }
+            return "WHOLE";
+          }''',
+          )
+          replace(
+              teaching,
+              '''  const candidates = candidateTeacherIds(draft, row.classCode, row.subjectCode);
+            const mustSplit =
+              enforceSchoolDefaults && SCHOOL_SPLIT_SUBJECT_CODES.has(row.subjectCode);
+            const organization = organizationForRow(
+              row,
+              mustSplit,
+              candidates.secondaryTeacherId,
+            );''',
+              '''  const candidates = candidateTeacherIds(draft, row.classCode, row.subjectCode);
+            const organization = organizationForRow(
+              row,
+              enforceSchoolDefaults,
+              draft !== null,
+              candidates.split,
+              candidates.secondaryTeacherId,
+            );''',
+          )
+
+          curriculum = "apps/web/lib/import/school-curriculum-workbook.ts"
+          replace(
+              curriculum,
+              '''function allocationRows(
+            draft: StaffingAllocationDraft | null,
+            classCode: string,
+            subjectCode: string,
+          ) {
+            return (
+              draft?.rows.filter(
+                (row) => row.classCode === classCode && row.subjectCode === subjectCode,
+              ) ?? []
+            );
+          }''',
+              '''const ELECTIVE_ALLOCATION_CODES = new Set(["VOL", "PRPK", "SVS"]);
+
+          function allocationSubjectMatches(
+            planSubjectCode: string,
+            draftSubjectCode: string,
+          ): boolean {
+            return planSubjectCode === "VOL"
+              ? ELECTIVE_ALLOCATION_CODES.has(draftSubjectCode)
+              : planSubjectCode === draftSubjectCode;
+          }
+
+          function allocationRows(
+            draft: StaffingAllocationDraft | null,
+            classCode: string,
+            subjectCode: string,
+          ) {
+            return (
+              draft?.rows.filter(
+                (row) =>
+                  row.classCode === classCode &&
+                  allocationSubjectMatches(subjectCode, row.subjectCode),
+              ) ?? []
+            );
+          }''',
+          )
+          replace(
+              curriculum,
+              '''  const group1 = candidates.find((item) => item.group === "GROUP_1");
+            const group2 = candidates.find((item) => item.group === "GROUP_2");
+            if (group1 || group2) {
+              const primaryTeacherId = group1?.teacherIds[0] ?? "";
+              const secondaryTeacherId = group2?.teacherIds[0] ?? "";
+              if (!primaryTeacherId || !secondaryTeacherId) {
+                issues.push(
+                  issue(
+                    "WARNING",
+                    group1?.sourceSheet ?? group2?.sourceSheet ?? sheetName,
+                    group1?.sourceRow ?? group2?.sourceRow ?? null,
+                    `${row.classCode} ${row.subjectCode}`,
+                    `${row.classCode} · ${row.subjectCode}: jedna z paralelních skupin zatím nemá učitele.`,
+                  ),
+                );
+              }
+              for (const candidate of [group1, group2]) {
+                if (candidate && candidate.weeklyPeriods !== row.weeklyPeriods) {
+                  issues.push(
+                    issue(
+                      "WARNING",
+                      candidate.sourceSheet,
+                      candidate.sourceRow,
+                      `${row.classCode} ${row.subjectCode}`,
+                      `Staré přiřazení obsahuje ${candidate.weeklyPeriods} h, nový učební plán vyžaduje ${row.weeklyPeriods} h. Použita byla nová časová dotace.`,
+                    ),
+                  );
+                }
+              }
+              return {
+                ...row,
+                organization: "SPLIT",
+                primaryTeacherId,
+                secondaryTeacherId,
+              };
+            }
+
+            const candidate = candidates[0]!;''',
+              '''  const group1 = candidates.find((item) => item.group === "GROUP_1");
+            const group2 = candidates.find((item) => item.group === "GROUP_2");
+            const whole = candidates.find((item) => item.group === "WHOLE");
+            const allTeacherIds = [
+              ...new Set(candidates.flatMap((item) => item.teacherIds).filter(Boolean)),
+            ];
+            const explicitGroupCount = candidates.filter(
+              (item) => item.group !== "WHOLE",
+            ).length;
+            const shouldSplit = explicitGroupCount >= 2 || allTeacherIds.length >= 2;
+
+            if (shouldSplit) {
+              const primaryTeacherId = group1
+                ? (group1.teacherIds[0] ?? "")
+                : (whole?.teacherIds[0] ?? allTeacherIds[0] ?? "");
+              const secondaryTeacherId = group2
+                ? (group2.teacherIds[0] ?? "")
+                : (allTeacherIds.find(
+                    (teacherId) => teacherId !== primaryTeacherId,
+                  ) ?? "");
+              if (!primaryTeacherId || !secondaryTeacherId) {
+                issues.push(
+                  issue(
+                    "WARNING",
+                    group1?.sourceSheet ?? group2?.sourceSheet ?? sheetName,
+                    group1?.sourceRow ?? group2?.sourceRow ?? null,
+                    `${row.classCode} ${row.subjectCode}`,
+                    `${row.classCode} · ${row.subjectCode}: jedna z paralelních skupin zatím nemá učitele.`,
+                  ),
+                );
+              }
+              for (const candidate of candidates) {
+                if (candidate.weeklyPeriods !== row.weeklyPeriods) {
+                  issues.push(
+                    issue(
+                      "WARNING",
+                      candidate.sourceSheet,
+                      candidate.sourceRow,
+                      `${row.classCode} ${row.subjectCode}`,
+                      `Staré přiřazení obsahuje ${candidate.weeklyPeriods} h, nový učební plán vyžaduje ${row.weeklyPeriods} h. Použita byla nová časová dotace.`,
+                    ),
+                  );
+                }
+              }
+              return {
+                ...row,
+                organization: "SPLIT",
+                primaryTeacherId,
+                secondaryTeacherId,
+              };
+            }
+
+            const candidate = candidates[0]!;''',
+          )
+          replace(
+              curriculum,
+              '''  if (draft) {
+            const activeKeys = new Set(
+              plan.rows.map((row) => `${row.classCode}|${row.subjectCode}`),
+            );
+            for (const item of draft.rows) {
+              if (!activeKeys.has(`${item.classCode}|${item.subjectCode}`)) {
+                issues.push(
+                  issue(
+                    "WARNING",
+                    item.sourceSheet,
+                    item.sourceRow,
+                    `${item.classCode} ${item.subjectCode}`,
+                    `${item.classCode} · ${item.subjectCode}: staré přiřazení není v novém učebním plánu a nebylo převzato.`,
+                  ),
+                );
+              }
+            }
+          }''',
+              '''  if (draft) {
+            for (const item of draft.rows) {
+              const active = plan.rows.some(
+                (row) =>
+                  row.classCode === item.classCode &&
+                  allocationSubjectMatches(row.subjectCode, item.subjectCode),
+              );
+              if (!active) {
+                issues.push(
+                  issue(
+                    "WARNING",
+                    item.sourceSheet,
+                    item.sourceRow,
+                    `${item.classCode} ${item.subjectCode}`,
+                    `${item.classCode} · ${item.subjectCode}: staré přiřazení není v novém učebním plánu a nebylo převzato.`,
+                  ),
+                );
+              }
+            }
+          }''',
+          )
+          PY
+          npx prettier --write apps/web/lib/local/teaching-plan-school-v2.ts apps/web/lib/import/school-curriculum-workbook.ts
+      - name: Upload exact 2027 compatibility files
+        uses: actions/upload-artifact@v4
+        with:
+          name: exact-2027-compatibility-files
+          path: |
+            apps/web/lib/local/teaching-plan-school-v2.ts
+            apps/web/lib/import/school-curriculum-workbook.ts
+          if-no-files-found: error
       - run: npm run format:check
       - run: npm run lint --workspace @timetable/web
       - run: npm run typecheck --workspace @timetable/web
