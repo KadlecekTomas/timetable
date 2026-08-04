@@ -96,6 +96,7 @@ interface CoverageRole {
   teacherId: string;
   teacherHours: number;
   classPeriods: number;
+  allowRepeatedTeacher?: boolean;
 }
 
 function teacherName(teacher: StaffingTeacher): string {
@@ -124,17 +125,35 @@ function rolesForRow(row: TeachingPlanRow): CoverageRole[] {
     return [
       {
         subjectCode: row.subjectCode,
-        roleLabel: `učitel předmětu ${subjectLabel(row.subjectCode)}`,
+        roleLabel: `1. skupina ${subjectLabel(row.subjectCode)} rotačně`,
         teacherId: row.primaryTeacherId,
-        teacherHours: periods * 2,
-        classPeriods: periods,
+        teacherHours: periods,
+        classPeriods: periods / 2,
+        allowRepeatedTeacher: true,
+      },
+      {
+        subjectCode: row.subjectCode,
+        roleLabel: `2. skupina ${subjectLabel(row.subjectCode)} rotačně`,
+        teacherId: row.primaryTeacherId,
+        teacherHours: periods,
+        classPeriods: periods / 2,
+        allowRepeatedTeacher: true,
       },
       {
         subjectCode: row.secondarySubjectCode ?? "",
-        roleLabel: `učitel předmětu ${subjectLabel(row.secondarySubjectCode ?? "")}`,
+        roleLabel: `1. skupina ${subjectLabel(row.secondarySubjectCode ?? "")} rotačně`,
         teacherId: row.secondaryTeacherId,
-        teacherHours: periods * 2,
-        classPeriods: periods,
+        teacherHours: periods,
+        classPeriods: periods / 2,
+        allowRepeatedTeacher: true,
+      },
+      {
+        subjectCode: row.secondarySubjectCode ?? "",
+        roleLabel: `2. skupina ${subjectLabel(row.secondarySubjectCode ?? "")} rotačně`,
+        teacherId: row.secondaryTeacherId,
+        teacherHours: periods,
+        classPeriods: periods / 2,
+        allowRepeatedTeacher: true,
       },
     ].filter((role) => role.subjectCode);
   }
@@ -212,7 +231,7 @@ export function buildCoverageOverview(
       const assigned =
         Boolean(role.teacherId) &&
         validTeacherIds.has(role.teacherId) &&
-        !seen.has(role.teacherId);
+        (role.allowRepeatedTeacher || !seen.has(role.teacherId));
       if (assigned) seen.add(role.teacherId);
       return { role, assigned };
     });

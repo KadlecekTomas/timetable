@@ -3,6 +3,7 @@ import type { Cell, Worksheet } from "exceljs";
 
 import {
   createEmptyStaffingPlan,
+  MAX_WEEKLY_TEACHER_LOAD,
   type StaffingPlan,
   type StaffingSubjectLoad,
   type StaffingTeacher,
@@ -36,6 +37,9 @@ export interface LegacyStaffingPlanAnalysis extends StaffingWorkbookAnalysis {
     teachingWeeklyLoad: number;
     reserveWeeklyLoad: number;
     unassignedClassPeriods: number;
+    overloadedTeachers: number;
+    overloadWeeklyLoad: number;
+    teachersWithCapacity: number;
   };
 }
 
@@ -267,6 +271,17 @@ export function analyzeLegacyStaffingPlan(
           ),
         );
       }
+      if (targetWeeklyLoad > MAX_WEEKLY_TEACHER_LOAD) {
+        const overload = targetWeeklyLoad - MAX_WEEKLY_TEACHER_LOAD;
+        issues.push(
+          issue(
+            "ERROR",
+            null,
+            "Úvazek",
+            `${teacher.firstName} ${teacher.lastName} má úvazek ${targetWeeklyLoad} hodin. Maximum je ${MAX_WEEKLY_TEACHER_LOAD} hodin; ${overload} ${overload === 1 ? "hodinu je" : overload < 5 ? "hodiny je" : "hodin je"} nutné přidělit jinému učiteli.`,
+          ),
+        );
+      }
       if (reserve > 0) {
         issues.push(
           issue(
@@ -331,13 +346,14 @@ export function analyzeLegacyStaffingPlan(
     source: "LEGACY_SCHOOL_MATRIX",
     rows: draftRows,
   };
-  const hasStructuralError = parsed.issues.some(
-    (item) => item.severity === "ERROR",
+  const hasBlockingError = issues.some((item) => item.severity === "ERROR");
+  const overloadedTeachers = teacherRows.filter(
+    (teacher) => teacher.targetWeeklyLoad > MAX_WEEKLY_TEACHER_LOAD,
   );
 
   return {
     recognized: true,
-    valid: !hasStructuralError,
+    valid: !hasBlockingError,
     plan,
     issues,
     allocationDraft,
@@ -352,6 +368,15 @@ export function analyzeLegacyStaffingPlan(
       teachingWeeklyLoad,
       reserveWeeklyLoad,
       unassignedClassPeriods,
+      overloadedTeachers: overloadedTeachers.length,
+      overloadWeeklyLoad: overloadedTeachers.reduce(
+        (total, teacher) =>
+          total + teacher.targetWeeklyLoad - MAX_WEEKLY_TEACHER_LOAD,
+        0,
+      ),
+      teachersWithCapacity: teacherRows.filter(
+        (teacher) => teacher.targetWeeklyLoad < MAX_WEEKLY_TEACHER_LOAD,
+      ).length,
     },
   };
 }

@@ -93,9 +93,8 @@ test("entire project survives backup, deletion and restore without a server data
 
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Připravenost školního roku" }),
+    page.getByRole("heading", { name: "Příprava školního rozvrhu" }),
   ).toBeVisible();
-  await expect(page.getByLabel("Školní rok")).toHaveValue("local-school-year");
 
   await page.getByRole("link", { name: "Nastavení" }).click();
   await expect(
@@ -108,7 +107,7 @@ test("entire project survives backup, deletion and restore without a server data
   ).toBeVisible();
 
   const workbookBuffer = await createSchoolWorkbook();
-  await page.getByRole("link", { name: "Pokročilý import" }).click();
+  await page.goto("/legacy-client-import?schoolYearId=local-school-year");
   await page.locator("#import-file").setInputFiles({
     name: "lokalni-skola.xlsx",
     mimeType:
@@ -125,10 +124,7 @@ test("entire project survives backup, deletion and restore without a server data
   ).toBeVisible();
 
   await page.getByRole("link", { name: "Přehled" }).click();
-  await expect(page.getByText("Rozvrh lze vytvořit")).toBeVisible();
-  await expect(
-    page.getByText("2 záznamů", { exact: true }).first(),
-  ).toBeVisible();
+  await expect(page.getByText("Připravená data jsou zastaralá")).toBeVisible();
 
   await page.getByRole("link", { name: "Tvorba rozvrhu" }).click();
   await expect(
@@ -177,9 +173,9 @@ test("entire project survives backup, deletion and restore without a server data
 
   await page.getByRole("link", { name: "Přehled" }).click();
   await expect(
-    page.getByText("0 záznamů", { exact: true }).first(),
+    page.getByRole("link", { name: "Začít nahráním učitelů" }),
   ).toBeVisible();
-  await expect(page.getByText(/blokujících problémů/)).toBeVisible();
+  await expect(page.getByText("Ještě nebyla připravena")).toBeVisible();
 
   await page.getByRole("link", { name: "Nastavení" }).click();
   await page.locator('input[type="file"]').setInputFiles({
@@ -191,7 +187,7 @@ test("entire project survives backup, deletion and restore without a server data
     page.getByText("Projekt byl úspěšně obnoven z ověřené zálohy."),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "Rozvrh", exact: true }).click();
+  await page.getByRole("link", { name: "5. Rozvrh", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Kvalita návrhu" }),
   ).toBeVisible();

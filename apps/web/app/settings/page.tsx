@@ -8,6 +8,8 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
@@ -46,6 +48,8 @@ function downloadBlob(blob: Blob, fileName: string) {
 }
 
 export default function SettingsPage() {
+  const searchParams = useSearchParams();
+  const schoolYearId = searchParams.get("schoolYearId") ?? "local-school-year";
   const restoreInput = useRef<HTMLInputElement>(null);
   const [project, setProject] = useState<LocalProject | null>(null);
   const [busy, setBusy] = useState(false);
@@ -189,6 +193,20 @@ export default function SettingsPage() {
           </Button>
         }
       />
+
+      <section className="rounded-xl border border-border bg-surface p-5">
+        <h2 className="font-semibold text-text-primary">
+          Volitelné školní vybavení
+        </h2>
+        <p className="mt-1 text-sm text-text-secondary">
+          Učebny a jejich typy lze doplnit po přípravě školních dat.
+        </p>
+        <Button asChild variant="outline" className="mt-4">
+          <Link href={`/data?schoolYearId=${encodeURIComponent(schoolYearId)}`}>
+            Upravit učebny a omezení
+          </Link>
+        </Button>
+      </section>
 
       {message ? (
         <div className="rounded-lg border border-success-border bg-success-subtle p-4 text-sm text-success-strong">

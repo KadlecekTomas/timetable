@@ -5,10 +5,8 @@ import {
   BookOpenCheck,
   CalendarDays,
   ClipboardCheck,
-  Database,
   LayoutDashboard,
   Settings,
-  Upload,
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
@@ -22,11 +20,9 @@ const navigation = [
   { label: "Přehled", icon: LayoutDashboard, href: "/" },
   { label: "1. Učitelé a úvazky", icon: UsersRound, href: "/staffing" },
   { label: "2. Pokrytí výuky", icon: BookOpenCheck, href: "/coverage" },
-  { label: "Podrobný editor výuky", icon: BookOpen, href: "/teaching-plan" },
-  { label: "Pokročilá školní data", icon: Database, href: "/data" },
-  { label: "Pokročilý import", icon: Upload, href: "/import" },
-  { label: "Tvorba rozvrhu", icon: ClipboardCheck, href: "/generate" },
-  { label: "Rozvrh", icon: CalendarDays, href: "/timetable" },
+  { label: "3. Podrobný editor výuky", icon: BookOpen, href: "/teaching-plan" },
+  { label: "4. Tvorba rozvrhu", icon: ClipboardCheck, href: "/generate" },
+  { label: "5. Rozvrh", icon: CalendarDays, href: "/timetable" },
 ];
 
 interface AppShellProps {

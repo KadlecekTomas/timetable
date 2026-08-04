@@ -27,6 +27,7 @@ import {
 import { LOCAL_SCHOOL_YEAR_ID, localApiFetch } from "@/lib/local/api";
 import {
   STAFFING_DAYS,
+  MAX_WEEKLY_TEACHER_LOAD,
   STAFFING_SUBJECTS,
   assignedWeeklyLoad,
   createEmptyStaffingTeacher,
@@ -648,7 +649,7 @@ export default function StaffingPage() {
                       <input
                         type="number"
                         min={0}
-                        max={60}
+                        max={MAX_WEEKLY_TEACHER_LOAD}
                         step={1}
                         value={teacher.targetWeeklyLoad}
                         onChange={(event) =>
@@ -943,8 +944,8 @@ export default function StaffingPage() {
           je záměrně neukazujeme.
         </p>
         <Button asChild variant="ghost" className="mt-3">
-          <Link href={`/import?${context}`}>
-            Otevřít pokročilý import celé školy
+          <Link href={`/data?${context}`}>
+            Volitelně upravit učebny a omezení
             <ArrowRight className="size-4" aria-hidden="true" />
           </Link>
         </Button>

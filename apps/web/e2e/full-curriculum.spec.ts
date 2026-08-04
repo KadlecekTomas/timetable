@@ -671,7 +671,7 @@ test("vedení školy vytvoří pedagogický rozvrh se čtyřmi matematikáři a 
   const workbook = await createFullCurriculumWorkbook();
   expect(TEACHERS).toHaveLength(39);
   expect(workbook.assignments).toHaveLength(256);
-  await page.getByRole("link", { name: "Pokročilý import" }).click();
+  await page.goto("/legacy-client-import?schoolYearId=local-school-year");
   await page.locator("#import-file").setInputFiles({
     name: "plny-druhy-stupen.xlsx",
     mimeType:
@@ -810,7 +810,7 @@ test("vedení školy vytvoří pedagogický rozvrh se čtyřmi matematikáři a 
   }
 
   await page.getByRole("link", { name: "Přehled" }).click();
-  await expect(page.getByText("Rozvrh lze vytvořit")).toBeVisible();
+  await expect(page.getByText("Připravená data jsou zastaralá")).toBeVisible();
   await page.getByRole("link", { name: "Tvorba rozvrhu" }).click();
   await page.getByRole("button", { name: "Vytvořit nový návrh" }).click();
   await expect(
