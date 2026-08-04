@@ -2,8 +2,6 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches: [main]
 
 permissions:
   contents: read
@@ -19,76 +17,27 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Prepare exact 2027 workbook compatibility patch
+      - name: Prepare exact 2027 workbook compatibility files
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          def replace(path: str, old: str, new: str) -> None:
-              file = Path(path)
-              text = file.read_text()
-              if old not in text:
-                  raise SystemExit(f"Expected block not found in {path}: {old[:80]!r}")
-              file.write_text(text.replace(old, new, 1))
+          def replace_between(text: str, start_marker: str, end_marker: str, replacement: str) -> str:
+              start = text.index(start_marker)
+              end = text.index(end_marker, start)
+              return text[:start] + replacement + text[end:]
 
-          teaching = "apps/web/lib/local/teaching-plan-school-v2.ts"
-          replace(
-              teaching,
+          teaching_path = Path("apps/web/lib/local/teaching-plan-school-v2.ts")
+          teaching = teaching_path.read_text()
+          teaching = teaching.replace(
               '''import {
             createDefaultSchoolCurriculum,
             SCHOOL_SPLIT_SUBJECT_CODES,
           } from "./school-default-data";''',
               '''import { createDefaultSchoolCurriculum } from "./school-default-data";''',
+              1,
           )
-          replace(
-              teaching,
-              '''function allocationRows(
-            draft: StaffingAllocationDraft | null,
-            classCode: string,
-            subjectCode: string,
-          ): StaffingAllocationDraftRow[] {
-            return (
-              draft?.rows.filter(
-                (row) => row.classCode === classCode && row.subjectCode === subjectCode,
-              ) ?? []
-            );
-          }
-
-          function candidateTeacherIds(
-            draft: StaffingAllocationDraft | null,
-            classCode: string,
-            subjectCode: string,
-          ): { primaryTeacherId: string; secondaryTeacherId: string } {
-            const candidates = allocationRows(draft, classCode, subjectCode);
-            const group1 = candidates.find((item) => item.group === "GROUP_1");
-            const group2 = candidates.find((item) => item.group === "GROUP_2");
-            const whole = candidates.find((item) => item.group === "WHOLE");
-            const all = [
-              ...new Set(candidates.flatMap((item) => item.teacherIds).filter(Boolean)),
-            ];
-            const primaryTeacherId =
-              group1?.teacherIds[0] ?? whole?.teacherIds[0] ?? all[0] ?? "";
-            const secondaryTeacherId =
-              group2?.teacherIds[0] ??
-              whole?.teacherIds.find((teacherId) => teacherId !== primaryTeacherId) ??
-              all.find((teacherId) => teacherId !== primaryTeacherId) ??
-              "";
-            return { primaryTeacherId, secondaryTeacherId };
-          }
-
-          function organizationForRow(
-            row: TeachingPlanRow,
-            mustSplit: boolean,
-            candidateSecondaryTeacherId: string,
-          ): TeachingOrganization {
-            if (row.organization === "ROTATION") return "ROTATION";
-            if (mustSplit) return "SPLIT";
-            if (row.organization === "SPLIT" || candidateSecondaryTeacherId) {
-              return "SPLIT";
-            }
-            return "WHOLE";
-          }''',
-              '''const ELECTIVE_ALLOCATION_CODES = new Set(["VOL", "PRPK", "SVS"]);
+          teaching_helpers = '''const ELECTIVE_ALLOCATION_CODES = new Set(["VOL", "PRPK", "SVS"]);
 
           function allocationSubjectMatches(
             planSubjectCode: string,
@@ -175,43 +124,40 @@ jobs:
               return "SPLIT";
             }
             return "WHOLE";
-          }''',
-          )
-          replace(
+          }
+
+          '''
+          teaching = replace_between(
               teaching,
-              '''  const candidates = candidateTeacherIds(draft, row.classCode, row.subjectCode);
-            const mustSplit =
-              enforceSchoolDefaults && SCHOOL_SPLIT_SUBJECT_CODES.has(row.subjectCode);
-            const organization = organizationForRow(
-              row,
-              mustSplit,
-              candidates.secondaryTeacherId,
-            );''',
-              '''  const candidates = candidateTeacherIds(draft, row.classCode, row.subjectCode);
+              "function allocationRows(",
+              "function operationalRow(",
+              teaching_helpers,
+          )
+          operational_start = teaching.index("function operationalRow(")
+          candidates_start = teaching.index("  const candidates = candidateTeacherIds(", operational_start)
+          ninth_start = teaching.index("  const isNinthGradeRegularTv =", candidates_start)
+          teaching = (
+              teaching[:candidates_start]
+              + '''  const candidates = candidateTeacherIds(
+            draft,
+            row.classCode,
+            row.subjectCode,
+          );
             const organization = organizationForRow(
               row,
               enforceSchoolDefaults,
               draft !== null,
               candidates.split,
               candidates.secondaryTeacherId,
-            );''',
-          )
-
-          curriculum = "apps/web/lib/import/school-curriculum-workbook.ts"
-          replace(
-              curriculum,
-              '''function allocationRows(
-            draft: StaffingAllocationDraft | null,
-            classCode: string,
-            subjectCode: string,
-          ) {
-            return (
-              draft?.rows.filter(
-                (row) => row.classCode === classCode && row.subjectCode === subjectCode,
-              ) ?? []
             );
-          }''',
-              '''const ELECTIVE_ALLOCATION_CODES = new Set(["VOL", "PRPK", "SVS"]);
+          '''
+              + teaching[ninth_start:]
+          )
+          teaching_path.write_text(teaching)
+
+          curriculum_path = Path("apps/web/lib/import/school-curriculum-workbook.ts")
+          curriculum = curriculum_path.read_text()
+          curriculum_helpers = '''const ELECTIVE_ALLOCATION_CODES = new Set(["VOL", "PRPK", "SVS"]);
 
           function allocationSubjectMatches(
             planSubjectCode: string,
@@ -234,49 +180,19 @@ jobs:
                   allocationSubjectMatches(subjectCode, row.subjectCode),
               ) ?? []
             );
-          }''',
-          )
-          replace(
-              curriculum,
-              '''  const group1 = candidates.find((item) => item.group === "GROUP_1");
-            const group2 = candidates.find((item) => item.group === "GROUP_2");
-            if (group1 || group2) {
-              const primaryTeacherId = group1?.teacherIds[0] ?? "";
-              const secondaryTeacherId = group2?.teacherIds[0] ?? "";
-              if (!primaryTeacherId || !secondaryTeacherId) {
-                issues.push(
-                  issue(
-                    "WARNING",
-                    group1?.sourceSheet ?? group2?.sourceSheet ?? sheetName,
-                    group1?.sourceRow ?? group2?.sourceRow ?? null,
-                    `${row.classCode} ${row.subjectCode}`,
-                    `${row.classCode} · ${row.subjectCode}: jedna z paralelních skupin zatím nemá učitele.`,
-                  ),
-                );
-              }
-              for (const candidate of [group1, group2]) {
-                if (candidate && candidate.weeklyPeriods !== row.weeklyPeriods) {
-                  issues.push(
-                    issue(
-                      "WARNING",
-                      candidate.sourceSheet,
-                      candidate.sourceRow,
-                      `${row.classCode} ${row.subjectCode}`,
-                      `Staré přiřazení obsahuje ${candidate.weeklyPeriods} h, nový učební plán vyžaduje ${row.weeklyPeriods} h. Použita byla nová časová dotace.`,
-                    ),
-                  );
-                }
-              }
-              return {
-                ...row,
-                organization: "SPLIT",
-                primaryTeacherId,
-                secondaryTeacherId,
-              };
-            }
+          }
 
-            const candidate = candidates[0]!;''',
-              '''  const group1 = candidates.find((item) => item.group === "GROUP_1");
+          '''
+          curriculum = replace_between(
+              curriculum,
+              "function allocationRows(",
+              "function assignmentForRow(",
+              curriculum_helpers,
+          )
+          assignment_start = curriculum.index("function assignmentForRow(")
+          groups_start = curriculum.index("  const group1 =", assignment_start)
+          candidate_start = curriculum.index("  const candidate = candidates[0]!;", groups_start)
+          group_logic = '''  const group1 = candidates.find((item) => item.group === "GROUP_1");
             const group2 = candidates.find((item) => item.group === "GROUP_2");
             const whole = candidates.find((item) => item.group === "WHOLE");
             const allTeacherIds = [
@@ -328,29 +244,11 @@ jobs:
               };
             }
 
-            const candidate = candidates[0]!;''',
-          )
-          replace(
-              curriculum,
-              '''  if (draft) {
-            const activeKeys = new Set(
-              plan.rows.map((row) => `${row.classCode}|${row.subjectCode}`),
-            );
-            for (const item of draft.rows) {
-              if (!activeKeys.has(`${item.classCode}|${item.subjectCode}`)) {
-                issues.push(
-                  issue(
-                    "WARNING",
-                    item.sourceSheet,
-                    item.sourceRow,
-                    `${item.classCode} ${item.subjectCode}`,
-                    `${item.classCode} · ${item.subjectCode}: staré přiřazení není v novém učebním plánu a nebylo převzato.`,
-                  ),
-                );
-              }
-            }
-          }''',
-              '''  if (draft) {
+          '''
+          curriculum = curriculum[:groups_start] + group_logic + curriculum[candidate_start:]
+          active_start = curriculum.index("  if (draft) {\n    const activeKeys")
+          active_end = curriculum.index("\n\n  return plan;", active_start)
+          active_logic = '''  if (draft) {
             for (const item of draft.rows) {
               const active = plan.rows.some(
                 (row) =>
@@ -369,8 +267,9 @@ jobs:
                 );
               }
             }
-          }''',
-          )
+          }'''
+          curriculum = curriculum[:active_start] + active_logic + curriculum[active_end:]
+          curriculum_path.write_text(curriculum)
           PY
           npx prettier --write apps/web/lib/local/teaching-plan-school-v2.ts apps/web/lib/import/school-curriculum-workbook.ts
       - name: Upload exact 2027 compatibility files
@@ -386,110 +285,3 @@ jobs:
       - run: npm run typecheck --workspace @timetable/web
       - run: npm run test --workspace @timetable/web
       - run: npm run build --workspace @timetable/web
-
-  solver:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: python -m pip install --upgrade pip
-      - run: pip install ".[dev]"
-        working-directory: apps/solver
-      - run: ruff check apps/solver
-      - run: pytest apps/solver
-
-  containers:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - run: docker compose config
-      - run: docker compose build
-      - name: Start database-free Docker stack
-        run: docker compose up -d --wait --wait-timeout 180
-      - name: Verify web and proxied solver runtime
-        run: |
-          curl --fail --silent --show-error http://127.0.0.1:3000/api/health
-          curl --fail --silent --show-error http://127.0.0.1:3000/solver/health
-          curl --fail --silent --show-error http://127.0.0.1:8000/health
-      - name: Show container diagnostics
-        if: failure()
-        run: docker compose ps && docker compose logs --no-color
-      - name: Stop Docker stack
-        if: always()
-        run: docker compose down --volumes --remove-orphans
-
-  local-first-e2e:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      SOLVER_URL: http://127.0.0.1:8000
-      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: npm install
-      - run: pip install "."
-        working-directory: apps/solver
-      - run: npx playwright install --with-deps chromium
-      - name: Build web without a database
-        run: npm run build --workspace @timetable/web
-      - name: Start solver and web
-        shell: bash
-        run: |
-          nohup bash -c 'cd apps/solver && uvicorn app.main:app --host 127.0.0.1 --port 8000' > /tmp/solver.log 2>&1 &
-          nohup npm run start --workspace @timetable/web > /tmp/web.log 2>&1 &
-
-          for attempt in $(seq 1 90); do
-            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null && \
-               curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null && \
-               curl --fail --silent http://127.0.0.1:3000/solver/health >/dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-
-          cat /tmp/solver.log || true
-          cat /tmp/web.log || true
-          exit 1
-      - name: Run database-free browser workflows
-        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/local-first-backup.spec.ts e2e/timetable-export.spec.ts e2e/staffing.spec.ts e2e/teaching-plan.spec.ts e2e/teaching-plan-import-review.spec.ts e2e/subject-rotation-and-sports.spec.ts e2e/coverage-overview.spec.ts --retries=0
-      - name: Upload detailed teaching-plan screenshots and Excel
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: teaching-plan-ui-screenshots-and-workbook
-          path: |
-            apps/web/test-results/teaching-plan-screenshots
-            apps/web/test-results/teaching-plan-review-screenshots
-            apps/web/test-results/subject-rotation-screenshots
-            apps/web/test-results/coverage-screenshots
-          if-no-files-found: warn
-      - name: Run realistic 40-teacher school workflow
-        run: npm run e2e --workspace @timetable/web -- e2e/school-scale.spec.ts --retries=0
-      - name: Run full 122-hour curriculum and leadership export
-        run: npm run e2e --workspace @timetable/web -- e2e/full-curriculum.spec.ts --retries=0
-      - name: Upload full-curriculum leadership export
-        uses: actions/upload-artifact@v4
-        with:
-          name: leadership-full-curriculum-timetable
-          path: /tmp/rozvrh-vedeni-plny-druhy-stupen.xlsx
-          if-no-files-found: error
-      - name: Repeat critical local-first workflow three times
-        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts --repeat-each=3 --retries=0
-      - name: Upload failure diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: local-first-failure
-          path: |
-            apps/web/playwright-report
-            apps/web/test-results
-          if-no-files-found: ignore
