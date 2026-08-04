@@ -62,7 +62,9 @@ function isObsoleteEqualProfileMessage(message: string): boolean {
 
 function isCurrentSchoolPlan(plan: TeachingPlan): boolean {
   const knownCodes = new Set<string>(CURRENT_SCHOOL_CLASS_CODES);
-  const classCodes = new Set(plan.classes.map((schoolClass) => schoolClass.code));
+  const classCodes = new Set(
+    plan.classes.map((schoolClass) => schoolClass.code),
+  );
   return (
     classCodes.size >= 10 &&
     [...classCodes].every((code) => knownCodes.has(code))
