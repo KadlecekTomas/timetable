@@ -1027,7 +1027,7 @@ async function analyzeImport(init?: RequestInit): Promise<Response> {
     (batch) =>
       batch.fileHash === fileHash &&
       batch.expectedProjectVersion === project.version &&
-      ["READY", "VALIDATION_FAILED", "APPLIED"].includes(batch.status),
+      batch.status === "READY",
   );
   if (existing) {
     return jsonResponse({
