@@ -190,6 +190,7 @@ export interface LocalProject {
   periodsPerDay: number[];
   version: number;
   updatedAt: string;
+  inputFingerprint?: string | null;
   teachers: LocalTeacher[];
   classes: LocalClass[];
   subjects: LocalSubject[];
@@ -239,6 +240,7 @@ function createDefaultProject(): LocalProject {
     periodsPerDay: [8, 8, 8, 8, 7],
     version: 1,
     updatedAt: now(),
+    inputFingerprint: null,
     teachers: [],
     classes: [],
     subjects: [],
@@ -310,6 +312,10 @@ async function writeStoredProject(project: LocalProject): Promise<void> {
 function normalizeStoredProject(project: LocalProject): LocalProject {
   return {
     ...project,
+    inputFingerprint:
+      typeof project.inputFingerprint === "string"
+        ? project.inputFingerprint
+        : null,
     classes: project.classes.map((schoolClass) => ({
       ...schoolClass,
       profile: ["REGULAR", "SPORTS", "CUSTOM"].includes(

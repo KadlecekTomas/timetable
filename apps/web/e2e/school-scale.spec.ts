@@ -616,7 +616,7 @@ test("school leadership can import 40 teachers, generate the complete second-sta
 
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Připravenost školního roku" }),
+    page.getByRole("heading", { name: "Příprava školního rozvrhu" }),
   ).toBeVisible();
 
   await page.getByRole("link", { name: "Nastavení" }).click();
@@ -627,7 +627,7 @@ test("school leadership can import 40 teachers, generate the complete second-sta
   ).toBeVisible();
 
   const workbook = await createRealisticSchoolWorkbook();
-  await page.getByRole("link", { name: "Pokročilý import" }).click();
+  await page.goto("/legacy-client-import?schoolYearId=local-school-year");
   await page.locator("#import-file").setInputFiles({
     name: "druhy-stupen-40-ucitelu.xlsx",
     mimeType:
@@ -758,7 +758,7 @@ test("school leadership can import 40 teachers, generate the complete second-sta
   }
 
   await page.getByRole("link", { name: "Přehled" }).click();
-  await expect(page.getByText("Rozvrh lze vytvořit")).toBeVisible();
+  await expect(page.getByText("Připravená data jsou zastaralá")).toBeVisible();
   await page.getByRole("link", { name: "Tvorba rozvrhu" }).click();
   await expect(
     page.getByRole("heading", { name: "Kontrola připravenosti prošla" }),

@@ -1,268 +1,126 @@
 "use client";
 
 import { Plus, RefreshCw, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
-import { localApiFetch } from "@/lib/local/api";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
-  availabilityKindLabels,
-  entityTypeLabels,
-  lessonShapeLabels,
-  teachingGroupLabels,
-} from "@/lib/ui-labels";
+  getLocalProject,
+  localApiFetch,
+  subscribeLocalProject,
+} from "@/lib/local/api";
+import {
+  preparedInputState,
+  type PreparedInputState,
+} from "@/lib/local/school-input-state";
+import {
+  loadStaffingPlan,
+  subscribeStaffingPlan,
+} from "@/lib/local/staffing-plan";
+import {
+  loadTeachingPlan,
+  subscribeTeachingPlan,
+} from "@/lib/local/teaching-plan";
 
 const sections = [
-  { id: "teachers", label: "Učitelé" },
-  { id: "classes", label: "Třídy" },
-  { id: "subjects", label: "Předměty" },
   { id: "room-types", label: "Typy učeben" },
   { id: "rooms", label: "Učebny" },
-  { id: "assignments", label: "Výukové vazby" },
-  { id: "availability", label: "Dostupnost" },
 ] as const;
-
 type SectionId = (typeof sections)[number]["id"];
 type RecordValue = Record<string, unknown>;
 
-interface SchoolYearResponse {
-  version: number;
-  label: string;
-}
-
-function textValue(record: RecordValue, key: string): string {
-  const value = record[key];
-  return typeof value === "string" ? value : "";
-}
-
-function recordTitle(section: SectionId, record: RecordValue): string {
-  if (section === "teachers") {
-    return `${textValue(record, "lastName")} ${textValue(record, "firstName")}`.trim();
-  }
-  if (section === "classes")
-    return textValue(record, "name") || textValue(record, "code");
-  if (
-    section === "subjects" ||
-    section === "rooms" ||
-    section === "room-types"
-  ) {
-    return textValue(record, "name") || textValue(record, "code");
-  }
-  if (section === "assignments") return textValue(record, "assignmentCode");
-  const entityType = textValue(record, "entityType");
-  const kind = textValue(record, "kind");
-  return `${entityTypeLabels[entityType] ?? entityType} · ${availabilityKindLabels[kind] ?? kind}`;
-}
-
-function recordMeta(section: SectionId, record: RecordValue): string {
-  if (section === "teachers") {
-    return `${textValue(record, "code")} · cílový úvazek ${String(record.targetWeeklyLoad ?? 0)} h`;
-  }
-  if (section === "classes")
-    return `${textValue(record, "code")} · ${String(record.grade ?? "–")}. ročník`;
-  if (
-    section === "subjects" ||
-    section === "rooms" ||
-    section === "room-types"
-  ) {
-    return textValue(record, "code");
-  }
-  if (section === "assignments") {
-    const teacher = record.teacher as RecordValue | undefined;
-    const schoolClass = record.schoolClass as RecordValue | undefined;
-    const subject = record.subject as RecordValue | undefined;
-    return `${textValue(schoolClass ?? {}, "code")} · ${textValue(subject ?? {}, "code")} · ${textValue(teacher ?? {}, "code")} · ${String(record.weeklyPeriods ?? 0)} h`;
-  }
-  return `den ${Number(record.dayOfWeek ?? 0) + 1}, hodina ${Number(record.period ?? 0) + 1}`;
+function text(record: RecordValue, key: string): string {
+  return typeof record[key] === "string" ? String(record[key]) : "";
 }
 
 const inputClass =
-  "h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
+  "mt-1.5 h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
 
 export default function DataPage() {
   const searchParams = useSearchParams();
-  const schoolYearId = searchParams.get("schoolYearId");
-  const initialSection = searchParams.get("section");
-  const [section, setSection] = useState<SectionId>(
-    sections.some((item) => item.id === initialSection)
-      ? (initialSection as SectionId)
-      : "teachers",
-  );
+  const schoolYearId = searchParams.get("schoolYearId") ?? "local-school-year";
+  const context = `schoolYearId=${encodeURIComponent(schoolYearId)}`;
+  const [section, setSection] = useState<SectionId>("room-types");
   const [records, setRecords] = useState<RecordValue[]>([]);
-  const [dependencies, setDependencies] = useState<
-    Record<string, RecordValue[]>
-  >({});
-  const [schoolYearVersion, setSchoolYearVersion] = useState<number | null>(
-    null,
-  );
-  const [schoolYearLabel, setSchoolYearLabel] = useState<string>("");
-  const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [roomTypes, setRoomTypes] = useState<RecordValue[]>([]);
+  const [projectVersion, setProjectVersion] = useState<number | null>(null);
+  const [prepared, setPrepared] = useState<PreparedInputState>("EMPTY");
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!schoolYearId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const resourceNames = new Set([section]);
-      if (section === "assignments") {
-        ["teachers", "classes", "subjects", "rooms", "room-types"].forEach(
-          (item) => resourceNames.add(item as SectionId),
-        );
-      }
-      if (section === "availability") {
-        ["teachers", "classes", "rooms"].forEach((item) =>
-          resourceNames.add(item as SectionId),
-        );
-      }
-      if (section === "subjects" || section === "rooms")
-        resourceNames.add("room-types");
-
-      const [yearResponse, ...resourceResponses] = await Promise.all([
-        localApiFetch(`/api/school-years/${schoolYearId}`, {
-          cache: "no-store",
-        }),
-        ...[...resourceNames].map((resource) =>
-          localApiFetch(`/api/school-years/${schoolYearId}/${resource}`, {
-            cache: "no-store",
-          }),
-        ),
-      ]);
-      if (
-        !yearResponse.ok ||
-        resourceResponses.some((response) => !response.ok)
-      ) {
-        throw new Error("Školní data se nepodařilo načíst.");
-      }
-      const year = (await yearResponse.json()) as SchoolYearResponse;
-      setSchoolYearVersion(year.version);
-      setSchoolYearLabel(year.label);
-      const loadedDependencies: Record<string, RecordValue[]> = {};
-      const names = [...resourceNames];
-      for (let index = 0; index < resourceResponses.length; index += 1) {
-        const payload = (await resourceResponses[index]!.json()) as {
-          items: RecordValue[];
-        };
-        loadedDependencies[names[index]!] = payload.items;
-      }
-      setDependencies(loadedDependencies);
-      setRecords(loadedDependencies[section] ?? []);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Načtení selhalo.");
-    } finally {
-      setLoading(false);
+    const staffing = loadStaffingPlan();
+    const teaching = loadTeachingPlan();
+    const project = await getLocalProject();
+    const state = preparedInputState(project, staffing, teaching);
+    setPrepared(state);
+    setProjectVersion(project.version);
+    if (state === "EMPTY") {
+      setRecords([]);
+      setRoomTypes([]);
+      return;
     }
+    const [recordsResponse, typesResponse] = await Promise.all([
+      localApiFetch(`/api/school-years/${schoolYearId}/${section}`, {
+        cache: "no-store",
+      }),
+      localApiFetch(`/api/school-years/${schoolYearId}/room-types`, {
+        cache: "no-store",
+      }),
+    ]);
+    if (!recordsResponse.ok || !typesResponse.ok)
+      throw new Error("Učebny se nepodařilo načíst.");
+    setRecords(
+      ((await recordsResponse.json()) as { items: RecordValue[] }).items,
+    );
+    setRoomTypes(
+      ((await typesResponse.json()) as { items: RecordValue[] }).items,
+    );
   }, [schoolYearId, section]);
 
   useEffect(() => {
-    void load();
+    void load().catch((cause) =>
+      setError(cause instanceof Error ? cause.message : "Načtení selhalo."),
+    );
+    const refresh = () => void load();
+    const unsubProject = subscribeLocalProject(refresh);
+    const unsubStaffing = subscribeStaffingPlan(refresh);
+    const unsubTeaching = subscribeTeachingPlan(refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      unsubProject();
+      unsubStaffing();
+      unsubTeaching();
+      window.removeEventListener("focus", refresh);
+    };
   }, [load]);
-
-  const entityOptions = useMemo(() => {
-    if (section !== "availability") return [];
-    return [
-      ...(dependencies.teachers ?? []).map((item) => ({
-        id: textValue(item, "id"),
-        type: "TEACHER",
-        label: `Učitel · ${textValue(item, "code")}`,
-      })),
-      ...(dependencies.classes ?? []).map((item) => ({
-        id: textValue(item, "id"),
-        type: "CLASS",
-        label: `Třída · ${textValue(item, "code")}`,
-      })),
-      ...(dependencies.rooms ?? []).map((item) => ({
-        id: textValue(item, "id"),
-        type: "ROOM",
-        label: `Učebna · ${textValue(item, "code")}`,
-      })),
-    ];
-  }, [dependencies, section]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!schoolYearId || schoolYearVersion == null) return;
-    setSubmitting(true);
-    setError(null);
-    setMessage(null);
+    if (projectVersion == null) return;
     const form = new FormData(event.currentTarget);
     const value = (key: string) => String(form.get(key) ?? "").trim();
-    const optionalNumber = (key: string) =>
-      value(key) ? Number(value(key)) : null;
-    let body: Record<string, unknown> = {
-      expectedSchoolYearVersion: schoolYearVersion,
-    };
-
-    if (section === "teachers") {
-      body = {
-        ...body,
-        code: value("code"),
-        firstName: value("firstName"),
-        lastName: value("lastName"),
-        targetWeeklyLoad: Number(value("targetWeeklyLoad")),
-        minWeeklyLoad: optionalNumber("minWeeklyLoad"),
-        maxWeeklyLoad: optionalNumber("maxWeeklyLoad"),
-      };
-    } else if (section === "classes") {
-      body = {
-        ...body,
-        code: value("code"),
-        grade: Number(value("grade")),
-        name: value("name"),
-      };
-    } else if (section === "subjects") {
-      body = {
-        ...body,
-        code: value("code"),
-        name: value("name"),
-        defaultRoomTypeId: value("defaultRoomTypeId") || null,
-      };
-    } else if (section === "room-types") {
-      body = { ...body, code: value("code"), name: value("name") };
-    } else if (section === "rooms") {
-      body = {
-        ...body,
-        code: value("code"),
-        name: value("name"),
-        capacity: optionalNumber("capacity"),
-        roomTypeId: value("roomTypeId") || null,
-      };
-    } else if (section === "assignments") {
-      body = {
-        ...body,
-        assignmentCode: value("assignmentCode"),
-        classId: value("classId"),
-        subjectId: value("subjectId"),
-        teacherId: value("teacherId"),
-        group: value("group"),
-        weeklyPeriods: Number(value("weeklyPeriods")),
-        lessonShape: value("lessonShape"),
-        doublePeriodsCount: Number(value("doublePeriodsCount") || 0),
-        requiredRoomId: value("requiredRoomId") || null,
-        maxPerDay: optionalNumber("maxPerDay"),
-        minDayGap: optionalNumber("minDayGap"),
-      };
-    } else {
-      const selected = entityOptions.find(
-        (item) => item.id === value("entityId"),
-      );
-      body = {
-        ...body,
-        entityType: selected?.type,
-        entityId: value("entityId"),
-        dayOfWeek: Number(value("dayOfWeek")),
-        period: Number(value("period")),
-        kind: value("kind"),
-        weight: optionalNumber("weight"),
-        reason: value("reason") || null,
-      };
-    }
-
+    const body =
+      section === "room-types"
+        ? {
+            expectedSchoolYearVersion: projectVersion,
+            code: value("code"),
+            name: value("name"),
+          }
+        : {
+            expectedSchoolYearVersion: projectVersion,
+            code: value("code"),
+            name: value("name"),
+            capacity: value("capacity") ? Number(value("capacity")) : null,
+            roomTypeId: value("roomTypeId") || null,
+          };
+    setBusy(true);
+    setError(null);
     try {
       const response = await localApiFetch(
         `/api/school-years/${schoolYearId}/${section}`,
@@ -273,65 +131,63 @@ export default function DataPage() {
         },
       );
       const payload = (await response.json()) as {
-        schoolYearVersion?: number;
-        error?: { message?: string; fieldErrors?: Record<string, string[]> };
+        error?: { message?: string };
       };
-      if (!response.ok) {
-        const fields = payload.error?.fieldErrors
-          ? Object.values(payload.error.fieldErrors).flat().join(" ")
-          : "";
-        throw new Error(
-          [payload.error?.message, fields].filter(Boolean).join(" "),
-        );
-      }
-      setSchoolYearVersion(payload.schoolYearVersion ?? schoolYearVersion + 1);
-      setMessage("Položka byla uložena.");
+      if (!response.ok)
+        throw new Error(payload.error?.message ?? "Položku nelze uložit.");
       event.currentTarget.reset();
+      setMessage("Položka byla uložena.");
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Uložení selhalo.");
     } finally {
-      setSubmitting(false);
+      setBusy(false);
     }
   }
 
   async function remove(record: RecordValue) {
-    if (!schoolYearId || schoolYearVersion == null) return;
-    const id = textValue(record, "id");
     if (
-      !id ||
-      !window.confirm(`Opravdu odstranit „${recordTitle(section, record)}“?`)
+      projectVersion == null ||
+      !window.confirm(
+        `Odstranit „${text(record, "name") || text(record, "code")}“?`,
+      )
     )
       return;
-    setError(null);
     const response = await localApiFetch(
-      `/api/school-years/${schoolYearId}/${section}/${id}`,
+      `/api/school-years/${schoolYearId}/${section}/${encodeURIComponent(text(record, "id"))}`,
       {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expectedSchoolYearVersion: schoolYearVersion }),
+        body: JSON.stringify({ expectedSchoolYearVersion: projectVersion }),
       },
     );
-    const payload = (await response.json()) as {
-      schoolYearVersion?: number;
-      error?: { message?: string };
-    };
     if (!response.ok) {
-      setError(payload.error?.message ?? "Odstranění selhalo.");
+      const payload = (await response.json()) as {
+        error?: { message?: string };
+      };
+      setError(payload.error?.message ?? "Položku nelze odstranit.");
       return;
     }
-    setSchoolYearVersion(payload.schoolYearVersion ?? schoolYearVersion + 1);
     setMessage("Položka byla odstraněna.");
     await load();
   }
 
-  if (!schoolYearId) {
+  if (prepared === "EMPTY") {
     return (
-      <div className="rounded-xl border border-warning-border bg-warning-subtle p-6">
-        <h1 className="text-lg font-semibold">Nejprve vyberte školní rok</h1>
-        <p className="mt-2 text-sm text-text-secondary">
-          Vraťte se na Přehled a vyberte školní rok.
-        </p>
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow="Volitelné"
+          title="Učebny a doplňková omezení"
+          description="Učebny můžete upravit až nad připraveným zadáním pro generátor."
+        />
+        <section className="rounded-xl border border-info-border bg-info-subtle p-8 text-center">
+          <h2 className="text-lg font-semibold text-text-primary">
+            Nejdřív připravte školní data pro tvorbu rozvrhu.
+          </h2>
+          <Button asChild className="mt-5">
+            <Link href={`/generate?${context}`}>Přejít na přípravu dat</Link>
+          </Button>
+        </section>
       </div>
     );
   }
@@ -339,22 +195,23 @@ export default function DataPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Fáze 3"
-        title="Školní data"
-        description="Ruční správa stabilních číselníků a vazeb. Stejná data používá načtení z Excelu, kontrola připravenosti i automatická tvorba rozvrhu."
+        eyebrow="Volitelné"
+        title="Učebny a doplňková omezení"
+        description="Tato stránka spravuje pouze učebny. Učitele, třídy, předměty a výukové vazby vlastní hlavní školní workflow."
         actions={
-          <Button
-            variant="outline"
-            onClick={() => void load()}
-            disabled={loading}
-          >
-            <RefreshCw className="size-4" aria-hidden="true" />
+          <Button variant="outline" onClick={() => void load()}>
+            <RefreshCw className="size-4" />
             Obnovit
           </Button>
         }
       />
-
-      <div className="flex flex-wrap items-center gap-2">
+      {prepared === "STALE" ? (
+        <div className="rounded-lg border border-warning-border bg-warning-subtle p-4 text-sm text-warning-strong">
+          Připravená školní data jsou zastaralá. Nová příprava zachová učebny a
+          typy učeben, ostatní vstupy znovu sjednotí s pracovním plánem.
+        </div>
+      ) : null}
+      <div className="flex gap-2">
         {sections.map((item) => (
           <button
             key={item.id}
@@ -363,17 +220,16 @@ export default function DataPage() {
             className={
               section === item.id
                 ? "rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
-                : "rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-subtle"
+                : "rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium"
             }
           >
             {item.label}
           </button>
         ))}
-        <StatusBadge tone="neutral">
-          {schoolYearLabel} · verze {schoolYearVersion ?? "–"}
+        <StatusBadge tone={prepared === "CURRENT" ? "success" : "warning"}>
+          {prepared === "CURRENT" ? "Aktuální projekt" : "Zastaralý projekt"}
         </StatusBadge>
       </div>
-
       {message ? (
         <div className="rounded-lg border border-success-border bg-success-subtle p-3 text-sm text-success-strong">
           {message}
@@ -384,33 +240,25 @@ export default function DataPage() {
           {error}
         </div>
       ) : null}
-
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(340px,1fr)]">
         <article className="overflow-hidden rounded-xl border border-border bg-surface">
-          <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <div>
-              <h2 className="font-semibold text-text-primary">
-                {sections.find((item) => item.id === section)?.label}
-              </h2>
-              <p className="mt-1 text-xs text-text-muted">
-                {records.length} záznamů
-              </p>
-            </div>
-            {loading ? <StatusBadge tone="neutral">Načítám</StatusBadge> : null}
+          <div className="border-b border-border px-5 py-4">
+            <h2 className="font-semibold">
+              {sections.find((item) => item.id === section)?.label}
+            </h2>
+            <p className="text-xs text-text-muted">{records.length} položek</p>
           </div>
           {records.length ? (
             <div className="divide-y divide-border">
               {records.map((record) => (
                 <div
-                  key={textValue(record, "id")}
-                  className="flex items-center justify-between gap-4 px-5 py-3"
+                  key={text(record, "id")}
+                  className="flex items-center justify-between px-5 py-3"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-text-primary">
-                      {recordTitle(section, record)}
-                    </p>
-                    <p className="truncate text-xs text-text-muted">
-                      {recordMeta(section, record)}
+                  <div>
+                    <p className="font-medium">{text(record, "name")}</p>
+                    <p className="text-xs text-text-muted">
+                      {text(record, "code")}
                     </p>
                   </div>
                   <Button
@@ -419,245 +267,55 @@ export default function DataPage() {
                     aria-label="Odstranit"
                     onClick={() => void remove(record)}
                   >
-                    <Trash2 className="size-4 text-danger" aria-hidden="true" />
+                    <Trash2 className="size-4 text-danger" />
                   </Button>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="p-8 text-center text-sm text-text-muted">
-              Tato oblast je zatím prázdná.
-            </div>
+            <p className="p-8 text-center text-sm text-text-muted">
+              Zatím bez položek.
+            </p>
           )}
         </article>
-
         <form
           onSubmit={submit}
           className="space-y-4 rounded-xl border border-border bg-surface p-5"
         >
-          <div>
-            <h2 className="font-semibold text-text-primary">Přidat položku</h2>
-            <p className="mt-1 text-xs text-text-muted">
-              Technický kód zůstává stabilním identifikátorem.
-            </p>
-          </div>
-          <SectionForm
-            section={section}
-            dependencies={dependencies}
-            entityOptions={entityOptions}
-          />
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={submitting || schoolYearVersion == null}
-          >
-            <Plus className="size-4" aria-hidden="true" />
-            {submitting ? "Ukládám…" : "Přidat"}
+          <h2 className="font-semibold">Přidat položku</h2>
+          <label className="block text-sm font-medium">
+            Kód
+            <input name="code" required className={inputClass} />
+          </label>
+          <label className="block text-sm font-medium">
+            Název
+            <input name="name" required className={inputClass} />
+          </label>
+          {section === "rooms" ? (
+            <>
+              <label className="block text-sm font-medium">
+                Kapacita
+                <input name="capacity" type="number" className={inputClass} />
+              </label>
+              <label className="block text-sm font-medium">
+                Typ učebny
+                <select name="roomTypeId" className={inputClass}>
+                  <option value="">Bez typu</option>
+                  {roomTypes.map((item) => (
+                    <option key={text(item, "id")} value={text(item, "id")}>
+                      {text(item, "name")}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          ) : null}
+          <Button type="submit" className="w-full" disabled={busy}>
+            <Plus className="size-4" />
+            {busy ? "Ukládám…" : "Přidat"}
           </Button>
         </form>
       </section>
     </div>
-  );
-}
-
-function SectionForm({
-  section,
-  dependencies,
-  entityOptions,
-}: {
-  section: SectionId;
-  dependencies: Record<string, RecordValue[]>;
-  entityOptions: Array<{ id: string; type: string; label: string }>;
-}) {
-  const field = (
-    name: string,
-    label: string,
-    type = "text",
-    required = true,
-  ) => (
-    <label className="block text-sm font-medium text-text-primary">
-      {label}
-      <input
-        name={name}
-        type={type}
-        required={required}
-        className={`${inputClass} mt-1.5`}
-      />
-    </label>
-  );
-  const select = (
-    name: string,
-    label: string,
-    options: Array<{ value: string; label: string }>,
-    required = true,
-  ) => (
-    <label className="block text-sm font-medium text-text-primary">
-      {label}
-      <select
-        name={name}
-        required={required}
-        className={`${inputClass} mt-1.5`}
-      >
-        <option value="">Vyberte</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-
-  if (section === "teachers") {
-    return (
-      <>
-        {field("code", "Kód")}
-        {field("firstName", "Jméno")}
-        {field("lastName", "Příjmení")}
-        {field("targetWeeklyLoad", "Cílový úvazek", "number")}
-        {field("minWeeklyLoad", "Nejnižší úvazek", "number", false)}
-        {field("maxWeeklyLoad", "Nejvyšší úvazek", "number", false)}
-      </>
-    );
-  }
-  if (section === "classes") {
-    return (
-      <>
-        {field("code", "Kód")}
-        {field("grade", "Ročník", "number")}
-        {field("name", "Název")}
-      </>
-    );
-  }
-  if (section === "subjects") {
-    return (
-      <>
-        {field("code", "Kód")}
-        {field("name", "Název")}
-        {select(
-          "defaultRoomTypeId",
-          "Výchozí typ učebny",
-          (dependencies["room-types"] ?? []).map((item) => ({
-            value: textValue(item, "id"),
-            label: textValue(item, "name"),
-          })),
-          false,
-        )}
-      </>
-    );
-  }
-  if (section === "room-types") {
-    return (
-      <>
-        {field("code", "Kód")}
-        {field("name", "Název")}
-      </>
-    );
-  }
-  if (section === "rooms") {
-    return (
-      <>
-        {field("code", "Kód")}
-        {field("name", "Název")}
-        {field("capacity", "Kapacita", "number", false)}
-        {select(
-          "roomTypeId",
-          "Typ učebny",
-          (dependencies["room-types"] ?? []).map((item) => ({
-            value: textValue(item, "id"),
-            label: textValue(item, "name"),
-          })),
-          false,
-        )}
-      </>
-    );
-  }
-  if (section === "assignments") {
-    return (
-      <>
-        {field("assignmentCode", "Kód vazby")}
-        {select(
-          "classId",
-          "Třída",
-          (dependencies.classes ?? []).map((item) => ({
-            value: textValue(item, "id"),
-            label: textValue(item, "code"),
-          })),
-        )}
-        {select(
-          "subjectId",
-          "Předmět",
-          (dependencies.subjects ?? []).map((item) => ({
-            value: textValue(item, "id"),
-            label: textValue(item, "code"),
-          })),
-        )}
-        {select(
-          "teacherId",
-          "Učitel",
-          (dependencies.teachers ?? []).map((item) => ({
-            value: textValue(item, "id"),
-            label: `${textValue(item, "code")} · ${textValue(item, "lastName")}`,
-          })),
-        )}
-        {select(
-          "group",
-          "Skupina",
-          ["WHOLE", "GROUP_1", "GROUP_2"].map((value) => ({
-            value,
-            label: teachingGroupLabels[value] ?? value,
-          })),
-        )}
-        {field("weeklyPeriods", "Hodin týdně", "number")}
-        {select(
-          "lessonShape",
-          "Tvar bloků",
-          ["SINGLE", "DOUBLE", "MIXED"].map((value) => ({
-            value,
-            label: lessonShapeLabels[value] ?? value,
-          })),
-        )}
-        {field("doublePeriodsCount", "Počet dvojhodin", "number")}
-        {select(
-          "requiredRoomId",
-          "Povinná učebna",
-          (dependencies.rooms ?? []).map((item) => ({
-            value: textValue(item, "id"),
-            label: textValue(item, "code"),
-          })),
-          false,
-        )}
-        {field("maxPerDay", "Nejvýše za den", "number", false)}
-        {field("minDayGap", "Minimální rozestup dnů", "number", false)}
-      </>
-    );
-  }
-  return (
-    <>
-      {select(
-        "entityId",
-        "Položka",
-        entityOptions.map((item) => ({ value: item.id, label: item.label })),
-      )}
-      {select(
-        "dayOfWeek",
-        "Den",
-        ["Po", "Út", "St", "Čt", "Pá"].map((label, index) => ({
-          value: String(index),
-          label,
-        })),
-      )}
-      {field("period", "Pořadí hodiny (0 = první)", "number")}
-      {select(
-        "kind",
-        "Pravidlo",
-        ["UNAVAILABLE", "PREFERRED", "DISCOURAGED"].map((value) => ({
-          value,
-          label: availabilityKindLabels[value] ?? value,
-        })),
-      )}
-      {field("weight", "Váha", "number", false)}
-      {field("reason", "Důvod", "text", false)}
-    </>
   );
 }

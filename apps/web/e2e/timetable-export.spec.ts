@@ -111,7 +111,7 @@ test("school leadership downloads a readable Excel with class and teacher sheets
   ).toBeVisible();
 
   const workbookBuffer = await createSchoolWorkbook();
-  await page.getByRole("link", { name: "Pokročilý import" }).click();
+  await page.goto("/legacy-client-import?schoolYearId=local-school-year");
   await page.locator("#import-file").setInputFiles({
     name: "export-skola.xlsx",
     mimeType:

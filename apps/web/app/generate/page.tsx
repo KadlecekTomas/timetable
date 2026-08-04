@@ -16,9 +16,23 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { ReadinessReport } from "@/lib/domain/contracts";
-import { getLocalProject, localApiFetch } from "@/lib/local/api";
-import { loadStaffingPlan } from "@/lib/local/staffing-plan";
-import { loadTeachingPlan } from "@/lib/local/teaching-plan";
+import {
+  getLocalProject,
+  localApiFetch,
+  subscribeLocalProject,
+} from "@/lib/local/api";
+import {
+  preparedInputState,
+  type PreparedInputState,
+} from "@/lib/local/school-input-state";
+import {
+  loadStaffingPlan,
+  subscribeStaffingPlan,
+} from "@/lib/local/staffing-plan";
+import {
+  loadTeachingPlan,
+  subscribeTeachingPlan,
+} from "@/lib/local/teaching-plan";
 import { generationStatusLabels } from "@/lib/ui-labels";
 
 interface RunView {
@@ -44,7 +58,7 @@ interface PreparationView {
   projectClasses: number;
   projectSubjects: number;
   projectAssignments: number;
-  stale: boolean;
+  state: PreparedInputState;
 }
 
 function runTone(
@@ -97,15 +111,23 @@ export default function GeneratePage() {
       projectClasses: project.classes.length,
       projectSubjects: project.subjects.length,
       projectAssignments: project.assignments.length,
-      stale:
-        project.teachers.length !== staffing.teachers.length ||
-        project.classes.length !== teaching.classes.length ||
-        project.assignments.length === 0,
+      state: preparedInputState(project, staffing, teaching),
     });
   }, [schoolYearId]);
 
   useEffect(() => {
     void load();
+    const unsubscribeProject = subscribeLocalProject(() => void load());
+    const unsubscribeStaffing = subscribeStaffingPlan(() => void load());
+    const unsubscribeTeaching = subscribeTeachingPlan(() => void load());
+    const onFocus = () => void load();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      unsubscribeProject();
+      unsubscribeStaffing();
+      unsubscribeTeaching();
+      window.removeEventListener("focus", onFocus);
+    };
   }, [load]);
 
   useEffect(() => {
@@ -260,7 +282,12 @@ export default function GeneratePage() {
               {preparation?.projectClasses ?? 0} tříd ·{" "}
               {preparation?.projectSubjects ?? 0} předmětů ·{" "}
               {preparation?.projectAssignments ?? 0} vazeb ·{" "}
-              {preparation?.stale ? "prázdný nebo zastaralý" : "aktuální"}.
+              {preparation?.state === "CURRENT"
+                ? "aktuální"
+                : preparation?.state === "STALE"
+                  ? "zastaralý"
+                  : "ještě nepřipravený"}
+              .
             </p>
           </div>
           <Button onClick={() => void prepare()} disabled={busy}>
@@ -272,6 +299,14 @@ export default function GeneratePage() {
             {preparationMessage}
           </p>
         ) : null}
+        <p className="mt-3 text-xs text-text-muted">
+          <Link
+            className="font-medium text-primary hover:underline"
+            href={`/data?schoolYearId=${encodeURIComponent(schoolYearId)}`}
+          >
+            Volitelně upravit učebny a omezení
+          </Link>
+        </p>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">

@@ -944,8 +944,8 @@ export default function StaffingPage() {
           je záměrně neukazujeme.
         </p>
         <Button asChild variant="ghost" className="mt-3">
-          <Link href={`/import?${context}`}>
-            Otevřít pokročilý import celé školy
+          <Link href={`/data?${context}`}>
+            Volitelně upravit učebny a omezení
             <ArrowRight className="size-4" aria-hidden="true" />
           </Link>
         </Button>

@@ -24,6 +24,7 @@ import {
   type TeachingPlan,
   type TeachingPlanRow,
 } from "./teaching-plan";
+import { schoolInputFingerprint } from "./school-input-state";
 
 const UNSCHEDULED_SUBJECT_CODES = new Set([
   ...NON_TEACHING_SUBJECT_CODES,
@@ -310,6 +311,7 @@ export function buildSchoolProjectForGeneration({
     : {
         ...structuredClone(existingProject),
         version: existingProject.version + 1,
+        inputFingerprint: schoolInputFingerprint(staffingPlan, teachingPlan),
         teachers,
         classes,
         subjects,

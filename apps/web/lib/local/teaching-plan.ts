@@ -524,3 +524,16 @@ export function saveTeachingPlan(plan: TeachingPlan): TeachingPlan {
   }
   return normalized;
 }
+
+export function subscribeTeachingPlan(listener: () => void): () => void {
+  if (typeof window === "undefined") return () => undefined;
+  const storageListener = (event: StorageEvent) => {
+    if (event.key === TEACHING_PLAN_STORAGE_KEY) listener();
+  };
+  window.addEventListener(TEACHING_PLAN_CHANGE_EVENT, listener);
+  window.addEventListener("storage", storageListener);
+  return () => {
+    window.removeEventListener(TEACHING_PLAN_CHANGE_EVENT, listener);
+    window.removeEventListener("storage", storageListener);
+  };
+}
