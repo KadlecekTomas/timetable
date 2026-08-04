@@ -1,0 +1,92 @@
+name: Patch incomplete legacy import
+
+on:
+  push:
+    branches:
+      - fix/phase4-legacy-2027-import
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/phase4-legacy-2027-import
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Make missing coverage non-blocking
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path('apps/web/lib/import/legacy-school-workbook.ts')
+          text = source.read_text()
+          old = '''      severity: "ERROR",
+                sheet: sheetName,
+                row: requirement.row,
+                column: columnLetter(requirement.teacherColumn),
+                code: "TEACHING_COVERAGE_MISSING",'''
+          new = '''      severity: "WARNING",
+                sheet: sheetName,
+                row: requirement.row,
+                column: columnLetter(requirement.teacherColumn),
+                code: "TEACHING_COVERAGE_MISSING",'''
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit('Coverage issue block was not found')
+
+          old_suggestion = '        "Doplňte učitele do sloupce Učitel/učitelka. Bez něj nelze výuku bezpečně uložit.",'
+          new_suggestion = '        "Doplňte učitele do sloupce Učitel/učitelka. Pokryté vazby lze uložit a toto místo zůstane viditelné k doplnění.",'
+          if old_suggestion in text:
+              text = text.replace(old_suggestion, new_suggestion, 1)
+          elif new_suggestion not in text:
+              raise SystemExit('Coverage suggestion was not found')
+          source.write_text(text)
+
+          test = Path('apps/web/tests/legacy-school-workbook.test.ts')
+          text = test.read_text()
+          old_status = '  assert.equal(analysis.status, "VALIDATION_FAILED");'
+          new_status = '  assert.equal(analysis.status, "READY");\n  assert.ok(analysis.payload);'
+          if old_status in text:
+              text = text.replace(old_status, new_status, 1)
+          elif new_status not in text:
+              raise SystemExit('Legacy test status assertion was not found')
+
+          marker = '''  assert.deepEqual(
+              analysis.issues
+                .filter((issue) => issue.code === "TEACHING_COVERAGE_MISSING")'''
+          replacement = '''  assert.ok(
+              analysis.issues
+                .filter((issue) => issue.code === "TEACHING_COVERAGE_MISSING")
+                .every((issue) => issue.severity === "WARNING"),
+            );
+            assert.deepEqual(
+              analysis.issues
+                .filter((issue) => issue.code === "TEACHING_COVERAGE_MISSING")'''
+          if marker in text:
+              text = text.replace(marker, replacement, 1)
+          elif replacement not in text:
+              raise SystemExit('Legacy issue assertion marker was not found')
+          test.write_text(text)
+          PY
+      - name: Format changed files
+        run: npx prettier --write apps/web/lib/import/legacy-school-workbook.ts apps/web/tests/legacy-school-workbook.test.ts
+      - name: Commit patch
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "Patch already applied"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/lib/import/legacy-school-workbook.ts apps/web/tests/legacy-school-workbook.test.ts
+          git commit -m "fix(import): allow incomplete legacy staffing preview"
+          git push origin HEAD:fix/phase4-legacy-2027-import
