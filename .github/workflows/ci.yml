@@ -15,12 +15,6 @@ jobs:
       SOLVER_URL: http://127.0.0.1:8000
     steps:
       - uses: actions/checkout@v4
-      - name: Upload source snapshot for local verification
-        uses: actions/upload-artifact@v4
-        with:
-          name: source-snapshot-real-workbook
-          path: .
-          if-no-files-found: error
       - uses: actions/setup-node@v4
         with:
           node-version: 22
