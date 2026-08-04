@@ -108,6 +108,10 @@ export interface ImportSummary {
   assignments: number;
   availabilityRules: number;
   fixedLessons: number;
+  requiredWeeklyPeriods?: number;
+  coveredWeeklyPeriods?: number;
+  uncoveredWeeklyPeriods?: number;
+  coveragePercent?: number;
   errors: number;
   warnings: number;
 }

@@ -1,4 +1,9 @@
 import * as base from "./api";
+import {
+  loadStaffingPlan,
+  teacherCodesForPlan,
+  teachingTargetWeeklyLoad,
+} from "./staffing-plan-school-v2";
 import { loadTeachingPlan, type TeachingPlanRow } from "./teaching-plan-school";
 
 export * from "./api";
@@ -150,12 +155,38 @@ async function addPreferredTeacherSlots(
   return version;
 }
 
+function adjustedTeacherRequest(
+  init: RequestInit | undefined,
+): RequestInit | undefined {
+  const body = requestBody(init);
+  const code = String(body.code ?? "");
+  if (!code) return init;
+
+  const plan = loadStaffingPlan();
+  const codes = teacherCodesForPlan(plan);
+  const teacher = plan.teachers.find((item) => codes.get(item.id) === code);
+  if (!teacher) return init;
+
+  return {
+    ...init,
+    body: JSON.stringify({
+      ...body,
+      targetWeeklyLoad: teachingTargetWeeklyLoad(teacher),
+    }),
+  };
+}
+
 export async function localApiFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
   const path = pathFor(input);
   const method = (init?.method ?? "GET").toUpperCase();
+  const teacherMatch = path.match(/^\/api\/school-years\/[^/]+\/teachers$/);
+  if (teacherMatch && method === "POST") {
+    return base.localApiFetch(input, adjustedTeacherRequest(init));
+  }
+
   const assignmentMatch = path.match(
     /^\/api\/school-years\/([^/]+)\/assignments$/,
   );

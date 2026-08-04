@@ -70,6 +70,17 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
     page.getByText("Hotovo. Uloženo 2 učitelů včetně celých nedostupných dnů."),
   ).toBeVisible();
 
+  await page.evaluate(() => {
+    localStorage.setItem(
+      "rozvrhar:teaching-plan:v1",
+      JSON.stringify({
+        version: 1,
+        updatedAt: new Date(0).toISOString(),
+        classes: [],
+        rows: [],
+      }),
+    );
+  });
   await page.goto("/teaching-plan?schoolYearId=local-school-year");
   await expect(page.getByRole("heading", { name: "Výuka tříd" })).toBeVisible();
   await screenshot(page, "01-krok-2-prazdny-plan.png");

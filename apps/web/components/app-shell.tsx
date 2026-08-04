@@ -2,6 +2,7 @@
 
 import {
   BookOpen,
+  BookOpenCheck,
   CalendarDays,
   ClipboardCheck,
   Database,
@@ -20,7 +21,8 @@ import { cn } from "@/lib/utils";
 const navigation = [
   { label: "Přehled", icon: LayoutDashboard, href: "/" },
   { label: "1. Učitelé a úvazky", icon: UsersRound, href: "/staffing" },
-  { label: "2. Výuka tříd", icon: BookOpen, href: "/teaching-plan" },
+  { label: "2. Pokrytí výuky", icon: BookOpenCheck, href: "/coverage" },
+  { label: "Podrobný editor výuky", icon: BookOpen, href: "/teaching-plan" },
   { label: "Pokročilá školní data", icon: Database, href: "/data" },
   { label: "Pokročilý import", icon: Upload, href: "/import" },
   { label: "Tvorba rozvrhu", icon: ClipboardCheck, href: "/generate" },
