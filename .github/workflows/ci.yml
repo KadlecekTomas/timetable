@@ -19,17 +19,6 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Create canonical coverage formatting
-        run: npx prettier --write apps/web/e2e/coverage-overview.spec.ts apps/web/lib/domain/coverage-overview.ts apps/web/tests/coverage-overview.test.ts
-      - name: Upload canonical coverage files
-        uses: actions/upload-artifact@v4
-        with:
-          name: canonical-coverage-files
-          path: |
-            apps/web/e2e/coverage-overview.spec.ts
-            apps/web/lib/domain/coverage-overview.ts
-            apps/web/tests/coverage-overview.test.ts
-          if-no-files-found: error
       - run: npm run format:check
       - run: npm run lint --workspace @timetable/web
       - run: npm run typecheck --workspace @timetable/web
