@@ -29,9 +29,7 @@ const staffingPlan: StaffingPlan = {
       firstName: "Eliška",
       lastName: "Šárová",
       targetWeeklyLoad: 5,
-      subjectLoads: [
-        { id: "two-cj", subjectCode: "CJ", weeklyPeriods: 5 },
-      ],
+      subjectLoads: [{ id: "two-cj", subjectCode: "CJ", weeklyPeriods: 5 }],
       unavailableDays: [],
     },
   ],
