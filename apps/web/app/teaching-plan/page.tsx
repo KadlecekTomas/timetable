@@ -22,6 +22,7 @@ import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { proposeCzechMathRotations } from "@/lib/domain/rotation-proposal";
 import {
   analyzeTeachingPlanWorkbook,
   createTeachingPlanWorkbook,
@@ -228,6 +229,10 @@ export default function TeachingPlanPage() {
       lessonBlockDurations(row).filter((duration) => duration === 2).length *
         (row.organization === "ROTATION" ? 2 : 1),
     0,
+  );
+  const rotationProposal = useMemo(
+    () => proposeCzechMathRotations(plan, staffingPlan),
+    [plan, staffingPlan],
   );
 
   function commit(next: TeachingPlan): void {
@@ -791,6 +796,71 @@ export default function TeachingPlanPage() {
             </p>
           </article>
         ))}
+      </section>
+
+      <section className="rounded-xl border border-border bg-surface p-6">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+          <div>
+            <div className="flex items-center gap-2">
+              <Repeat2 className="size-5 text-primary" aria-hidden="true" />
+              <h2 className="font-semibold text-text-primary">
+                Návrh rotací ČJ / M
+              </h2>
+            </div>
+            <p className="mt-2 text-sm text-text-secondary">
+              Nalezeno {rotationProposal.candidates.length} možných rotací ·
+              odmítnuto {rotationProposal.rejected.length} tříd · zůstane{" "}
+              {rotationProposal.residualUncoveredHours} nepokrytých hodin.
+            </p>
+            {rotationProposal.candidates.length ? (
+              <ul className="mt-3 space-y-1 text-xs text-text-muted">
+                {rotationProposal.candidates.map((candidate) => (
+                  <li key={candidate.classCode}>
+                    {candidate.classCode}: {candidate.rotationHours} h rotačně
+                    {candidate.residualHours
+                      ? `, ${candidate.residualHours} h zbytek`
+                      : ""}
+                    ; zatížení{" "}
+                    {Object.keys(candidate.teacherLoadsAfter)
+                      .map(
+                        (teacherId) =>
+                          `${teacherLabel(staffingPlan.teachers.find((teacher) => teacher.id === teacherId)!)} ${candidate.teacherLoadsBefore[teacherId]}→${candidate.teacherLoadsAfter[teacherId]} h`,
+                      )
+                      .join(", ")}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {rotationProposal.rejected.length ? (
+              <ul className="mt-3 space-y-1 text-xs text-warning-strong">
+                {rotationProposal.rejected.map((item) => (
+                  <li key={`${item.classCode}-${item.reason}`}>
+                    {item.classCode}: {item.reason}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={rotationProposal.candidates.length === 0}
+            onClick={() => {
+              if (
+                !window.confirm(
+                  `Použít ${rotationProposal.candidates.length} navržených rotací ČJ / M?`,
+                )
+              )
+                return;
+              commit(rotationProposal.plan);
+              setMessage(
+                `Použito ${rotationProposal.candidates.length} rotací ČJ / M. Zkontrolujte ${rotationProposal.residualUncoveredHours} zbytkových nepokrytých hodin.`,
+              );
+            }}
+          >
+            Navrhnout a potvrdit rotace
+          </Button>
+        </div>
       </section>
 
       <section className="rounded-xl border-2 border-dashed border-primary/40 bg-primary-subtle p-6">

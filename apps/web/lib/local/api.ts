@@ -50,7 +50,7 @@ type ResourceName =
   | "assignments"
   | "availability";
 
-interface LocalTeacher {
+export interface LocalTeacher {
   id: string;
   code: string;
   firstName: string;
@@ -60,7 +60,7 @@ interface LocalTeacher {
   maxWeeklyLoad: number | null;
 }
 
-interface LocalClass {
+export interface LocalClass {
   id: string;
   code: string;
   grade: number;
@@ -74,7 +74,7 @@ interface LocalRoomType {
   name: string;
 }
 
-interface LocalSubject {
+export interface LocalSubject {
   id: string;
   code: string;
   name: string;
@@ -90,7 +90,7 @@ interface LocalRoom {
   roomTypeId: string | null;
 }
 
-interface LocalAssignment {
+export interface LocalAssignment {
   id: string;
   assignmentCode: string;
   classId: string;
@@ -111,7 +111,7 @@ interface LocalAssignment {
   rotationPlacement: "ADJACENT" | "SAME_DAY" | "FLEXIBLE" | null;
 }
 
-interface LocalAvailability {
+export interface LocalAvailability {
   id: string;
   entityType: "TEACHER" | "CLASS" | "ROOM";
   entityId: string;
@@ -349,6 +349,16 @@ async function mutateProject<T>(
   next.updatedAt = now();
   await writeStoredProject(next);
   return result;
+}
+
+/** Replaces a complete, prevalidated project with one IndexedDB write. */
+export async function replaceLocalProjectAtomically(
+  project: LocalProject,
+): Promise<LocalProject> {
+  const next = structuredClone(project);
+  next.updatedAt = now();
+  await writeStoredProject(next);
+  return next;
 }
 
 export function subscribeLocalProject(listener: () => void): () => void {

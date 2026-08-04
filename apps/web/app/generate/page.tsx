@@ -16,7 +16,9 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { ReadinessReport } from "@/lib/domain/contracts";
-import { localApiFetch } from "@/lib/local/api";
+import { getLocalProject, localApiFetch } from "@/lib/local/api";
+import { loadStaffingPlan } from "@/lib/local/staffing-plan";
+import { loadTeachingPlan } from "@/lib/local/teaching-plan";
 import { generationStatusLabels } from "@/lib/ui-labels";
 
 interface RunView {
@@ -32,6 +34,17 @@ interface RunView {
     qualityScore: number | null;
   } | null;
   explanation?: unknown;
+}
+
+interface PreparationView {
+  staffingTeachers: number;
+  teachingClasses: number;
+  teachingRows: number;
+  projectTeachers: number;
+  projectClasses: number;
+  projectSubjects: number;
+  projectAssignments: number;
+  stale: boolean;
 }
 
 function runTone(
@@ -52,16 +65,21 @@ export default function GeneratePage() {
   const [timeLimitSeconds, setTimeLimitSeconds] = useState(180);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preparation, setPreparation] = useState<PreparationView | null>(null);
+  const [preparationMessage, setPreparationMessage] = useState<string | null>(
+    null,
+  );
 
   const load = useCallback(async () => {
     if (!schoolYearId) return;
-    const [readinessResponse, runsResponse] = await Promise.all([
+    const [readinessResponse, runsResponse, project] = await Promise.all([
       localApiFetch(`/api/school-years/${schoolYearId}/readiness`, {
         cache: "no-store",
       }),
       localApiFetch(`/api/school-years/${schoolYearId}/generation-runs`, {
         cache: "no-store",
       }),
+      getLocalProject(),
     ]);
     if (readinessResponse.ok)
       setReadiness((await readinessResponse.json()) as ReadinessReport);
@@ -69,6 +87,21 @@ export default function GeneratePage() {
       const payload = (await runsResponse.json()) as { items: RunView[] };
       setRuns(payload.items);
     }
+    const staffing = loadStaffingPlan();
+    const teaching = loadTeachingPlan();
+    setPreparation({
+      staffingTeachers: staffing.teachers.length,
+      teachingClasses: teaching.classes.length,
+      teachingRows: teaching.rows.length,
+      projectTeachers: project.teachers.length,
+      projectClasses: project.classes.length,
+      projectSubjects: project.subjects.length,
+      projectAssignments: project.assignments.length,
+      stale:
+        project.teachers.length !== staffing.teachers.length ||
+        project.classes.length !== teaching.classes.length ||
+        project.assignments.length === 0,
+    });
   }, [schoolYearId]);
 
   useEffect(() => {
@@ -117,6 +150,59 @@ export default function GeneratePage() {
     }
   }
 
+  async function prepare(forceReplaceGeneratedData = false) {
+    if (!schoolYearId) return;
+    setBusy(true);
+    setError(null);
+    setPreparationMessage(null);
+    try {
+      let response = await localApiFetch(
+        `/api/school-years/${schoolYearId}/prepare-generation`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ forceReplaceGeneratedData }),
+        },
+      );
+      let payload = (await response.json()) as {
+        teachers?: number;
+        classes?: number;
+        subjects?: number;
+        assignments?: number;
+        error?: { message?: string };
+      };
+      if (response.status === 409 && !forceReplaceGeneratedData) {
+        if (
+          !window.confirm(
+            "Příprava nových vstupních dat odstraní dosavadní návrhy rozvrhu.",
+          )
+        )
+          return;
+        response = await localApiFetch(
+          `/api/school-years/${schoolYearId}/prepare-generation`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ forceReplaceGeneratedData: true }),
+          },
+        );
+        payload = await response.json();
+      }
+      if (!response.ok)
+        throw new Error(payload.error?.message ?? "Data nelze připravit.");
+      setPreparationMessage(
+        `Připraveno: ${payload.teachers} učitelů, ${payload.classes} tříd, ${payload.subjects} předmětů a ${payload.assignments} vazeb.`,
+      );
+      await load();
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Data nelze připravit.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function cancel(runId: string) {
     const response = await localApiFetch(`/api/generation-runs/${runId}`, {
       method: "DELETE",
@@ -157,6 +243,36 @@ export default function GeneratePage() {
           {error}
         </div>
       ) : null}
+
+      <section className="rounded-xl border border-border bg-surface p-5">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div>
+            <h2 className="font-semibold text-text-primary">
+              Připravit data pro tvorbu rozvrhu
+            </h2>
+            <p className="mt-1 text-sm text-text-secondary">
+              Personální plán: {preparation?.staffingTeachers ?? 0} učitelů ·
+              učební plán: {preparation?.teachingClasses ?? 0} tříd a{" "}
+              {preparation?.teachingRows ?? 0} řádků.
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              Projekt: {preparation?.projectTeachers ?? 0} učitelů ·{" "}
+              {preparation?.projectClasses ?? 0} tříd ·{" "}
+              {preparation?.projectSubjects ?? 0} předmětů ·{" "}
+              {preparation?.projectAssignments ?? 0} vazeb ·{" "}
+              {preparation?.stale ? "prázdný nebo zastaralý" : "aktuální"}.
+            </p>
+          </div>
+          <Button onClick={() => void prepare()} disabled={busy}>
+            Připravit a zkontrolovat data
+          </Button>
+        </div>
+        {preparationMessage ? (
+          <p className="mt-4 text-sm text-success-strong">
+            {preparationMessage}
+          </p>
+        ) : null}
+      </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <article className="rounded-xl border border-border bg-surface p-5">

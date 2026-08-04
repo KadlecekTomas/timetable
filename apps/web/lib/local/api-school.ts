@@ -1,10 +1,14 @@
 import * as base from "./api";
+import { buildSchoolProjectForGeneration } from "./school-project-generation";
 import {
   loadStaffingPlan,
   teacherCodesForPlan,
   teachingTargetWeeklyLoad,
 } from "./staffing-plan-school-v2";
-import { loadTeachingPlan, type TeachingPlanRow } from "./teaching-plan-school";
+import {
+  loadTeachingPlan,
+  type TeachingPlanRow,
+} from "./teaching-plan-school-v3";
 
 export * from "./api";
 
@@ -182,6 +186,39 @@ export async function localApiFetch(
 ): Promise<Response> {
   const path = pathFor(input);
   const method = (init?.method ?? "GET").toUpperCase();
+  const prepareMatch = path.match(
+    /^\/api\/school-years\/([^/]+)\/prepare-generation$/,
+  );
+  if (prepareMatch && method === "POST") {
+    const schoolYearId = decodeURIComponent(prepareMatch[1]!);
+    if (schoolYearId !== base.LOCAL_SCHOOL_YEAR_ID) {
+      return responseWithJson(
+        { error: { message: "Školní rok neexistuje." } },
+        404,
+      );
+    }
+    const body = requestBody(init);
+    const result = buildSchoolProjectForGeneration({
+      existingProject: await base.getLocalProject(),
+      staffingPlan: loadStaffingPlan(),
+      teachingPlan: loadTeachingPlan(),
+      forceReplaceGeneratedData: body.forceReplaceGeneratedData === true,
+    });
+    if (result.blockers.length) {
+      return responseWithJson(
+        { error: { message: result.blockers[0], details: result }, ...result },
+        result.blockers.some((item) => item.includes("obsahuje návrhy"))
+          ? 409
+          : 422,
+      );
+    }
+    const project = await base.replaceLocalProjectAtomically(result.project);
+    return responseWithJson({
+      ...result.summary,
+      projectVersion: project.version,
+      warnings: result.warnings,
+    });
+  }
   const teacherMatch = path.match(/^\/api\/school-years\/[^/]+\/teachers$/);
   if (teacherMatch && method === "POST") {
     return base.localApiFetch(input, adjustedTeacherRequest(init));

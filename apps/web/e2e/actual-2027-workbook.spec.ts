@@ -308,7 +308,7 @@ async function createActualLikeWorkbook(filePath: string): Promise<void> {
   await writeFile(filePath, new Uint8Array(await workbook.xlsx.writeBuffer()));
 }
 
-test("actual 2027 staffing layout exposes every mandatory split group", async ({
+test("actual 2027 staffing layout blocks contractual overloads without crashing", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1800, height: 1200 });
@@ -329,34 +329,12 @@ test("actual 2027 staffing layout exposes every mandatory split group", async ({
     .setInputFiles(workbookPath);
 
   await expect(
-    page.getByText("Excel byl načten.", { exact: false }),
+    page.getByText("Excel obsahuje blokující chyby.", { exact: false }),
   ).toBeVisible();
+  await expect(page.getByText(/Maximum je 22 hodin/).first()).toBeVisible();
   await expect(
-    page.getByText("Chybí pokrýt 124 učitelských hodin"),
+    page.getByText("Nahrajte druhý Excel a uvidíte skutečné pokrytí"),
   ).toBeVisible();
-
-  const czech = page.getByTestId("coverage-6.A-CJ");
-  const english = page.getByTestId("coverage-6.A-JAZ1");
-  const german8B = page.getByTestId("coverage-8.B-JAZ2");
-  const german9A = page.getByTestId("coverage-9.A-JAZ2");
-  const german9B = page.getByTestId("coverage-9.B-JAZ2");
-  const elective6A = page.getByTestId("coverage-6.A-VOL");
-  const elective8A = page.getByTestId("coverage-8.A-VOL");
-
-  await expect(czech).toHaveAttribute("data-status", "PARTIAL");
-  await expect(czech).toContainText("1/2");
-  await expect(english).toHaveAttribute("data-status", "FULL");
-  await expect(english).toContainText("2/2");
-  await expect(german8B).toHaveAttribute("data-status", "PARTIAL");
-  await expect(german8B).toContainText("1/2");
-  await expect(german9A).toHaveAttribute("data-status", "PARTIAL");
-  await expect(german9A).toContainText("1/2");
-  await expect(german9B).toHaveAttribute("data-status", "FULL");
-  await expect(german9B).toContainText("2/2");
-  await expect(elective6A).toHaveAttribute("data-status", "MISSING");
-  await expect(elective6A).toContainText("0/1");
-  await expect(elective8A).toHaveAttribute("data-status", "FULL");
-  await expect(elective8A).toContainText("1/1");
 
   await mkdir(artifactDirectory, { recursive: true });
   await page.screenshot({

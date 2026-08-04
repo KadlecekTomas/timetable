@@ -150,7 +150,7 @@ test("rotation shows each subject separately and keeps shared classes readable",
         organization: "ROTATION",
         rotationPlacement: "SAME_DAY",
         primaryTeacherId: "teacher-one",
-        secondaryTeacherId: "",
+        secondaryTeacherId: "teacher-two",
       },
     ],
   };
@@ -163,7 +163,7 @@ test("rotation shows each subject separately and keeps shared classes readable",
   );
   assert.equal(
     overview.cellByKey.get(coverageCellKey("6.A", "CJ"))?.status,
-    "MISSING",
+    "FULL",
   );
   assert.equal(
     overview.cellByKey.get(coverageCellKey("6.B", "M"))?.status,
@@ -171,8 +171,59 @@ test("rotation shows each subject separately and keeps shared classes readable",
   );
   assert.equal(
     overview.cellByKey.get(coverageCellKey("6.B", "CJ"))?.status,
-    "MISSING",
+    "FULL",
+  );
+  assert.equal(
+    overview.cellByKey.get(coverageCellKey("6.A", "M"))?.assignedSlots,
+    2,
+  );
+  assert.equal(
+    overview.cellByKey.get(coverageCellKey("6.A", "M"))?.requiredSlots,
+    2,
   );
   assert.equal(overview.summary.requiredTeacherHours, 8);
-  assert.equal(overview.summary.assignedTeacherHours, 4);
+  assert.equal(overview.summary.assignedTeacherHours, 8);
+});
+
+test("unequal rotation keeps the residual subject partially covered", () => {
+  const plan: TeachingPlan = {
+    version: 1,
+    updatedAt: "test",
+    classes: [{ id: "class-6a", code: "6.A", grade: 6 }],
+    rows: [
+      {
+        id: "rotation",
+        classCode: "6.A",
+        subjectCode: "CJ",
+        secondarySubjectCode: "M",
+        weeklyPeriods: 4,
+        lessonShape: "SEPARATE",
+        doublePeriodsCount: 0,
+        organization: "ROTATION",
+        rotationPlacement: "ADJACENT",
+        primaryTeacherId: "teacher-one",
+        secondaryTeacherId: "teacher-two",
+      },
+      {
+        id: "residual",
+        classCode: "6.A",
+        subjectCode: "CJ",
+        weeklyPeriods: 1,
+        lessonShape: "SEPARATE",
+        doublePeriodsCount: 0,
+        organization: "SPLIT",
+        primaryTeacherId: "teacher-one",
+        secondaryTeacherId: "",
+      },
+    ],
+  };
+  const czech = buildCoverageOverview(plan, staffingPlan).cellByKey.get(
+    coverageCellKey("6.A", "CJ"),
+  );
+  assert.ok(czech);
+  assert.equal(czech.status, "PARTIAL");
+  assert.equal(czech.requiredClassPeriods, 5);
+  assert.equal(czech.missingTeacherHours, 1);
+  assert.ok(czech.rows.some((item) => item.roleLabel.includes("rotačně")));
+  assert.deepEqual(czech.missingRoles, ["učitel 2. skupiny"]);
 });

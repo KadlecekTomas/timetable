@@ -46,8 +46,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const cellStyles: Record<CoverageStatus, string> = {
-  FULL:
-    "border-success-border bg-success-subtle text-success-strong hover:ring-success",
+  FULL: "border-success-border bg-success-subtle text-success-strong hover:ring-success",
   PARTIAL:
     "border-warning-border bg-warning-subtle text-warning-strong hover:ring-warning",
   MISSING:
@@ -128,7 +127,7 @@ export default function CoveragePage() {
     [teachingPlan, staffingPlan],
   );
   const selectedCell = selectedKey
-    ? overview.cellByKey.get(selectedKey) ?? null
+    ? (overview.cellByKey.get(selectedKey) ?? null)
     : null;
   const hasStaffing = staffingPlan.teachers.length > 0;
   const allCovered =
@@ -170,7 +169,7 @@ export default function CoveragePage() {
       setAnalysis(result);
       if (!result.valid) {
         setError(
-          "Excel má strukturální chybu. Nic se nepřepsalo; konkrétní místa jsou vypsaná níže.",
+          "Excel obsahuje blokující chyby. Nic se nepřepsalo; konkrétní místa jsou vypsaná níže.",
         );
         return;
       }
@@ -198,9 +197,7 @@ export default function CoveragePage() {
       );
     } catch (cause) {
       setError(
-        cause instanceof Error
-          ? cause.message
-          : "Excel se nepodařilo přečíst.",
+        cause instanceof Error ? cause.message : "Excel se nepodařilo přečíst.",
       );
     } finally {
       setBusy(false);
@@ -241,8 +238,8 @@ export default function CoveragePage() {
                 </h2>
                 <p className="mt-1 max-w-2xl text-sm leading-6 text-text-secondary">
                   Nahrajte i nehotový druhý Excel. Neúplná místa import
-                  nezahodí: zobrazí je oranžově nebo červeně a přesně vypíše,
-                  co chybí.
+                  nezahodí: zobrazí je oranžově nebo červeně a přesně vypíše, co
+                  chybí.
                 </p>
                 {fileName ? (
                   <p className="mt-2 text-xs text-text-muted">
@@ -268,14 +265,18 @@ export default function CoveragePage() {
 
         <article className="rounded-2xl border border-border bg-surface p-6">
           <div className="flex items-start gap-3">
-            <BookOpenCheck className="mt-0.5 size-5 text-primary" aria-hidden="true" />
+            <BookOpenCheck
+              className="mt-0.5 size-5 text-primary"
+              aria-hidden="true"
+            />
             <div>
               <h2 className="font-semibold text-text-primary">
                 Časová dotace je připravená
               </h2>
               <p className="mt-1 text-sm leading-6 text-text-secondary">
-                {overview.classes.length} tříd · {formatHours(overview.summary.requiredClassPeriods)} hodin
-                výuky tříd týdně. Data vycházejí z dodaného prvního Excelu.
+                {overview.classes.length} tříd ·{" "}
+                {formatHours(overview.summary.requiredClassPeriods)} hodin výuky
+                tříd týdně. Data vycházejí z dodaného prvního Excelu.
               </p>
             </div>
           </div>
@@ -330,7 +331,8 @@ export default function CoveragePage() {
                     </div>
                   ))}
               </div>
-              {(errorIssues?.length ?? 0) + (warningIssues?.length ?? 0) > 20 ? (
+              {(errorIssues?.length ?? 0) + (warningIssues?.length ?? 0) >
+              20 ? (
                 <p className="mt-3 text-xs text-text-muted">
                   Další upozornění jsou dostupná v podrobném editoru.
                 </p>
@@ -433,9 +435,7 @@ export default function CoveragePage() {
           <p className="mt-2 text-3xl font-semibold text-danger-strong">
             {overview.summary.missingCells}
           </p>
-          <p className="mt-1 text-sm text-danger-strong">
-            konkrétních buněk
-          </p>
+          <p className="mt-1 text-sm text-danger-strong">konkrétních buněk</p>
         </article>
       </section>
 
@@ -636,7 +636,10 @@ export default function CoveragePage() {
                     >
                       {problem.assignedSlots}/{problem.requiredSlots}
                     </StatusBadge>
-                    <ArrowRight className="size-4 text-text-muted" aria-hidden="true" />
+                    <ArrowRight
+                      className="size-4 text-text-muted"
+                      aria-hidden="true"
+                    />
                   </span>
                 </button>
               ))}
@@ -658,7 +661,10 @@ export default function CoveragePage() {
         <section className="overflow-hidden rounded-2xl border border-border bg-surface">
           <div className="border-b border-border p-5">
             <div className="flex items-start gap-3">
-              <UsersRound className="mt-0.5 size-5 text-primary" aria-hidden="true" />
+              <UsersRound
+                className="mt-0.5 size-5 text-primary"
+                aria-hidden="true"
+              />
               <div>
                 <h2 className="font-semibold text-text-primary">
                   Jednoduchá kontrola úvazků
@@ -684,7 +690,10 @@ export default function CoveragePage() {
               </thead>
               <tbody>
                 {overview.teachers.slice(0, 20).map((teacher) => (
-                  <tr key={teacher.teacherId} className="border-t border-border">
+                  <tr
+                    key={teacher.teacherId}
+                    className="border-t border-border"
+                  >
                     <td className="px-5 py-3 font-medium text-text-primary">
                       {teacher.teacherName}
                     </td>
@@ -743,6 +752,16 @@ function CoverageCellDetail({
   onClose: () => void;
   editorHref: string;
 }) {
+  const rotationHours = Math.max(
+    0,
+    ...cell.rows
+      .filter((row) => row.roleLabel.includes("rotačně"))
+      .map((row) => row.teacherHours),
+  );
+  const residualHours =
+    cell.rows
+      .filter((row) => !row.roleLabel.includes("rotačně"))
+      .reduce((total, row) => total + row.teacherHours, 0) / 2;
   return (
     <section className="rounded-2xl border-2 border-primary bg-surface p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -764,11 +783,16 @@ function CoverageCellDetail({
             </StatusBadge>
           </div>
           <p className="mt-2 text-sm text-text-secondary">
-            Dotace {formatHours(cell.requiredClassPeriods)} h týdně · obsazeno
-            {" "}
+            Dotace {formatHours(cell.requiredClassPeriods)} h týdně · obsazeno{" "}
             {cell.assignedSlots}/{cell.requiredSlots} potřebných učitelů nebo
             skupin.
           </p>
+          {rotationHours > 0 && residualHours > 0 ? (
+            <p className="mt-2 text-sm font-medium text-warning-strong">
+              {formatHours(rotationHours)} h obě skupiny rotačně,{" "}
+              {formatHours(residualHours)} h pouze jedna skupina.
+            </p>
+          ) : null}
         </div>
         <button
           type="button"
