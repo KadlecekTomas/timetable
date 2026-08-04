@@ -1,6 +1,7 @@
 import type { StaffingPlan } from "@/lib/local/staffing-plan";
 import { loadStaffingAllocationDraft } from "@/lib/local/staffing-allocation-draft";
 import { saveSchoolCurriculum } from "@/lib/local/school-curriculum";
+import { applySchoolOperationalRules } from "@/lib/local/teaching-plan";
 import {
   analyzeTeachingPlanWorkbook as analyzeExistingSchoolWorkbook,
   createTeachingPlanWorkbook,
@@ -22,16 +23,29 @@ export async function analyzeTeachingPlanWorkbook(
   input: ArrayBuffer | Uint8Array,
   staffingPlan: StaffingPlan,
 ): Promise<TeachingPlanWorkbookAnalysis | SchoolCurriculumWorkbookAnalysis> {
+  const allocationDraft = loadStaffingAllocationDraft();
   const curriculum = await analyzeSchoolCurriculumWorkbook(
     input,
     staffingPlan,
-    loadStaffingAllocationDraft(),
+    allocationDraft,
   );
   if (curriculum) {
+    curriculum.plan = applySchoolOperationalRules(
+      curriculum.plan,
+      staffingPlan,
+      allocationDraft,
+    );
     if (curriculum.valid && curriculum.curriculum) {
       saveSchoolCurriculum(curriculum.curriculum);
     }
     return curriculum;
   }
-  return analyzeExistingSchoolWorkbook(input, staffingPlan);
+
+  const analysis = await analyzeExistingSchoolWorkbook(input, staffingPlan);
+  analysis.plan = applySchoolOperationalRules(
+    analysis.plan,
+    staffingPlan,
+    allocationDraft,
+  );
+  return analysis;
 }
