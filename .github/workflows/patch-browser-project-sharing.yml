@@ -23,6 +23,8 @@ jobs:
         run: python .github/scripts/fix-project-share-types.py
       - name: Apply UI integration
         run: python .github/scripts/apply-browser-project-sharing.py
+      - name: Fix autosave test locator
+        run: python .github/scripts/fix-staffing-autosave-test.py
       - name: Install dependencies
         run: npm install
       - name: Format changed files
@@ -72,6 +74,7 @@ jobs:
           git rm .github/workflows/patch-browser-project-sharing.yml
           git rm .github/scripts/apply-browser-project-sharing.py
           git rm .github/scripts/fix-project-share-types.py
+          git rm .github/scripts/fix-staffing-autosave-test.py
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add apps/web
