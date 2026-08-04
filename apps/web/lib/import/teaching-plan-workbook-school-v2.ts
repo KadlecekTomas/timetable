@@ -41,11 +41,5 @@ export async function analyzeTeachingPlanWorkbook(
     return curriculum;
   }
 
-  const analysis = await analyzeExistingSchoolWorkbook(input, staffingPlan);
-  analysis.plan = applySchoolOperationalRules(
-    analysis.plan,
-    staffingPlan,
-    allocationDraft,
-  );
-  return analysis;
+  return analyzeExistingSchoolWorkbook(input, staffingPlan);
 }
