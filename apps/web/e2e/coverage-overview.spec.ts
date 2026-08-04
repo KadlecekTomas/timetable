@@ -129,7 +129,9 @@ test("coverage page shows full, partial and missing teaching at a glance", async
   await expect(
     page.getByRole("heading", { name: "6.A · Informatika" }),
   ).toBeVisible();
-  await expect(page.getByText("učitel 2. skupiny")).toBeVisible();
+  await expect(
+    page.getByText("učitel 2. skupiny", { exact: true }).first(),
+  ).toBeVisible();
   await expect(page.getByText("Chybí učitel")).toBeVisible();
 
   await mkdir(artifactDirectory, { recursive: true });
