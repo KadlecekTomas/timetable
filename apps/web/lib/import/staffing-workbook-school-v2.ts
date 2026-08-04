@@ -91,10 +91,7 @@ function moveSupplementalHoursOutOfReserve(
 
     analysis.issues = analysis.issues.filter(
       (item) =>
-        !(
-          item.field === "Rezerva" &&
-          item.message.includes(teacher.lastName)
-        ),
+        !(item.field === "Rezerva" && item.message.includes(teacher.lastName)),
     );
     analysis.issues.push({
       severity: "WARNING",
@@ -129,10 +126,7 @@ function moveSupplementalHoursOutOfReserve(
   analysis.summary.assignedWeeklyLoad = analysis.plan.teachers.reduce(
     (total, teacher) =>
       total +
-      teacher.subjectLoads.reduce(
-        (sum, item) => sum + item.weeklyPeriods,
-        0,
-      ),
+      teacher.subjectLoads.reduce((sum, item) => sum + item.weeklyPeriods, 0),
     0,
   );
 
