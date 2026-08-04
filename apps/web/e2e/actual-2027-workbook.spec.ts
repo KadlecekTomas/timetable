@@ -308,7 +308,7 @@ async function createActualLikeWorkbook(filePath: string): Promise<void> {
   await writeFile(filePath, new Uint8Array(await workbook.xlsx.writeBuffer()));
 }
 
-test("actual 2027 staffing layout produces a small concrete breakdown instead of invented missing groups", async ({
+test("actual 2027 staffing layout exposes every mandatory split group", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1800, height: 1200 });
@@ -332,7 +332,7 @@ test("actual 2027 staffing layout produces a small concrete breakdown instead of
     page.getByText("Excel byl načten.", { exact: false }),
   ).toBeVisible();
   await expect(
-    page.getByText("Chybí pokrýt 8 učitelských hodin"),
+    page.getByText("Chybí pokrýt 124 učitelských hodin"),
   ).toBeVisible();
 
   const czech = page.getByTestId("coverage-6.A-CJ");
@@ -343,14 +343,14 @@ test("actual 2027 staffing layout produces a small concrete breakdown instead of
   const elective6A = page.getByTestId("coverage-6.A-VOL");
   const elective8A = page.getByTestId("coverage-8.A-VOL");
 
-  await expect(czech).toHaveAttribute("data-status", "FULL");
-  await expect(czech).toContainText("1/1");
+  await expect(czech).toHaveAttribute("data-status", "PARTIAL");
+  await expect(czech).toContainText("1/2");
   await expect(english).toHaveAttribute("data-status", "FULL");
   await expect(english).toContainText("2/2");
   await expect(german8B).toHaveAttribute("data-status", "PARTIAL");
   await expect(german8B).toContainText("1/2");
-  await expect(german9A).toHaveAttribute("data-status", "FULL");
-  await expect(german9A).toContainText("1/1");
+  await expect(german9A).toHaveAttribute("data-status", "PARTIAL");
+  await expect(german9A).toContainText("1/2");
   await expect(german9B).toHaveAttribute("data-status", "FULL");
   await expect(german9B).toContainText("2/2");
   await expect(elective6A).toHaveAttribute("data-status", "MISSING");
