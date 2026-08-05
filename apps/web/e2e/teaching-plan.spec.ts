@@ -44,12 +44,8 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
   await tomasCard.getByLabel("Příjmení").fill("Kadleček");
   await tomasCard.getByLabel("Úvazek týdně").fill("3");
   await tomasCard.locator('select[aria-label="Předmět"]').selectOption("VV");
-  await tomasCard
-    .locator('input[aria-label="Počet hodin předmětu"]')
-    .fill("2");
-  await tomasCard
-    .getByRole("button", { name: "Přidat další předmět" })
-    .click();
+  await tomasCard.locator('input[aria-label="Počet hodin předmětu"]').fill("2");
+  await tomasCard.getByRole("button", { name: "Přidat další předmět" }).click();
   await tomasCard
     .locator('select[aria-label="Předmět"]')
     .nth(1)
