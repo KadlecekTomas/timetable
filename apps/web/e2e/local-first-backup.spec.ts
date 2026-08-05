@@ -49,7 +49,7 @@ test("local settings survive reload and a corrupted backup is rejected", async (
   });
   await expect(
     page.getByText(
-      "Kontrolní součet zálohy nesouhlasí. Soubor může být poškozený.",
+      "Kontrolní součet nesouhlasí. Odkaz nebo soubor je poškozený či neúplný.",
     ),
   ).toBeVisible();
 
