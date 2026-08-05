@@ -1,3 +1,17 @@
+export type CzechCountForms = readonly [
+  one: string,
+  few: string,
+  many: string,
+];
+
+export function formatCzechCount(
+  count: number,
+  [one, few, many]: CzechCountForms,
+): string {
+  const form = count === 1 ? one : count >= 2 && count <= 4 ? few : many;
+  return `${count} ${form}`;
+}
+
 export const generationStatusLabels: Record<string, string> = {
   QUEUED: "Ve frontě",
   RUNNING: "Probíhá výpočet",
