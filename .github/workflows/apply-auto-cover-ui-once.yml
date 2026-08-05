@@ -1,0 +1,50 @@
+name: Apply auto coverage UI once
+
+on:
+  push:
+    branches:
+      - agent/auto-complete-coverage
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/auto-complete-coverage
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: python scripts/patch-auto-cover-ui.py
+      - run: npm install
+      - name: Format changed files
+        run: |
+          npx prettier --write \
+            apps/web/app/coverage/page.tsx \
+            apps/web/lib/domain/auto-cover-teaching-plan.ts \
+            apps/web/tests/auto-cover-teaching-plan.test.ts \
+            apps/web/e2e/auto-cover.spec.ts \
+            .github/workflows/ci.yml
+      - run: npm run typecheck --workspace @timetable/web
+      - run: npm run test --workspace @timetable/web
+      - name: Commit implementation and remove one-time helper
+        run: |
+          rm scripts/patch-auto-cover-ui.py
+          rm .github/workflows/apply-auto-cover-ui-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            apps/web/app/coverage/page.tsx \
+            apps/web/lib/domain/auto-cover-teaching-plan.ts \
+            apps/web/tests/auto-cover-teaching-plan.test.ts \
+            apps/web/e2e/auto-cover.spec.ts \
+            .github/workflows/ci.yml \
+            scripts/patch-auto-cover-ui.py \
+            .github/workflows/apply-auto-cover-ui-once.yml
+          git commit -m "feat: complete missing teacher coverage automatically"
+          git push origin HEAD:agent/auto-complete-coverage
