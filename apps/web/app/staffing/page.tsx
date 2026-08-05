@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,11 @@ import {
 const inputClass =
   "h-11 w-full rounded-lg border border-border-strong bg-surface px-3 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
 
+const unsavedNavigationMessage =
+  "Máte neuložené změny u učitelů. Opravdu chcete stránku opustit?";
+
+type TeacherFilter = "ALL" | "PROBLEMS" | "UNSAVED";
+
 interface ResourceResponse {
   items: Array<Record<string, unknown>>;
 }
@@ -66,15 +71,19 @@ function nextVersion(
   return payload.schoolYearVersion ?? fallback + 1;
 }
 
-function formatSavedTime(value: string | null): string {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("cs-CZ", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).format(date);
+function teacherFingerprint(teacher: StaffingTeacher): string {
+  return JSON.stringify({
+    firstName: teacher.firstName,
+    lastName: teacher.lastName,
+    targetWeeklyLoad: teacher.targetWeeklyLoad,
+    subjectLoads: teacher.subjectLoads,
+    unavailableDays: teacher.unavailableDays,
+  });
+}
+
+function teacherLabel(teacher: StaffingTeacher, fallbackIndex: number): string {
+  const name = `${teacher.firstName} ${teacher.lastName}`.trim();
+  return name || `Nový učitel ${fallbackIndex + 1}`;
 }
 
 export default function StaffingPage() {
@@ -83,6 +92,11 @@ export default function StaffingPage() {
   const context = `schoolYearId=${encodeURIComponent(schoolYearId)}`;
 
   const [plan, setPlan] = useState<StaffingPlan>(() => ({
+    version: 1,
+    updatedAt: new Date(0).toISOString(),
+    teachers: [],
+  }));
+  const [savedPlan, setSavedPlan] = useState<StaffingPlan>(() => ({
     version: 1,
     updatedAt: new Date(0).toISOString(),
     teachers: [],
@@ -96,12 +110,13 @@ export default function StaffingPage() {
   const [syncProgress, setSyncProgress] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [filter, setFilter] = useState<TeacherFilter>("ALL");
+  const allowNavigationRef = useRef(false);
 
   useEffect(() => {
     const stored = loadStaffingPlan();
     setPlan(stored);
-    setLastSavedAt(stored.updatedAt);
+    setSavedPlan(stored);
     setLoaded(true);
   }, []);
 
@@ -115,6 +130,103 @@ export default function StaffingPage() {
       ),
     [plan.teachers],
   );
+
+  const duplicateTeacherIds = useMemo(() => {
+    const idsByName = new Map<string, string[]>();
+    for (const teacher of plan.teachers) {
+      const key =
+        `${teacher.lastName.trim()}|${teacher.firstName.trim()}`.toLocaleLowerCase(
+          "cs-CZ",
+        );
+      if (key === "|") continue;
+      idsByName.set(key, [...(idsByName.get(key) ?? []), teacher.id]);
+    }
+    return new Set(
+      [...idsByName.values()]
+        .filter((ids) => ids.length > 1)
+        .flatMap((ids) => ids),
+    );
+  }, [plan.teachers]);
+
+  const problemTeacherIds = useMemo(
+    () =>
+      new Set(
+        plan.teachers
+          .filter(
+            (teacher) =>
+              !validations.get(teacher.id)?.valid ||
+              duplicateTeacherIds.has(teacher.id),
+          )
+          .map((teacher) => teacher.id),
+      ),
+    [duplicateTeacherIds, plan.teachers, validations],
+  );
+
+  const dirtyTeacherIds = useMemo(() => {
+    const savedById = new Map(
+      savedPlan.teachers.map((teacher) => [teacher.id, teacher]),
+    );
+    return new Set(
+      plan.teachers
+        .filter((teacher) => {
+          const saved = savedById.get(teacher.id);
+          return (
+            !saved || teacherFingerprint(saved) !== teacherFingerprint(teacher)
+          );
+        })
+        .map((teacher) => teacher.id),
+    );
+  }, [plan.teachers, savedPlan.teachers]);
+
+  const hasUnsavedChanges = dirtyTeacherIds.size > 0;
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedChanges || allowNavigationRef.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    const handleDocumentClick = (event: MouseEvent) => {
+      if (!hasUnsavedChanges || event.defaultPrevented || event.button !== 0) {
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const anchor = target.closest("a[href]");
+      if (!(anchor instanceof HTMLAnchorElement)) return;
+      if (anchor.target === "_blank" || anchor.hasAttribute("download")) return;
+      const destination = new URL(anchor.href, window.location.href);
+      if (
+        destination.href === window.location.href ||
+        (destination.pathname === window.location.pathname &&
+          destination.search === window.location.search &&
+          destination.hash !== window.location.hash)
+      ) {
+        return;
+      }
+      if (!window.confirm(unsavedNavigationMessage)) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      allowNavigationRef.current = true;
+      window.setTimeout(() => {
+        allowNavigationRef.current = false;
+      }, 0);
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("click", handleDocumentClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("click", handleDocumentClick, true);
+    };
+  }, [hasUnsavedChanges]);
+
   const planMessages = useMemo(() => validateStaffingPlan(plan), [plan]);
   const allValid = plan.teachers.length > 0 && planMessages.length === 0;
   const totalTarget = plan.teachers.reduce(
@@ -130,42 +242,83 @@ export default function StaffingPage() {
     0,
   );
 
-  function commit(next: StaffingPlan): void {
-    try {
-      const saved = saveStaffingPlan(next);
-      setPlan(saved);
-      setLastSavedAt(saved.updatedAt);
-      setMessage(null);
-      setError((current) =>
-        current?.startsWith("Automatické ukládání") ? null : current,
-      );
-    } catch (cause) {
-      setPlan(next);
-      setError(
-        cause instanceof Error
-          ? `Automatické ukládání selhalo: ${cause.message}`
-          : "Automatické ukládání selhalo. Změny zůstaly otevřené na stránce.",
-      );
+  const visibleTeachers = useMemo(() => {
+    const ordered = plan.teachers
+      .map((teacher, originalIndex) => ({ teacher, originalIndex }))
+      .sort((left, right) => {
+        const problemDifference =
+          Number(problemTeacherIds.has(right.teacher.id)) -
+          Number(problemTeacherIds.has(left.teacher.id));
+        if (problemDifference !== 0) return problemDifference;
+        const dirtyDifference =
+          Number(dirtyTeacherIds.has(right.teacher.id)) -
+          Number(dirtyTeacherIds.has(left.teacher.id));
+        return dirtyDifference || left.originalIndex - right.originalIndex;
+      });
+
+    if (filter === "PROBLEMS") {
+      return ordered.filter(({ teacher }) => problemTeacherIds.has(teacher.id));
     }
-  }
+    if (filter === "UNSAVED") {
+      return ordered.filter(({ teacher }) => dirtyTeacherIds.has(teacher.id));
+    }
+    return ordered;
+  }, [dirtyTeacherIds, filter, plan.teachers, problemTeacherIds]);
 
   function updateTeacher(
     teacherId: string,
     update: (teacher: StaffingTeacher) => StaffingTeacher,
   ): void {
-    commit({
-      ...plan,
-      teachers: plan.teachers.map((teacher) =>
+    setPlan((currentPlan) => ({
+      ...currentPlan,
+      teachers: currentPlan.teachers.map((teacher) =>
         teacher.id === teacherId ? update(teacher) : teacher,
       ),
-    });
+    }));
+    setMessage((current) => (current?.startsWith("Uloženo:") ? null : current));
   }
 
   function addTeacher(): void {
-    commit({
-      ...plan,
-      teachers: [...plan.teachers, createEmptyStaffingTeacher()],
-    });
+    setPlan((currentPlan) => ({
+      ...currentPlan,
+      teachers: [...currentPlan.teachers, createEmptyStaffingTeacher()],
+    }));
+    setFilter("ALL");
+  }
+
+  function saveTeacher(teacherId: string): void {
+    const teacher = plan.teachers.find((item) => item.id === teacherId);
+    if (!teacher) return;
+
+    try {
+      const savedById = new Map(
+        savedPlan.teachers.map((item) => [item.id, item]),
+      );
+      const nextSavedTeachers = plan.teachers
+        .filter((item) => item.id === teacherId || savedById.has(item.id))
+        .map((item) =>
+          item.id === teacherId ? teacher : savedById.get(item.id)!,
+        );
+      const saved = saveStaffingPlan({
+        ...savedPlan,
+        teachers: nextSavedTeachers,
+      });
+      setSavedPlan(saved);
+      setPlan((currentPlan) => ({
+        ...currentPlan,
+        updatedAt: saved.updatedAt,
+      }));
+      setError(null);
+      setMessage(
+        `Uloženo: ${teacherLabel(teacher, plan.teachers.indexOf(teacher))}.`,
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? `Uložení karty selhalo: ${cause.message}`
+          : "Uložení karty selhalo. Změny zůstaly otevřené na stránce.",
+      );
+    }
   }
 
   function removeTeacher(teacher: StaffingTeacher): void {
@@ -176,10 +329,30 @@ export default function StaffingPage() {
     ) {
       return;
     }
-    commit({
-      ...plan,
-      teachers: plan.teachers.filter((item) => item.id !== teacher.id),
-    });
+
+    try {
+      const wasSaved = savedPlan.teachers.some(
+        (item) => item.id === teacher.id,
+      );
+      if (wasSaved) {
+        const saved = saveStaffingPlan({
+          ...savedPlan,
+          teachers: savedPlan.teachers.filter((item) => item.id !== teacher.id),
+        });
+        setSavedPlan(saved);
+      }
+      setPlan((currentPlan) => ({
+        ...currentPlan,
+        teachers: currentPlan.teachers.filter((item) => item.id !== teacher.id),
+      }));
+      setMessage(null);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? `Odstranění učitele selhalo: ${cause.message}`
+          : "Odstranění učitele selhalo.",
+      );
+    }
   }
 
   async function downloadTemplate(): Promise<void> {
@@ -225,14 +398,15 @@ export default function StaffingPage() {
       if (
         plan.teachers.length > 0 &&
         !window.confirm(
-          "Nahradit aktuálně rozepsané učitele obsahem tohoto Excelu?",
+          "Nahradit aktuálně rozepsané učitele obsahem tohoto Excelu? Neuložené změny se zahodí.",
         )
       ) {
         return;
       }
-      commit(result.plan);
+      setPlan(result.plan);
+      setFilter("ALL");
       setMessage(
-        `Načteno ${result.summary.teachers} učitelů. Zkontrolujte karty; všechny změny se ukládají automaticky.`,
+        `Načteno ${result.summary.teachers} učitelů. Problémové karty jsou nahoře; každou změněnou kartu uložte jejím tlačítkem Uložit.`,
       );
     } catch (cause) {
       setError(
@@ -258,6 +432,10 @@ export default function StaffingPage() {
   }
 
   async function syncToProject(): Promise<void> {
+    if (hasUnsavedChanges) {
+      setError("Nejdřív uložte všechny změněné karty učitelů.");
+      return;
+    }
     const validationMessages = validateStaffingPlan(plan);
     if (validationMessages.length > 0) {
       setError(validationMessages[0]!);
@@ -425,7 +603,7 @@ export default function StaffingPage() {
       <PageHeader
         eyebrow="Krok 1"
         title="Učitelé a úvazky"
-        description="Nejdřív zapište pouze lidi, jejich celkový úvazek, rozdělení hodin mezi předměty a celé dny, kdy nemohou učit. Nic dalšího teď řešit nemusíte."
+        description="Nejdřív zapište pouze lidi, jejich celkový úvazek, rozdělení hodin mezi předměty a celé dny, kdy nemohou učit. Každou kartu uložte samostatně."
         actions={
           <Button
             type="button"
@@ -440,26 +618,35 @@ export default function StaffingPage() {
       />
 
       <section
-        data-testid="staffing-autosave-status"
+        data-testid="staffing-manual-save-status"
         aria-live="polite"
-        className="flex items-start gap-3 rounded-xl border border-success-border bg-success-subtle p-4"
+        className={
+          hasUnsavedChanges
+            ? "flex items-start gap-3 rounded-xl border border-warning-border bg-warning-subtle p-4"
+            : "flex items-start gap-3 rounded-xl border border-success-border bg-success-subtle p-4"
+        }
       >
-        <CheckCircle2
-          className="mt-0.5 size-5 shrink-0 text-success"
-          aria-hidden="true"
-        />
+        {hasUnsavedChanges ? (
+          <AlertTriangle
+            className="mt-0.5 size-5 shrink-0 text-warning"
+            aria-hidden="true"
+          />
+        ) : (
+          <CheckCircle2
+            className="mt-0.5 size-5 shrink-0 text-success"
+            aria-hidden="true"
+          />
+        )}
         <div>
           <h2 className="font-semibold text-text-primary">
-            Automaticky uloženo v tomto prohlížeči
+            {hasUnsavedChanges
+              ? `${dirtyTeacherIds.size} ${dirtyTeacherIds.size === 1 ? "neuložená karta" : "neuložené karty"}`
+              : "Všechny změny jsou uložené v tomto prohlížeči"}
           </h2>
           <p className="mt-1 text-sm leading-6 text-text-secondary">
-            Každá úprava se uloží okamžitě. Rozpracované, neúplné i přetížené
-            úvazky zůstanou zachované a můžete je opravit později. Není potřeba
-            hledat potvrzovací tlačítko
-            {formatSavedTime(lastSavedAt)
-              ? ` · poslední změna ${formatSavedTime(lastSavedAt)}`
-              : ""}
-            .
+            {hasUnsavedChanges
+              ? "U každé změněné karty klikněte na Uložit. Při odchodu ze stránky vás aplikace upozorní."
+              : "Další úpravy se samy neuloží. Po změně použijte tlačítko Uložit přímo u učitele."}
           </p>
         </div>
       </section>
@@ -474,8 +661,8 @@ export default function StaffingPage() {
           ],
           [
             "3",
-            "Označte celé dny",
-            "Ano znamená, že učitel ten den vůbec nepřijde.",
+            "Uložte každou kartu",
+            "Neuložené změny jsou označené přímo u učitele.",
           ],
         ].map(([number, title, description]) => (
           <article
@@ -503,8 +690,8 @@ export default function StaffingPage() {
             Nahrajte vyplněný Excel
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-text-secondary">
-            Soubor se nejprve pouze zkontroluje. Každého učitele potom uvidíte
-            jako přehlednou kartu a můžete údaje ručně opravit.
+            Soubor se nejprve zkontroluje. Problémové karty budou v seznamu
+            automaticky nahoře a všechny změny uložíte ručně.
           </p>
           <label className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
             <Upload className="size-4" aria-hidden="true" />
@@ -535,8 +722,8 @@ export default function StaffingPage() {
                 Excel potřebuje opravit
               </h2>
               <p className="mt-1 text-sm text-text-secondary">
-                Nic se neuložilo. Opravte označené řádky a soubor nahrajte
-                znovu.
+                Soubor neobsahuje použitelný pracovní koncept. Opravte označené
+                řádky a nahrajte ho znovu.
               </p>
               <ul className="mt-3 space-y-1 text-sm text-danger-strong">
                 {analysis.issues.slice(0, 10).map((issue, index) => (
@@ -584,20 +771,43 @@ export default function StaffingPage() {
       </section>
 
       <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-text-primary">
               Seznam učitelů
             </h2>
             <p className="mt-1 text-sm text-text-secondary">
-              Každá změna se automaticky uloží jako místní koncept. I nehotová
-              karta zůstane po obnovení stránky zachovaná.
+              Karty s chybou jsou vždy první. Pomocí filtrů můžete zobrazit jen
+              problémy nebo jen neuložené změny.
             </p>
           </div>
-          <Button type="button" variant="outline" onClick={addTeacher}>
-            <Plus className="size-4" aria-hidden="true" />
-            Přidat učitele ručně
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              className="flex flex-wrap gap-2"
+              role="group"
+              aria-label="Filtrovat učitele"
+            >
+              {[
+                ["ALL", `Všichni (${plan.teachers.length})`],
+                ["PROBLEMS", `K opravě (${problemTeacherIds.size})`],
+                ["UNSAVED", `Neuložené (${dirtyTeacherIds.size})`],
+              ].map(([value, label]) => (
+                <Button
+                  key={value}
+                  type="button"
+                  variant={filter === value ? "default" : "outline"}
+                  onClick={() => setFilter(value as TeacherFilter)}
+                  aria-pressed={filter === value}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+            <Button type="button" variant="outline" onClick={addTeacher}>
+              <Plus className="size-4" aria-hidden="true" />
+              Přidat učitele ručně
+            </Button>
+          </div>
         </div>
 
         {plan.teachers.length === 0 ? (
@@ -615,8 +825,32 @@ export default function StaffingPage() {
           </article>
         ) : null}
 
-        {plan.teachers.map((teacher, teacherIndex) => {
+        {plan.teachers.length > 0 && visibleTeachers.length === 0 ? (
+          <article className="rounded-xl border border-border bg-surface p-8 text-center">
+            <CheckCircle2
+              className="mx-auto size-9 text-success"
+              aria-hidden="true"
+            />
+            <h3 className="mt-3 font-semibold text-text-primary">
+              Tento filtr nemá žádné výsledky
+            </h3>
+            <p className="mt-1 text-sm text-text-secondary">
+              Zvolte jiný filtr nebo přidejte nového učitele.
+            </p>
+          </article>
+        ) : null}
+
+        {visibleTeachers.map(({ teacher, originalIndex }) => {
           const validation = validations.get(teacher.id)!;
+          const duplicate = duplicateTeacherIds.has(teacher.id);
+          const hasProblem = problemTeacherIds.has(teacher.id);
+          const dirty = dirtyTeacherIds.has(teacher.id);
+          const cardMessages = duplicate
+            ? [
+                ...validation.messages,
+                "Učitel se stejným jménem je uveden vícekrát.",
+              ]
+            : validation.messages;
           const percentage =
             teacher.targetWeeklyLoad > 0
               ? Math.min(
@@ -629,37 +863,54 @@ export default function StaffingPage() {
               : validation.assignedWeeklyLoad === 0
                 ? 100
                 : 0;
+          const label = teacherLabel(teacher, originalIndex);
           return (
             <article
               key={teacher.id}
-              className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm"
+              data-testid={`teacher-card-${teacher.id}`}
+              className={
+                hasProblem
+                  ? "overflow-hidden rounded-2xl border border-danger-border bg-surface shadow-sm"
+                  : "overflow-hidden rounded-2xl border border-border bg-surface shadow-sm"
+              }
             >
               <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border bg-surface-subtle px-5 py-4">
                 <div className="flex items-center gap-3">
                   <div className="flex size-10 items-center justify-center rounded-full bg-primary-subtle font-semibold text-primary">
-                    {teacherIndex + 1}
+                    {originalIndex + 1}
                   </div>
                   <div>
-                    <h3 className="font-semibold text-text-primary">
-                      {teacher.firstName || teacher.lastName
-                        ? `${teacher.firstName} ${teacher.lastName}`.trim()
-                        : `Nový učitel ${teacherIndex + 1}`}
-                    </h3>
+                    <h3 className="font-semibold text-text-primary">{label}</h3>
                     <p className="text-xs text-text-muted">
                       {validation.assignedWeeklyLoad} z{" "}
                       {teacher.targetWeeklyLoad} hodin
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <StatusBadge tone={validation.valid ? "success" : "danger"}>
-                    {validation.valid ? "Úvazek sedí" : "Je potřeba opravit"}
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <StatusBadge tone={hasProblem ? "danger" : "success"}>
+                    {hasProblem ? "Je potřeba opravit" : "Úvazek sedí"}
                   </StatusBadge>
+                  {dirty ? (
+                    <StatusBadge tone="warning">Neuloženo</StatusBadge>
+                  ) : (
+                    <StatusBadge tone="neutral">Uloženo</StatusBadge>
+                  )}
+                  <Button
+                    type="button"
+                    variant={dirty ? "default" : "outline"}
+                    onClick={() => saveTeacher(teacher.id)}
+                    disabled={!dirty}
+                    aria-label={`Uložit ${label}`}
+                  >
+                    <Save className="size-4" aria-hidden="true" />
+                    {dirty ? "Uložit" : "Uloženo"}
+                  </Button>
                   <button
                     type="button"
                     onClick={() => removeTeacher(teacher)}
                     className="rounded-md p-2 text-text-muted hover:bg-danger-subtle hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                    aria-label={`Odstranit ${teacher.firstName} ${teacher.lastName}`}
+                    aria-label={`Odstranit ${label}`}
                   >
                     <Trash2 className="size-4" aria-hidden="true" />
                   </button>
@@ -897,7 +1148,7 @@ export default function StaffingPage() {
                   </div>
                 </div>
 
-                {!validation.valid ? (
+                {hasProblem ? (
                   <div className="rounded-xl border border-danger-border bg-danger-subtle p-4">
                     <div className="flex items-start gap-3">
                       <AlertTriangle
@@ -909,7 +1160,7 @@ export default function StaffingPage() {
                           Tato karta ještě není hotová
                         </p>
                         <ul className="mt-2 space-y-1 text-sm text-danger-strong">
-                          {validation.messages.map((item) => (
+                          {cardMessages.map((item) => (
                             <li key={item}>{item}</li>
                           ))}
                         </ul>
@@ -933,14 +1184,14 @@ export default function StaffingPage() {
       {plan.teachers.length > 0 ? (
         <section
           className={
-            allValid
+            allValid && !hasUnsavedChanges
               ? "rounded-2xl border border-success-border bg-success-subtle p-6"
               : "rounded-2xl border border-warning-border bg-warning-subtle p-6"
           }
         >
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-3">
-              {allValid ? (
+              {allValid && !hasUnsavedChanges ? (
                 <CheckCircle2
                   className="mt-0.5 size-6 text-success"
                   aria-hidden="true"
@@ -953,15 +1204,19 @@ export default function StaffingPage() {
               )}
               <div>
                 <h2 className="text-lg font-semibold text-text-primary">
-                  {allValid
-                    ? "Všichni učitelé jsou připraveni"
-                    : "Ještě je potřeba něco doplnit"}
+                  {hasUnsavedChanges
+                    ? "Nejdřív uložte změněné karty"
+                    : allValid
+                      ? "Všichni učitelé jsou připraveni"
+                      : "Ještě je potřeba něco doplnit"}
                 </h2>
                 <p className="mt-1 text-sm text-text-secondary">
-                  {allValid
-                    ? `${plan.teachers.length} učitelů · ${totalTarget} hodin · úvazky přesně sedí.`
-                    : (planMessages[0] ??
-                      "Zkontrolujte červeně označené karty.")}
+                  {hasUnsavedChanges
+                    ? `${dirtyTeacherIds.size} karet čeká na ruční uložení.`
+                    : allValid
+                      ? `${plan.teachers.length} učitelů · ${totalTarget} hodin · úvazky přesně sedí.`
+                      : (planMessages[0] ??
+                        "Zkontrolujte červeně označené karty.")}
                 </p>
               </div>
             </div>
@@ -969,7 +1224,7 @@ export default function StaffingPage() {
               <Button
                 type="button"
                 onClick={() => void syncToProject()}
-                disabled={!allValid || busy}
+                disabled={!allValid || hasUnsavedChanges || busy}
               >
                 <Save className="size-4" aria-hidden="true" />
                 {syncProgress || "Uložit učitele do projektu"}

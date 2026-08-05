@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("beginner staffing flow records exact subject load and a whole unavailable day", async ({
+test("beginner staffing flow saves the teacher card before project sync", async ({
   page,
 }) => {
   const pageErrors: string[] = [];
@@ -54,6 +54,25 @@ test("beginner staffing flow records exact subject load and a whole unavailable 
   await expect(page.getByRole("button", { name: "Po nemůže" })).toHaveAttribute(
     "aria-pressed",
     "true",
+  );
+
+  await expect(page.getByTestId("staffing-manual-save-status")).toContainText(
+    "1 neuložená karta",
+  );
+  await expect(
+    page.getByRole("button", { name: "Uložit učitele do projektu" }),
+  ).toBeDisabled();
+
+  const beforeSave = await page.evaluate(() =>
+    JSON.parse(
+      localStorage.getItem("rozvrhar:staffing-plan:v1") ?? '{"teachers":[]}',
+    ),
+  );
+  expect(beforeSave.teachers).toHaveLength(0);
+
+  await page.getByRole("button", { name: "Uložit Jana Nováková" }).click();
+  await expect(page.getByTestId("staffing-manual-save-status")).toContainText(
+    "Všechny změny jsou uložené",
   );
 
   await page
@@ -149,7 +168,7 @@ test("beginner staffing flow records exact subject load and a whole unavailable 
   expect(serverErrors).toEqual([]);
 });
 
-test("invalid staffing draft is automatically saved without confirmation", async ({
+test("invalid teacher is saved only after its card button is pressed", async ({
   page,
 }) => {
   await page.goto("/staffing?schoolYearId=local-school-year");
@@ -160,14 +179,24 @@ test("invalid staffing draft is automatically saved without confirmation", async
   await page.locator('select[aria-label="Předmět"]').selectOption("M");
   await page.locator('input[aria-label="Počet hodin předmětu"]').fill("22");
 
-  await expect(page.getByTestId("staffing-autosave-status")).toContainText(
-    "Automaticky uloženo",
+  await expect(page.getByTestId("staffing-manual-save-status")).toContainText(
+    "1 neuložená karta",
   );
   await expect(
     page.getByText("Úvazek musí být celé číslo od 0 do 22 hodin.", {
       exact: true,
     }),
   ).toBeVisible();
+
+  const beforeSave = await page.evaluate(() =>
+    localStorage.getItem("rozvrhar:staffing-plan:v1"),
+  );
+  expect(beforeSave).toBeNull();
+
+  await page.getByRole("button", { name: "Uložit Testovací Učitelka" }).click();
+  await expect(page.getByTestId("staffing-manual-save-status")).toContainText(
+    "Všechny změny jsou uložené",
+  );
 
   await page.reload();
   await expect(page.getByLabel("Jméno")).toHaveValue("Testovací");
@@ -176,4 +205,73 @@ test("invalid staffing draft is automatically saved without confirmation", async
   await expect(
     page.locator('input[aria-label="Počet hodin předmětu"]'),
   ).toHaveValue("22");
+});
+
+test("problem cards are first and unsaved navigation requires confirmation", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.setItem(
+      "rozvrhar:staffing-plan:v1",
+      JSON.stringify({
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        teachers: [
+          {
+            id: "teacher-valid",
+            firstName: "Adam",
+            lastName: "Bezchybný",
+            targetWeeklyLoad: 1,
+            subjectLoads: [
+              {
+                id: "load-valid",
+                subjectCode: "M",
+                weeklyPeriods: 1,
+              },
+            ],
+            unavailableDays: [],
+          },
+          {
+            id: "teacher-invalid",
+            firstName: "Boris",
+            lastName: "Problémový",
+            targetWeeklyLoad: 22,
+            subjectLoads: [
+              {
+                id: "load-invalid",
+                subjectCode: "M",
+                weeklyPeriods: 19,
+              },
+            ],
+            unavailableDays: [],
+          },
+        ],
+      }),
+    );
+  });
+  await page.goto("/staffing?schoolYearId=local-school-year");
+
+  const cards = page.locator('[data-testid^="teacher-card-"]');
+  await expect(cards).toHaveCount(2);
+  await expect(cards.nth(0)).toContainText("Boris Problémový");
+  await expect(cards.nth(1)).toContainText("Adam Bezchybný");
+
+  await page.getByRole("button", { name: "K opravě (1)" }).click();
+  await expect(cards).toHaveCount(1);
+  await expect(cards.nth(0)).toContainText("Boris Problémový");
+
+  await page.getByLabel("Jméno").fill("Boris změněný");
+  await expect(
+    page.getByRole("button", { name: "Neuložené (1)" }),
+  ).toBeVisible();
+
+  let dialogMessage = "";
+  page.once("dialog", async (dialog) => {
+    dialogMessage = dialog.message();
+    await dialog.dismiss();
+  });
+  await page.getByRole("link", { name: "2. Pokrytí výuky" }).click();
+  expect(dialogMessage).toContain("Máte neuložené změny");
+  await expect(page).toHaveURL(/\/staffing/);
 });

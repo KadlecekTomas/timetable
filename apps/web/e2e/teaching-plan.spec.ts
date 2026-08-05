@@ -34,34 +34,51 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
 
   await page.goto("/staffing?schoolYearId=local-school-year");
   await page.getByRole("button", { name: "Přidat učitele ručně" }).click();
-  await page.getByLabel("Jméno").nth(0).fill("Tomáš");
-  await page.getByLabel("Příjmení").nth(0).fill("Kadleček");
-  await page.getByLabel("Úvazek týdně").nth(0).fill("3");
-  await page.locator('select[aria-label="Předmět"]').nth(0).selectOption("VV");
-  await page
-    .locator('input[aria-label="Počet hodin předmětu"]')
-    .nth(0)
-    .fill("2");
-  await page
-    .getByRole("button", { name: "Přidat další předmět" })
-    .nth(0)
-    .click();
-  await page.locator('select[aria-label="Předmět"]').nth(1).selectOption("INF");
-  await page
+  const tomasCardTestId = await page
+    .locator('[data-testid^="teacher-card-"]')
+    .first()
+    .getAttribute("data-testid");
+  expect(tomasCardTestId).toBeTruthy();
+  const tomasCard = page.getByTestId(tomasCardTestId!);
+  await tomasCard.getByLabel("Jméno").fill("Tomáš");
+  await tomasCard.getByLabel("Příjmení").fill("Kadleček");
+  await tomasCard.getByLabel("Úvazek týdně").fill("3");
+  await tomasCard.locator('select[aria-label="Předmět"]').selectOption("VV");
+  await tomasCard.locator('input[aria-label="Počet hodin předmětu"]').fill("2");
+  await tomasCard.getByRole("button", { name: "Přidat další předmět" }).click();
+  await tomasCard
+    .locator('select[aria-label="Předmět"]')
+    .nth(1)
+    .selectOption("INF");
+  await tomasCard
     .locator('input[aria-label="Počet hodin předmětu"]')
     .nth(1)
     .fill("1");
 
   await page.getByRole("button", { name: "Přidat učitele ručně" }).click();
-  await page.getByLabel("Jméno").nth(1).fill("N.");
-  await page.getByLabel("Příjmení").nth(1).fill("Vašáková");
-  await page.getByLabel("Úvazek týdně").nth(1).fill("1");
-  await page.locator('select[aria-label="Předmět"]').nth(2).selectOption("INF");
-  await page
+  const vasakovaCardTestId = await page
+    .locator('[data-testid^="teacher-card-"]')
+    .filter({ hasText: "Nový učitel" })
+    .first()
+    .getAttribute("data-testid");
+  expect(vasakovaCardTestId).toBeTruthy();
+  const vasakovaCard = page.getByTestId(vasakovaCardTestId!);
+  await vasakovaCard.getByLabel("Jméno").fill("N.");
+  await vasakovaCard.getByLabel("Příjmení").fill("Vašáková");
+  await vasakovaCard.getByLabel("Úvazek týdně").fill("1");
+  await vasakovaCard
+    .locator('select[aria-label="Předmět"]')
+    .selectOption("INF");
+  await vasakovaCard
     .locator('input[aria-label="Počet hodin předmětu"]')
-    .nth(2)
     .fill("1");
 
+  await tomasCard
+    .getByRole("button", { name: "Uložit Tomáš Kadleček" })
+    .click();
+  await vasakovaCard
+    .getByRole("button", { name: "Uložit N. Vašáková" })
+    .click();
   await expect(page.getByText("Všichni učitelé jsou připraveni")).toBeVisible();
   await page
     .getByRole("button", { name: "Uložit učitele do projektu" })
