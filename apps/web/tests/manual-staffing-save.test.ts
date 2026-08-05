@@ -25,9 +25,12 @@ test("legacy 25-hour total is interpreted as 22 base plus 3 overtime", () => {
   };
 
   const validation = validateStaffingTeacher(teacher);
+  const baseLoad = baseWeeklyLoad(teacher);
+  const overtimeLoad = overtimeWeeklyLoad(teacher);
 
-  assert.equal(baseWeeklyLoad(teacher), 22);
-  assert.equal(overtimeWeeklyLoad(teacher), 3);
+  assert.equal(baseLoad, 22);
+  assert.equal(overtimeLoad, 3);
+  assert.equal(baseLoad + overtimeLoad, teacher.targetWeeklyLoad);
   assert.equal(validation.assignedWeeklyLoad, 25);
   assert.equal(validation.difference, 0);
   assert.deepEqual(validation.messages, []);
