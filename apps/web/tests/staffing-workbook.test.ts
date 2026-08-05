@@ -49,6 +49,7 @@ test("simple staffing workbook imports mixed subjects and whole unavailable days
   assert.equal(teacher.firstName, "Jana");
   assert.equal(teacher.lastName, "Nováková");
   assert.equal(teacher.targetWeeklyLoad, 22);
+  assert.equal(teacher.baseWeeklyLoad, 22);
   assert.deepEqual(
     teacher.subjectLoads.map((item) => [item.subjectCode, item.weeklyPeriods]),
     [
@@ -96,6 +97,6 @@ test("generated staffing workbook keeps the beginner sheets visible", async () =
   assert.equal(workbook.getWorksheet("Číselník předmětů")?.state, "veryHidden");
   assert.match(
     workbook.getWorksheet(STAFFING_WORKBOOK_SHEET)!.getCell("A2").text,
-    /celkový úvazek/i,
+    /nadúvazek/i,
   );
 });
