@@ -65,11 +65,11 @@ test("coverage page fills every missing teacher and raises load when needed", as
   await expect(
     page.getByRole("heading", { name: "Pokrytí hodinové dotace" }),
   ).toBeVisible();
-  await expect(page.getByText("Chybí pokrýt 5 učitelských hodin")).toBeVisible();
+  await expect(
+    page.getByText("Chybí pokrýt 5 učitelských hodin"),
+  ).toBeVisible();
 
-  await page
-    .getByRole("button", { name: "Doplnit vše automaticky" })
-    .click();
+  await page.getByRole("button", { name: "Doplnit vše automaticky" }).click();
 
   await expect(
     page.getByText("Všechny hodiny mají potřebné učitele"),
@@ -78,7 +78,9 @@ test("coverage page fills every missing teacher and raises load when needed", as
     "data-status",
     "FULL",
   );
-  await expect(page.getByText(/Automaticky doplněno 1 chybějící místo/)).toBeVisible();
+  await expect(
+    page.getByText(/Automaticky doplněno 1 chybějící místo/),
+  ).toBeVisible();
 
   const stored = await page.evaluate(() => ({
     staffing: JSON.parse(

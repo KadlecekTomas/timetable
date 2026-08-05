@@ -8,6 +8,7 @@ import {
   CircleHelp,
   FileSpreadsheet,
   Filter,
+  Sparkles,
   Upload,
   UsersRound,
   Wrench,
@@ -25,6 +26,7 @@ import {
   type CoverageCell,
   type CoverageStatus,
 } from "@/lib/domain/coverage-overview";
+import { autoCoverTeachingPlan } from "@/lib/domain/auto-cover-teaching-plan";
 import {
   analyzeStaffingWorkbook,
   type StaffingWorkbookAnalysis,
@@ -41,6 +43,7 @@ import {
   TEACHING_PLAN_CHANGE_EVENT,
   createEmptyTeachingPlan,
   loadTeachingPlan,
+  saveTeachingPlan,
   type TeachingPlan,
 } from "@/lib/local/teaching-plan";
 import { cn } from "@/lib/utils";
@@ -205,6 +208,62 @@ export default function CoveragePage() {
     }
   }
 
+
+  function completeCoverage(): void {
+    setError(null);
+    setMessage(null);
+
+    try {
+      const result = autoCoverTeachingPlan(teachingPlan, staffingPlan);
+      if (result.unresolved.length > 0) {
+        const details = result.unresolved
+          .slice(0, 3)
+          .map(
+            (item) =>
+              `${item.classCode || item.roleLabel} ${item.subjectCode}: ${item.reason}`,
+          )
+          .join(" ");
+        setError(
+          `Automatické doplnění nelze bezpečně dokončit. ${details}`,
+        );
+        return;
+      }
+
+      const savedStaffing = saveStaffingPlan(result.staffingPlan);
+      const savedTeaching = saveTeachingPlan(result.teachingPlan);
+      setStaffingPlan(savedStaffing);
+      setTeachingPlan(savedTeaching);
+      setSelectedKey("");
+
+      const assignmentLabel =
+        result.assignments.length === 1
+          ? "chybějící místo"
+          : result.assignments.length >= 2 && result.assignments.length <= 4
+            ? "chybějící místa"
+            : "chybějících míst";
+      const summary = [
+        `Automaticky doplněno ${result.assignments.length} ${assignmentLabel}.`,
+      ];
+      if (result.totalIncreasedHours > 0) {
+        summary.push(
+          `Úvazek byl navýšen u ${result.increasedTeachers.length} učitelů celkem o ${formatHours(result.totalIncreasedHours)} h.`,
+        );
+      }
+      if (result.forcedAssignmentCount > 0) {
+        summary.push(
+          `Pozor: ${result.forcedAssignmentCount} přiřazení nemělo v datech uvedenou aprobaci; byl použit nejméně zatížený dostupný učitel.`,
+        );
+      }
+      setMessage(summary.join(" "));
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Automatické doplnění se nepodařilo.",
+      );
+    }
+  }
+
   if (!loaded) {
     return <p className="text-sm text-text-muted">Načítám pokrytí výuky…</p>;
   }
@@ -216,12 +275,20 @@ export default function CoveragePage() {
         title="Pokrytí hodinové dotace"
         description="Jednoduchý pohled na to, které hodiny mají učitele, které jsou pokryté jen zčásti a kde učitel úplně chybí."
         actions={
-          <Button asChild variant="outline">
-            <Link href={`/teaching-plan?${context}`}>
-              <Wrench className="size-4" aria-hidden="true" />
-              Podrobný editor
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {hasStaffing && !allCovered ? (
+              <Button type="button" onClick={completeCoverage}>
+                <Sparkles className="size-4" aria-hidden="true" />
+                Doplnit vše automaticky
+              </Button>
+            ) : null}
+            <Button asChild variant="outline">
+              <Link href={`/teaching-plan?${context}`}>
+                <Wrench className="size-4" aria-hidden="true" />
+                Podrobný editor
+              </Link>
+            </Button>
+          </div>
         }
       />
 

@@ -8,10 +8,7 @@ import {
   type StaffingSubjectLoad,
   type StaffingTeacher,
 } from "@/lib/local/staffing-plan";
-import type {
-  TeachingPlan,
-  TeachingPlanRow,
-} from "@/lib/local/teaching-plan";
+import type { TeachingPlan, TeachingPlanRow } from "@/lib/local/teaching-plan";
 
 type TeacherField = "primaryTeacherId" | "secondaryTeacherId";
 
@@ -82,9 +79,7 @@ function positiveHours(value: number): number {
 
 function subjectMatches(candidateCode: string, requiredCode: string): boolean {
   if (candidateCode === requiredCode) return true;
-  return (
-    requiredCode === "VOL" && ELECTIVE_SUBJECT_CODES.has(candidateCode)
-  );
+  return requiredCode === "VOL" && ELECTIVE_SUBJECT_CODES.has(candidateCode);
 }
 
 function slotSubject(row: TeachingPlanRow, field: TeacherField): string {
@@ -197,7 +192,8 @@ export function autoCoverTeachingPlan(
   rows.forEach((row, rowIndex) => {
     const hours = slotHours(row);
     const primaryValid =
-      Boolean(row.primaryTeacherId) && validTeacherIds.has(row.primaryTeacherId);
+      Boolean(row.primaryTeacherId) &&
+      validTeacherIds.has(row.primaryTeacherId);
     row.primaryTeacherId = primaryValid ? row.primaryTeacherId : "";
 
     if (row.organization === "WHOLE") {
@@ -242,7 +238,10 @@ export function autoCoverTeachingPlan(
     }
   });
 
-  const qualificationRank = (teacherId: string, subjectCode: string): number => {
+  const qualificationRank = (
+    teacherId: string,
+    subjectCode: string,
+  ): number => {
     const declared = declaredSubjects.get(teacherId) ?? new Set<string>();
     if ([...declared].some((code) => subjectMatches(code, subjectCode))) {
       return 0;
@@ -286,7 +285,8 @@ export function autoCoverTeachingPlan(
         const used = scheduledByTeacher.get(teacher.id) ?? 0;
         const projected = rounded(used + slot.teacherHours);
         const rank = qualificationRank(teacher.id, slot.subjectCode);
-        const plannedBySubject = declaredSubjectHours.get(teacher.id) ?? new Map();
+        const plannedBySubject =
+          declaredSubjectHours.get(teacher.id) ?? new Map();
         const scheduledBySubject =
           scheduledByTeacherSubject.get(teacher.id) ?? new Map();
         const plannedHours = [...plannedBySubject.entries()]
@@ -320,8 +320,7 @@ export function autoCoverTeachingPlan(
         };
       })
       .filter(
-        (candidate) =>
-          candidate.projected <= MAX_WEEKLY_TEACHER_TOTAL_LOAD,
+        (candidate) => candidate.projected <= MAX_WEEKLY_TEACHER_TOTAL_LOAD,
       )
       .sort(
         (left, right) =>
@@ -349,11 +348,7 @@ export function autoCoverTeachingPlan(
     }
 
     row[slot.field] = selected.teacher.id;
-    addScheduled(
-      selected.teacher.id,
-      slot.subjectCode,
-      slot.teacherHours,
-    );
+    addScheduled(selected.teacher.id, slot.subjectCode, slot.teacherHours);
     assignments.push({
       rowId: slot.rowId,
       classCode: slot.classCode,
@@ -375,7 +370,8 @@ export function autoCoverTeachingPlan(
       }
     }
 
-    const scheduledSubjects = scheduledByTeacherSubject.get(teacher.id) ?? new Map();
+    const scheduledSubjects =
+      scheduledByTeacherSubject.get(teacher.id) ?? new Map();
     const teachingLoads = [...scheduledSubjects.entries()]
       .filter(([, hours]) => hours > 0)
       .sort(
@@ -385,8 +381,7 @@ export function autoCoverTeachingPlan(
       )
       .map(
         ([subjectCode, weeklyPeriods]): StaffingSubjectLoad => ({
-          id:
-            originalByCode.get(subjectCode)?.id ?? newId("subject-load"),
+          id: originalByCode.get(subjectCode)?.id ?? newId("subject-load"),
           subjectCode,
           weeklyPeriods: rounded(weeklyPeriods),
         }),
@@ -412,7 +407,10 @@ export function autoCoverTeachingPlan(
     );
 
     const usedHours = rounded(
-      [...scheduledSubjects.values()].reduce((total, hours) => total + hours, 0) +
+      [...scheduledSubjects.values()].reduce(
+        (total, hours) => total + hours,
+        0,
+      ) +
         [...nonTeachingByCode.values()].reduce(
           (total, hours) => total + hours,
           0,
@@ -441,9 +439,7 @@ export function autoCoverTeachingPlan(
       ...(reserveHours > 0
         ? [
             {
-              id:
-                originalByCode.get("REZERVA")?.id ??
-                newId("subject-load"),
+              id: originalByCode.get("REZERVA")?.id ?? newId("subject-load"),
               subjectCode: "REZERVA",
               weeklyPeriods: reserveHours,
             } satisfies StaffingSubjectLoad,

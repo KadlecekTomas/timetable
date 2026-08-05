@@ -6,9 +6,7 @@ import { buildCoverageOverview } from "../lib/domain/coverage-overview";
 import type { StaffingPlan } from "../lib/local/staffing-plan-school-v2";
 import type { TeachingPlan } from "../lib/local/teaching-plan";
 
-function staffingPlan(
-  teachers: StaffingPlan["teachers"],
-): StaffingPlan {
+function staffingPlan(teachers: StaffingPlan["teachers"]): StaffingPlan {
   return {
     version: 1,
     updatedAt: "2026-08-05T00:00:00.000Z",
@@ -116,10 +114,7 @@ test("raises the total load when no contracted capacity remains", () => {
   assert.equal(updated?.baseWeeklyLoad, 2);
   assert.equal(updated?.targetWeeklyLoad, 5);
   assert.deepEqual(
-    updated?.subjectLoads.map((item) => [
-      item.subjectCode,
-      item.weeklyPeriods,
-    ]),
+    updated?.subjectLoads.map((item) => [item.subjectCode, item.weeklyPeriods]),
     [["M", 5]],
   );
   assert.deepEqual(result.increasedTeachers, [
