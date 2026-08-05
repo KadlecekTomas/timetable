@@ -227,10 +227,9 @@ test("shared second language can be prepared, solved and opened as a valid timet
     false,
   );
   expect(languageAssignments).toHaveLength(2);
-  expect(languageAssignments.map((assignment) => assignment.group).sort()).toEqual([
-    "GROUP_1",
-    "GROUP_2",
-  ]);
+  expect(
+    languageAssignments.map((assignment) => assignment.group).sort(),
+  ).toEqual(["GROUP_1", "GROUP_2"]);
   for (const assignment of languageAssignments) {
     expect(assignment.classId).toBe(classIdByCode.get("8.A"));
     expect(assignment.additionalClassIds).toEqual([
