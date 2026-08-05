@@ -1,0 +1,32 @@
+name: Format teaching plan test once
+
+on:
+  push:
+    branches:
+      - agent/manual-teacher-card-save
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/manual-teacher-card-save
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Format changed test
+        run: npx prettier --write apps/web/e2e/teaching-plan.spec.ts
+      - name: Commit formatted test and remove one-time workflow
+        run: |
+          rm .github/workflows/format-teaching-plan-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/e2e/teaching-plan.spec.ts .github/workflows/format-teaching-plan-once.yml
+          git commit -m "style: format stable teacher-card test"
+          git push origin HEAD:agent/manual-teacher-card-save
