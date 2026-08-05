@@ -109,7 +109,7 @@ export function AppShell({ children }: AppShellProps) {
           <p className="text-sm text-text-muted">Lokální pracovní prostředí</p>
           <Link
             href={appendContext("/settings")}
-            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:hidden"
           >
             <Settings aria-hidden="true" className="size-4" />
             Nastavení a záloha
