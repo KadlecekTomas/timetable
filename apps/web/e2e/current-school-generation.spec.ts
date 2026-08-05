@@ -283,16 +283,17 @@ test("shared second language can be prepared, solved and opened as a valid timet
   expect(lessonSlots(lessonsByGroup.get("GROUP_1") ?? [])).toEqual(
     lessonSlots(lessonsByGroup.get("GROUP_2") ?? []),
   );
-  expect(
-    version!.lessons
-      .filter((lesson) => lesson.teacher_id === "teacher-language-one")
-      .reduce((sum, lesson) => sum + lesson.duration, 0),
-  ).toBe(3);
-  expect(
-    version!.lessons
-      .filter((lesson) => lesson.teacher_id === "teacher-language-two")
-      .reduce((sum, lesson) => sum + lesson.duration, 0),
-  ).toBe(3);
+  const languageTeacherIds = [
+    ...new Set(languageAssignments.map((assignment) => assignment.teacherId)),
+  ];
+  expect(languageTeacherIds).toHaveLength(2);
+  for (const teacherId of languageTeacherIds) {
+    expect(
+      version!.lessons
+        .filter((lesson) => lesson.teacher_id === teacherId)
+        .reduce((sum, lesson) => sum + lesson.duration, 0),
+    ).toBe(3);
+  }
 
   expect(pageErrors).toEqual([]);
   expect(serverErrors).toEqual([]);
