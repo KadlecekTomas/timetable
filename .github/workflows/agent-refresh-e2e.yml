@@ -1,0 +1,61 @@
+name: Refresh leadership E2E contracts
+
+on:
+  push:
+    branches: [agent/leadership-ux-gate]
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/leadership-ux-gate
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Replace stale copy contracts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              '"Kontrola připravenosti prošla"': '"Zadání je připravené"',
+              'page.getByRole("link", { name: "Nastavení" })': 'page.getByRole("link", { name: "Nastavení a záloha", exact: true }).first()',
+              '"Připravená data jsou zastaralá"': '"Připravená data je potřeba obnovit."',
+              '"Ještě nebyla připravena"': '"Data zatím nebyla připravena pro generátor."',
+              '/Připraveno: 2 učitelů, 13 tříd, 1 předmětů a 2 vazeb\\./': '/Připraveno: 2 učitelé, 13 tříd, 1 předmět a 2 výukové vazby\\./',
+              '/Personální plán: 2 učitelů/': '/Personální plán: 2 učitelé/',
+              '/učební plán: 1 tříd a 1 řádků/': '/učební plán: 1 třída a 1 řádek/',
+              '"Připraveno: 2 učitelů, 1 tříd, 2 předmětů a 4 vazeb."': '"Připraveno: 2 učitelé, 1 třída, 2 předměty a 4 výukové vazby."',
+              '/Projekt: 2 učitelů · 1 tříd · 2 předmětů · 4 vazeb · aktuální/': '/Připravený projekt: 2 učitelé · 1 třída · 2 předměty · 4 výukové vazby · aktuální/',
+          }
+
+          changed = []
+          for path in Path('apps/web/e2e').glob('*.spec.ts'):
+              original = path.read_text(encoding='utf-8')
+              updated = original
+              for old, new in replacements.items():
+                  updated = updated.replace(old, new)
+              if updated != original:
+                  path.write_text(updated, encoding='utf-8')
+                  changed.append(str(path))
+
+          print('\n'.join(changed))
+          PY
+      - name: Format changed tests
+        run: npx prettier --write apps/web/e2e/*.spec.ts
+      - name: Commit refreshed contracts
+        run: |
+          if git diff --quiet -- apps/web/e2e; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/e2e
+          git commit -m "test(ui): align browser contracts with leadership copy"
+          git push origin HEAD:agent/leadership-ux-gate
