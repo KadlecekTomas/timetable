@@ -168,25 +168,23 @@ test("beginner staffing flow saves the teacher card before project sync", async 
   expect(serverErrors).toEqual([]);
 });
 
-test("invalid teacher is saved only after its card button is pressed", async ({
+test("teacher with three overtime hours can be completed and saved", async ({
   page,
 }) => {
   await page.goto("/staffing?schoolYearId=local-school-year");
   await page.getByRole("button", { name: "Přidat učitele ručně" }).click();
   await page.getByLabel("Jméno").fill("Testovací");
   await page.getByLabel("Příjmení").fill("Učitelka");
-  await page.getByLabel("Úvazek týdně").fill("25");
+  await page.getByLabel("Úvazek týdně").fill("22");
+  await page.getByLabel("Nadúvazek týdně").fill("3");
   await page.locator('select[aria-label="Předmět"]').selectOption("M");
-  await page.locator('input[aria-label="Počet hodin předmětu"]').fill("22");
+  await page.locator('input[aria-label="Počet hodin předmětu"]').fill("25");
 
   await expect(page.getByTestId("staffing-manual-save-status")).toContainText(
     "1 neuložená karta",
   );
-  await expect(
-    page.getByText("Úvazek musí být celé číslo od 0 do 22 hodin.", {
-      exact: true,
-    }),
-  ).toBeVisible();
+  await expect(page.getByText("25 / 25 h", { exact: true })).toBeVisible();
+  await expect(page.getByText("Úvazek sedí", { exact: true })).toBeVisible();
 
   const beforeSave = await page.evaluate(() =>
     localStorage.getItem("rozvrhar:staffing-plan:v1"),
@@ -201,10 +199,11 @@ test("invalid teacher is saved only after its card button is pressed", async ({
   await page.reload();
   await expect(page.getByLabel("Jméno")).toHaveValue("Testovací");
   await expect(page.getByLabel("Příjmení")).toHaveValue("Učitelka");
-  await expect(page.getByLabel("Úvazek týdně")).toHaveValue("25");
+  await expect(page.getByLabel("Úvazek týdně")).toHaveValue("22");
+  await expect(page.getByLabel("Nadúvazek týdně")).toHaveValue("3");
   await expect(
     page.locator('input[aria-label="Počet hodin předmětu"]'),
-  ).toHaveValue("22");
+  ).toHaveValue("25");
 });
 
 test("problem cards are first and unsaved navigation requires confirmation", async ({

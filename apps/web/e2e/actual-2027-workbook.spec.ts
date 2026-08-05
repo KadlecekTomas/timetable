@@ -331,7 +331,9 @@ test("actual 2027 staffing layout saves valid data and keeps overloads visible",
   await expect(
     page.getByText("Excel byl načten.", { exact: false }),
   ).toBeVisible();
-  await expect(page.getByText(/Maximum je 22 hodin/).first()).toBeVisible();
+  await expect(
+    page.getByText(/základní úvazek.*nadúvazek/).first(),
+  ).toBeVisible();
   await expect(
     page.getByText("Nahrajte druhý Excel a uvidíte skutečné pokrytí"),
   ).not.toBeVisible();
@@ -340,13 +342,19 @@ test("actual 2027 staffing layout saves valid data and keeps overloads visible",
     const raw = window.localStorage.getItem("rozvrhar:staffing-plan:v1");
     return raw
       ? (JSON.parse(raw) as {
-          teachers: Array<{ targetWeeklyLoad: number }>;
+          teachers: Array<{
+            targetWeeklyLoad: number;
+            baseWeeklyLoad?: number;
+          }>;
         })
       : null;
   });
   expect(storedStaffing?.teachers.length ?? 0).toBeGreaterThan(0);
   expect(
-    storedStaffing?.teachers.some((teacher) => teacher.targetWeeklyLoad > 22),
+    storedStaffing?.teachers.some(
+      (teacher) =>
+        teacher.targetWeeklyLoad > 22 && teacher.baseWeeklyLoad === 22,
+    ),
   ).toBe(true);
 
   await mkdir(artifactDirectory, { recursive: true });

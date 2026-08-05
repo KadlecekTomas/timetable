@@ -7,8 +7,8 @@ import type {
   LocalTeacher,
 } from "./api";
 import {
-  MAX_WEEKLY_TEACHER_LOAD,
   STAFFING_DAYS,
+  overtimeWeeklyLoad,
   teacherCodesForPlan,
   type StaffingPlan,
 } from "./staffing-plan";
@@ -105,9 +105,10 @@ export function buildSchoolProjectForGeneration({
   const teachers: LocalTeacher[] = staffingPlan.teachers.map((teacher) => {
     const teachingLoad = teachingTargetWeeklyLoad(teacher);
     const nonTeaching = nonTeachingWeeklyLoad(teacher);
-    if (teacher.targetWeeklyLoad > MAX_WEEKLY_TEACHER_LOAD) {
-      blockers.push(
-        `${teacher.firstName} ${teacher.lastName} má smluveno ${teacher.targetWeeklyLoad} hodin, maximum je ${MAX_WEEKLY_TEACHER_LOAD} hodin.`,
+    const overtime = overtimeWeeklyLoad(teacher);
+    if (overtime > 0) {
+      warnings.push(
+        `${teacher.firstName} ${teacher.lastName}: plán počítá s ${overtime} h nadúvazku.`,
       );
     }
     if (teachingLoad + nonTeaching > teacher.targetWeeklyLoad) {

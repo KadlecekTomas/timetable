@@ -272,13 +272,13 @@ export function analyzeLegacyStaffingPlan(
         );
       }
       if (targetWeeklyLoad > MAX_WEEKLY_TEACHER_LOAD) {
-        const overload = targetWeeklyLoad - MAX_WEEKLY_TEACHER_LOAD;
+        const overtime = targetWeeklyLoad - MAX_WEEKLY_TEACHER_LOAD;
         issues.push(
           issue(
-            "ERROR",
+            "WARNING",
             null,
-            "Úvazek",
-            `${teacher.firstName} ${teacher.lastName} má úvazek ${targetWeeklyLoad} hodin. Maximum je ${MAX_WEEKLY_TEACHER_LOAD} hodin; ${overload} ${overload === 1 ? "hodinu je" : overload < 5 ? "hodiny je" : "hodin je"} nutné přidělit jinému učiteli.`,
+            "Nadúvazek",
+            `${teacher.firstName} ${teacher.lastName}: ${MAX_WEEKLY_TEACHER_LOAD} h základní úvazek + ${overtime} h nadúvazek = ${targetWeeklyLoad} h celkem.`,
           ),
         );
       }
@@ -316,6 +316,7 @@ export function analyzeLegacyStaffingPlan(
         firstName: teacher.firstName,
         lastName: teacher.lastName,
         targetWeeklyLoad,
+        baseWeeklyLoad: Math.min(targetWeeklyLoad, MAX_WEEKLY_TEACHER_LOAD),
         subjectLoads,
         unavailableDays: [],
       };
