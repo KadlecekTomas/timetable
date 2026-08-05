@@ -128,6 +128,12 @@ test("entire project survives backup, deletion and restore without a server data
 
   await page.getByRole("link", { name: "Tvorba rozvrhu" }).click();
   await expect(
+    page.getByRole("heading", { name: "Data připravená pro solver" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Připravit a zkontrolovat data" })
+    .click();
+  await expect(
     page.getByRole("heading", { name: "Kontrola připravenosti prošla" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Vytvořit nový návrh" }).click();
@@ -155,15 +161,17 @@ test("entire project survives backup, deletion and restore without a server data
   const backup = JSON.parse(backupBytes.toString("utf8")) as {
     format: string;
     checksum: string;
-    project: {
-      teachers: unknown[];
-      timetableVersions: unknown[];
+    data: {
+      project: {
+        teachers: unknown[];
+        timetableVersions: unknown[];
+      };
     };
   };
-  expect(backup.format).toBe("rozvrhar-local-backup");
+  expect(backup.format).toBe("rozvrhar-browser-project");
   expect(backup.checksum).toMatch(/^[a-f0-9]{64}$/);
-  expect(backup.project.teachers).toHaveLength(2);
-  expect(backup.project.timetableVersions).toHaveLength(1);
+  expect(backup.data.project.teachers).toHaveLength(2);
+  expect(backup.data.project.timetableVersions).toHaveLength(1);
 
   page.on("dialog", (dialog) => void dialog.accept());
   await page.getByRole("button", { name: "Vymazat lokální projekt" }).click();
@@ -184,7 +192,9 @@ test("entire project survives backup, deletion and restore without a server data
     buffer: backupBytes,
   });
   await expect(
-    page.getByText("Projekt byl úspěšně obnoven z ověřené zálohy."),
+    page.getByText(
+      "Projekt byl úspěšně obnoven včetně pracovních úvazků a učebního plánu.",
+    ),
   ).toBeVisible();
 
   await page.getByRole("link", { name: "5. Rozvrh", exact: true }).click();
