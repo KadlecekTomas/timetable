@@ -24,6 +24,7 @@ test("manual save keeps an invalid teacher draft intact for later correction", (
   const validation = validateStaffingTeacher(teacher);
 
   assert.equal(validation.valid, false);
+  assert.equal(validation.assignedWeeklyLoad, 22);
   assert.equal(teacher.targetWeeklyLoad, 25);
   assert.match(
     validation.messages.join(" "),
