@@ -16,6 +16,8 @@ export * from "./teaching-plan-school-v2";
 const SECOND_FOREIGN_LANGUAGE_CODE = "JAZ2";
 const ELECTIVE_SUBJECT_CODE = "VOL";
 
+let migratingTeachingPlan = false;
+
 function isCurrentSchoolPlan(plan: TeachingPlan): boolean {
   const allowedCodes = new Set<string>(SCHOOL_CLASS_CODES);
   const classCodes = new Set(
@@ -235,11 +237,17 @@ export function loadTeachingPlan(): TeachingPlan {
   const enforced = enforceCurrentSchoolTeachingStructure(loaded);
   if (
     typeof window !== "undefined" &&
+    !migratingTeachingPlan &&
     JSON.stringify(loaded.rows) !== JSON.stringify(enforced.rows)
   ) {
-    return enforceCurrentSchoolTeachingStructure(
-      base.saveTeachingPlan(enforced),
-    );
+    migratingTeachingPlan = true;
+    try {
+      return enforceCurrentSchoolTeachingStructure(
+        base.saveTeachingPlan(enforced),
+      );
+    } finally {
+      migratingTeachingPlan = false;
+    }
   }
   return enforced;
 }
