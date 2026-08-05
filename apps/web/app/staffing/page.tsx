@@ -14,13 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import {
-  ChangeEvent,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -176,7 +170,9 @@ export default function StaffingPage() {
       plan.teachers
         .filter((teacher) => {
           const saved = savedById.get(teacher.id);
-          return !saved || teacherFingerprint(saved) !== teacherFingerprint(teacher);
+          return (
+            !saved || teacherFingerprint(saved) !== teacherFingerprint(teacher)
+          );
         })
         .map((teacher) => teacher.id),
     );
@@ -261,9 +257,7 @@ export default function StaffingPage() {
       });
 
     if (filter === "PROBLEMS") {
-      return ordered.filter(({ teacher }) =>
-        problemTeacherIds.has(teacher.id),
-      );
+      return ordered.filter(({ teacher }) => problemTeacherIds.has(teacher.id));
     }
     if (filter === "UNSAVED") {
       return ordered.filter(({ teacher }) => dirtyTeacherIds.has(teacher.id));
@@ -281,9 +275,7 @@ export default function StaffingPage() {
         teacher.id === teacherId ? update(teacher) : teacher,
       ),
     }));
-    setMessage((current) =>
-      current?.startsWith("Uloženo:") ? null : current,
-    );
+    setMessage((current) => (current?.startsWith("Uloženo:") ? null : current));
   }
 
   function addTeacher(): void {
@@ -339,7 +331,9 @@ export default function StaffingPage() {
     }
 
     try {
-      const wasSaved = savedPlan.teachers.some((item) => item.id === teacher.id);
+      const wasSaved = savedPlan.teachers.some(
+        (item) => item.id === teacher.id,
+      );
       if (wasSaved) {
         const saved = saveStaffingPlan({
           ...savedPlan,

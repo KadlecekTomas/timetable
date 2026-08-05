@@ -65,8 +65,7 @@ test("beginner staffing flow saves the teacher card before project sync", async 
 
   const beforeSave = await page.evaluate(() =>
     JSON.parse(
-      localStorage.getItem("rozvrhar:staffing-plan:v1") ??
-        '{"teachers":[]}',
+      localStorage.getItem("rozvrhar:staffing-plan:v1") ?? '{"teachers":[]}',
     ),
   );
   expect(beforeSave.teachers).toHaveLength(0);
@@ -194,9 +193,7 @@ test("invalid teacher is saved only after its card button is pressed", async ({
   );
   expect(beforeSave).toBeNull();
 
-  await page
-    .getByRole("button", { name: "Uložit Testovací Učitelka" })
-    .click();
+  await page.getByRole("button", { name: "Uložit Testovací Učitelka" }).click();
   await expect(page.getByTestId("staffing-manual-save-status")).toContainText(
     "Všechny změny jsou uložené",
   );
