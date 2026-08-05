@@ -7,6 +7,7 @@ import ExcelJS from "exceljs";
 import JSZip from "jszip";
 
 import { analyzeStaffingWorkbook } from "../lib/import/staffing-workbook-school-v2";
+import { validateStaffingPlan } from "../lib/local/staffing-plan";
 
 const EMPTY_DRAWING = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>`;
@@ -95,11 +96,11 @@ test("ExcelJS can load the empty drawing/person parts emitted by the real workbo
   assert.ok(workbook.getWorksheet("Úvazky 20252026"));
 });
 
-test("the sanitized real 2027 workbook preserves overloads as blocking issues", async () => {
+test("the sanitized real 2027 workbook imports a recoverable draft and keeps readiness errors", async () => {
   const bytes = await sanitizedRealWorkbook();
   const analysis = await analyzeStaffingWorkbook(bytes);
 
-  assert.equal(analysis.valid, false);
+  assert.equal(analysis.valid, true);
   assert.ok(analysis.plan.teachers.length > 0);
   assert.ok(
     analysis.issues.some(
@@ -110,5 +111,17 @@ test("the sanitized real 2027 workbook preserves overloads as blocking issues", 
   assert.ok(
     analysis.plan.teachers.some((teacher) => teacher.targetWeeklyLoad > 22),
     "The importer must preserve the original overload for manual correction.",
+  );
+  assert.ok(
+    validateStaffingPlan(analysis.plan).some((message) =>
+      message.includes("0 do 22 hodin"),
+    ),
+    "The imported draft must remain blocked from completion until the overload is fixed.",
+  );
+  assert.ok(
+    "allocationDraft" in analysis &&
+      analysis.allocationDraft &&
+      analysis.allocationDraft.rows.length > 0,
+    "Valid teaching rows must remain available in the partial allocation draft.",
   );
 });
