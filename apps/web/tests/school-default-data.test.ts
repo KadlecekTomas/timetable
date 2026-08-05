@@ -112,8 +112,14 @@ test("supplied curriculum is seeded and staffing evidence decides split teaching
       ),
     0,
   );
-  assert.equal(regularTotal, 122);
+  assert.equal(regularTotal, 120);
   assert.equal(sportsTotal, 122);
+  assert.equal(
+    curriculum.profiles.REGULAR.subjects.find(
+      (subject) => subject.subjectCode === "VOL",
+    )?.weeklyPeriodsByGrade["7"],
+    0,
+  );
 
   const plan = createDefaultSchoolTeachingPlan(
     curriculum,
@@ -123,7 +129,7 @@ test("supplied curriculum is seeded and staffing evidence decides split teaching
   assert.equal(plan.classes.length, 13);
   assert.equal(
     plan.rows.reduce((total, row) => total + row.weeklyPeriods, 0),
-    396,
+    392,
   );
 
   const informatics = plan.rows.filter((row) => row.subjectCode === "INF");
@@ -176,7 +182,7 @@ test("empty local data still loads the supplied curriculum", () => {
   assert.equal(plan.classes.length, 13);
   assert.equal(
     plan.rows.reduce((total, row) => total + row.weeklyPeriods, 0),
-    396,
+    392,
   );
 });
 

@@ -613,13 +613,16 @@ export default function CoveragePage() {
                             type="button"
                             data-testid={`coverage-${classCode}-${subject.code}`}
                             data-status={cell.status}
+                            data-shared={
+                              cell.sharedClassCodes.length > 1 ? "true" : "false"
+                            }
                             onClick={() => setSelectedKey(key)}
                             className={cn(
                               "flex min-h-14 w-full flex-col items-center justify-center rounded-lg border px-2 py-2 text-center transition hover:ring-2 focus-visible:outline-none focus-visible:ring-2",
                               cellStyles[cell.status],
                               selectedKey === key && "ring-2",
                             )}
-                            aria-label={`${classCode} ${subject.label}: ${statusLabels[cell.status]}, ${cell.assignedSlots} z ${cell.requiredSlots} učitelů nebo skupin`}
+                            aria-label={`${classCode} ${subject.label}: ${statusLabels[cell.status]}, ${cell.assignedSlots} z ${cell.requiredSlots} učitelů nebo skupin${cell.sharedClassCodes.length > 1 ? `, společně pro třídy ${cell.sharedClassCodes.join(", ")}` : ""}`}
                           >
                             <span className="text-base font-bold">
                               {cell.assignedSlots}/{cell.requiredSlots}
@@ -627,6 +630,11 @@ export default function CoveragePage() {
                             <span className="text-[10px] font-medium">
                               {formatHours(cell.requiredClassPeriods)} h
                             </span>
+                            {cell.sharedClassCodes.length > 1 ? (
+                              <span className="text-[9px] font-semibold uppercase tracking-wide opacity-80">
+                                společně
+                              </span>
+                            ) : null}
                           </button>
                         </td>
                       );
@@ -854,6 +862,12 @@ function CoverageCellDetail({
             {cell.assignedSlots}/{cell.requiredSlots} potřebných učitelů nebo
             skupin.
           </p>
+          {cell.sharedClassCodes.length > 1 ? (
+            <p className="mt-2 text-sm font-medium text-primary">
+              Společná výuka tříd {cell.sharedClassCodes.join(", ")}. Učitelům
+              se tyto hodiny započítají pouze jednou.
+            </p>
+          ) : null}
           {rotationHours > 0 && residualHours > 0 ? (
             <p className="mt-2 text-sm font-medium text-warning-strong">
               {formatHours(rotationHours)} h obě skupiny rotačně,{" "}

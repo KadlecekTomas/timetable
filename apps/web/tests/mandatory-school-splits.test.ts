@@ -70,3 +70,91 @@ test("rotations remain rotations even when they contain split subject codes", ()
   const enforced = applySchoolOperationalRules(plan, staffingPlan, null);
   assert.equal(enforced.rows[0]?.organization, "ROTATION");
 });
+
+test("second foreign language is shared by grade and grade-seven electives disappear", () => {
+  const staffingPlan = createEmptyStaffingPlan();
+  staffingPlan.teachers = [
+    {
+      id: "teacher-language-one",
+      firstName: "Jana",
+      lastName: "Němcová",
+      targetWeeklyLoad: 3,
+      subjectLoads: [
+        {
+          id: "language-one",
+          subjectCode: "JAZ2",
+          weeklyPeriods: 3,
+        },
+      ],
+      unavailableDays: [],
+    },
+    {
+      id: "teacher-language-two",
+      firstName: "Petr",
+      lastName: "Francouz",
+      targetWeeklyLoad: 3,
+      subjectLoads: [
+        {
+          id: "language-two",
+          subjectCode: "JAZ2",
+          weeklyPeriods: 3,
+        },
+      ],
+      unavailableDays: [],
+    },
+  ];
+  const plan = createEmptyTeachingPlan();
+  plan.rows = [
+    ...["7.A", "7.B", "7.C"].map((classCode) => ({
+      ...createTeachingPlanRow(classCode, "VOL"),
+      weeklyPeriods: 2,
+      primaryTeacherId: "teacher-language-one",
+    })),
+    ...["8.A", "8.B", "8.C"].map((classCode, index) => ({
+      ...createTeachingPlanRow(classCode, "JAZ2"),
+      weeklyPeriods: 3,
+      organization: "SPLIT" as const,
+      primaryTeacherId: "teacher-language-one",
+      secondaryTeacherId: index === 1 ? "teacher-language-two" : "",
+    })),
+  ];
+
+  const enforced = applySchoolOperationalRules(plan, staffingPlan, null);
+  assert.equal(
+    enforced.rows.some(
+      (row) =>
+        row.subjectCode === "VOL" &&
+        [row.classCode, ...(row.additionalClassCodes ?? [])].some((classCode) =>
+          classCode.startsWith("7."),
+        ),
+    ),
+    false,
+  );
+
+  const languages = enforced.rows.filter((row) => row.subjectCode === "JAZ2");
+  assert.equal(languages.length, 1);
+  assert.equal(languages[0]?.classCode, "8.A");
+  assert.deepEqual(languages[0]?.additionalClassCodes, ["8.B", "8.C"]);
+  assert.equal(languages[0]?.primaryTeacherId, "teacher-language-one");
+  assert.equal(languages[0]?.secondaryTeacherId, "teacher-language-two");
+  assert.match(languages[0]?.sharedGroupLabel ?? "", /8\. ročník/);
+
+  const overview = buildCoverageOverview(enforced, staffingPlan);
+  for (const classCode of ["8.A", "8.B", "8.C"]) {
+    const cell = overview.cellByKey.get(coverageCellKey(classCode, "JAZ2"));
+    assert.equal(cell?.status, "FULL");
+    assert.deepEqual(cell?.sharedClassCodes, ["8.A", "8.B", "8.C"]);
+  }
+  assert.equal(
+    overview.teachers.find(
+      (teacher) => teacher.teacherId === "teacher-language-one",
+    )?.scheduledTeachingHours,
+    3,
+  );
+  assert.equal(
+    overview.teachers.find(
+      (teacher) => teacher.teacherId === "teacher-language-two",
+    )?.scheduledTeachingHours,
+    3,
+  );
+});

@@ -3,7 +3,10 @@ import type {
   StaffingAllocationDraftRow,
 } from "./staffing-allocation-draft";
 import { loadStaffingAllocationDraft } from "./staffing-allocation-draft";
-import { createDefaultSchoolCurriculum } from "./school-default-data";
+import {
+  createDefaultSchoolCurriculum,
+  enforceCurrentSchoolCurriculumRules,
+} from "./school-default-data";
 import {
   loadSchoolCurriculum,
   saveSchoolCurriculum,
@@ -306,13 +309,14 @@ export function createDefaultSchoolTeachingPlan(
   staffingPlan: StaffingPlan,
   allocationDraft: StaffingAllocationDraft | null,
 ): TeachingPlan {
+  const enforcedCurriculum = enforceCurrentSchoolCurriculumRules(curriculum);
   const plan = school.createEmptyTeachingPlan();
   plan.rows = [];
 
   for (const schoolClass of plan.classes) {
     const profile = profileForClass(schoolClass.code);
     const grade = gradeForClass(schoolClass.code);
-    const source = curriculum.profiles[profile];
+    const source = enforcedCurriculum.profiles[profile];
     for (const subject of source.subjects) {
       const weeklyPeriods = subject.weeklyPeriodsByGrade[String(grade)] ?? 0;
       if (weeklyPeriods <= 0) continue;
@@ -336,9 +340,11 @@ export function loadTeachingPlan(): TeachingPlan {
   const staffingPlan = loadStaffingPlan();
   const allocationDraft = loadStaffingAllocationDraft();
   const storedPlanExists = hasStoredTeachingPlan();
-  const curriculum =
-    loadSchoolCurriculum() ??
-    saveSchoolCurriculum(createDefaultSchoolCurriculum());
+  const curriculum = saveSchoolCurriculum(
+    enforceCurrentSchoolCurriculumRules(
+      loadSchoolCurriculum() ?? createDefaultSchoolCurriculum(),
+    ),
+  );
   const loaded = applyStoredWorkloadCredits(school.loadTeachingPlan());
   const plan =
     loaded.rows.length > 0 || storedPlanExists
@@ -386,7 +392,9 @@ export function validateTeachingPlan(
   staffingPlan: StaffingPlan,
 ): string[] {
   const curriculum = isCurrentSchoolPlan(plan)
-    ? (loadSchoolCurriculum() ?? createDefaultSchoolCurriculum())
+    ? enforceCurrentSchoolCurriculumRules(
+        loadSchoolCurriculum() ?? createDefaultSchoolCurriculum(),
+      )
     : null;
   return [
     ...school

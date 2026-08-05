@@ -181,6 +181,10 @@ test("rotation shows each subject separately and keeps shared classes readable",
     overview.cellByKey.get(coverageCellKey("6.A", "M"))?.requiredSlots,
     2,
   );
+  assert.deepEqual(
+    overview.cellByKey.get(coverageCellKey("6.A", "M"))?.sharedClassCodes,
+    ["6.A", "6.B"],
+  );
   assert.equal(overview.summary.requiredTeacherHours, 8);
   assert.equal(overview.summary.assignedTeacherHours, 8);
 });

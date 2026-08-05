@@ -56,7 +56,7 @@ function token(value: string): string {
     .toUpperCase();
 }
 
-function assignmentShape(row: TeachingPlanRow) {
+function assignmentShape(row: TeachingPlanRow, additionalClassIds: string[]) {
   return {
     weeklyPeriods: row.weeklyPeriods,
     lessonShape:
@@ -75,7 +75,7 @@ function assignmentShape(row: TeachingPlanRow) {
     requiredRoomTypeId: null,
     maxPerDay: null,
     minDayGap: null,
-    additionalClassIds: [],
+    additionalClassIds,
   };
 }
 
@@ -173,6 +173,24 @@ export function buildSchoolProjectForGeneration({
     rotationLeg: number | null = null,
   ) => {
     const classId = classIdByCode.get(row.classCode);
+    const additionalClassIds = [
+      ...new Set(
+        (row.additionalClassCodes ?? [])
+          .map((classCode) => {
+            const additionalClassId = classIdByCode.get(classCode);
+            if (!additionalClassId) {
+              blockers.push(
+                `${row.classCode} ${subjectCode}: společná třída ${classCode} neexistuje.`,
+              );
+            }
+            return additionalClassId ?? "";
+          })
+          .filter(
+            (additionalClassId) =>
+              additionalClassId && additionalClassId !== classId,
+          ),
+      ),
+    ];
     const subjectId = subjectIdByCode.get(subjectCode);
     const teacherId = teacherIdByPlanId.get(teacherPlanId);
     if (!classId)
@@ -191,7 +209,7 @@ export function buildSchoolProjectForGeneration({
       subjectId,
       teacherId,
       group,
-      ...assignmentShape(row),
+      ...assignmentShape(row, additionalClassIds),
       parallelKey,
       rotationKey,
       rotationLeg,
