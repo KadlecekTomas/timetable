@@ -1,97 +1,82 @@
 import assert from "node:assert/strict";
-import test from "node:test";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import test from "node:test";
 
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 
 import { analyzeStaffingWorkbook } from "../lib/import/staffing-workbook-school-v2";
-import { validateStaffingPlan } from "../lib/local/staffing-plan-school-v2";
+import { validateStaffingPlan } from "../lib/local/staffing-plan";
 
-const fixtureDirectory = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "fixtures",
-);
+const EMPTY_DRAWING = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>`;
 
-function crc32(buffer: Buffer): number {
-  const table = Array.from({ length: 256 }, (_, index) => {
-    let value = index;
-    for (let bit = 0; bit < 8; bit += 1) {
-      value = (value & 1) !== 0 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
-    }
-    return value >>> 0;
-  });
-  let crc = 0xffffffff;
-  for (const byte of buffer) crc = table[(crc ^ byte) & 0xff]! ^ (crc >>> 8);
-  return (crc ^ 0xffffffff) >>> 0;
-}
+const EMPTY_PERSON_LIST = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<x18tc:personList xmlns:x18tc="http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments"/>`;
 
-function zipEntry(name: string, content: Buffer): Buffer {
-  const nameBuffer = Buffer.from(name);
-  const localHeader = Buffer.alloc(30);
-  localHeader.writeUInt32LE(0x04034b50, 0);
-  localHeader.writeUInt16LE(20, 4);
-  localHeader.writeUInt16LE(0, 6);
-  localHeader.writeUInt16LE(0, 8);
-  localHeader.writeUInt16LE(0, 10);
-  localHeader.writeUInt16LE(0, 12);
-  localHeader.writeUInt32LE(crc32(content), 14);
-  localHeader.writeUInt32LE(content.length, 18);
-  localHeader.writeUInt32LE(content.length, 22);
-  localHeader.writeUInt16LE(nameBuffer.length, 26);
-  localHeader.writeUInt16LE(0, 28);
-
-  const centralHeader = Buffer.alloc(46);
-  centralHeader.writeUInt32LE(0x02014b50, 0);
-  centralHeader.writeUInt16LE(20, 4);
-  centralHeader.writeUInt16LE(20, 6);
-  centralHeader.writeUInt16LE(0, 8);
-  centralHeader.writeUInt16LE(0, 10);
-  centralHeader.writeUInt16LE(0, 12);
-  centralHeader.writeUInt16LE(0, 14);
-  centralHeader.writeUInt32LE(crc32(content), 16);
-  centralHeader.writeUInt32LE(content.length, 20);
-  centralHeader.writeUInt32LE(content.length, 24);
-  centralHeader.writeUInt16LE(nameBuffer.length, 28);
-  centralHeader.writeUInt16LE(0, 30);
-  centralHeader.writeUInt16LE(0, 32);
-  centralHeader.writeUInt16LE(0, 34);
-  centralHeader.writeUInt16LE(0, 36);
-  centralHeader.writeUInt32LE(0, 38);
-  centralHeader.writeUInt32LE(0, 42);
-
-  const end = Buffer.alloc(22);
-  end.writeUInt32LE(0x06054b50, 0);
-  end.writeUInt16LE(0, 4);
-  end.writeUInt16LE(0, 6);
-  end.writeUInt16LE(1, 8);
-  end.writeUInt16LE(1, 10);
-  end.writeUInt32LE(centralHeader.length + nameBuffer.length, 12);
-  end.writeUInt32LE(localHeader.length + nameBuffer.length + content.length, 16);
-  end.writeUInt16LE(0, 20);
-
-  return Buffer.concat([
-    localHeader,
-    nameBuffer,
-    content,
-    centralHeader,
-    nameBuffer,
-    end,
-  ]);
+function appendBeforeClosingTag(
+  xml: string,
+  closingTag: string,
+  value: string,
+): string {
+  assert.ok(xml.includes(closingTag), `Missing ${closingTag}`);
+  return xml.replace(closingTag, `${value}${closingTag}`);
 }
 
 async function workbookWithOfficeEmptyParts(): Promise<Uint8Array> {
-  const bytes = Buffer.from(
-    await readFile(path.join(fixtureDirectory, "exceljs-empty-parts-base.b64"), "utf8"),
-    "base64",
+  const source = new ExcelJS.Workbook();
+  const staffing = source.addWorksheet("Úvazky 20252026");
+  staffing.getCell("A1").value = "Požadavek";
+  source.addWorksheet("Jednotlivci");
+
+  const zip = await JSZip.loadAsync(await source.xlsx.writeBuffer());
+  zip.file("xl/drawings/drawing1.xml", EMPTY_DRAWING);
+  zip.file("xl/persons/person.xml", EMPTY_PERSON_LIST);
+
+  const sheetPath = "xl/worksheets/sheet1.xml";
+  const sheetXml = await zip.file(sheetPath)!.async("text");
+  zip.file(
+    sheetPath,
+    appendBeforeClosingTag(sheetXml, "</worksheet>", '<drawing r:id="rId1"/>'),
   );
-  return new Uint8Array(bytes);
+  zip.file(
+    "xl/worksheets/_rels/sheet1.xml.rels",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>
+</Relationships>`,
+  );
+
+  const workbookRelsPath = "xl/_rels/workbook.xml.rels";
+  const workbookRels = await zip.file(workbookRelsPath)!.async("text");
+  zip.file(
+    workbookRelsPath,
+    appendBeforeClosingTag(
+      workbookRels,
+      "</Relationships>",
+      '<Relationship Id="rIdPerson" Type="http://schemas.microsoft.com/office/2017/10/relationships/person" Target="persons/person.xml"/>',
+    ),
+  );
+
+  const contentTypesPath = "[Content_Types].xml";
+  const contentTypes = await zip.file(contentTypesPath)!.async("text");
+  zip.file(
+    contentTypesPath,
+    appendBeforeClosingTag(
+      contentTypes,
+      "</Types>",
+      '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/><Override PartName="/xl/persons/person.xml" ContentType="application/vnd.ms-excel.person+xml"/>',
+    ),
+  );
+
+  return zip.generateAsync({ type: "uint8array" });
 }
 
 async function sanitizedRealWorkbook(): Promise<Uint8Array> {
+  const fixtureDirectory = path.join(process.cwd(), "tests", "fixtures");
   const parts = await Promise.all(
-    Array.from({ length: 4 }, (_, index) =>
+    Array.from({ length: 6 }, (_, index) =>
       readFile(
         path.join(
           fixtureDirectory,
