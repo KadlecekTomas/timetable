@@ -29,6 +29,7 @@ test("legacy 25-hour total is interpreted as 22 base plus 3 overtime", () => {
   assert.equal(baseWeeklyLoad(teacher), 22);
   assert.equal(overtimeWeeklyLoad(teacher), 3);
   assert.equal(validation.assignedWeeklyLoad, 25);
+  assert.equal(validation.difference, 0);
   assert.equal(validation.valid, true);
 });
 
