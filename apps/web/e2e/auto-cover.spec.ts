@@ -102,3 +102,169 @@ test("coverage page fills every missing teacher and raises load when needed", as
     ),
   ).toEqual([["M", 5]]);
 });
+
+test("current school shares second language by grade and removes grade-seven electives", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.evaluate(() => {
+    const classCodes = [
+      "6.A",
+      "6.B",
+      "6.C",
+      "6.D",
+      "7.A",
+      "7.B",
+      "7.C",
+      "8.A",
+      "8.B",
+      "8.C",
+      "9.A",
+      "9.B",
+      "9.C",
+    ];
+    localStorage.setItem(
+      "rozvrhar:staffing-plan:v1",
+      JSON.stringify({
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        teachers: [
+          {
+            id: "teacher-language-one",
+            firstName: "Jana",
+            lastName: "Němcová",
+            targetWeeklyLoad: 3,
+            baseWeeklyLoad: 3,
+            subjectLoads: [
+              {
+                id: "load-language-one",
+                subjectCode: "JAZ2",
+                weeklyPeriods: 3,
+              },
+            ],
+            unavailableDays: [],
+          },
+          {
+            id: "teacher-language-two",
+            firstName: "Petr",
+            lastName: "Francouz",
+            targetWeeklyLoad: 3,
+            baseWeeklyLoad: 3,
+            subjectLoads: [
+              {
+                id: "load-language-two",
+                subjectCode: "JAZ2",
+                weeklyPeriods: 3,
+              },
+            ],
+            unavailableDays: [],
+          },
+        ],
+      }),
+    );
+    localStorage.setItem(
+      "rozvrhar:teaching-plan:v1",
+      JSON.stringify({
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        classes: classCodes.map((code, index) => ({
+          id: `class-${index}`,
+          code,
+          grade: Number(code.split(".")[0]),
+          profile: /\.(B|D)$/.test(code) ? "SPORTS" : "REGULAR",
+        })),
+        rows: [
+          ...["7.A", "7.B", "7.C"].map((classCode, index) => ({
+            id: `row-vol-${index}`,
+            classCode,
+            subjectCode: "VOL",
+            secondarySubjectCode: "",
+            weeklyPeriods: 2,
+            lessonShape: "SEPARATE",
+            doublePeriodsCount: 0,
+            organization: "WHOLE",
+            rotationPlacement: "SAME_DAY",
+            primaryTeacherId: "teacher-language-one",
+            secondaryTeacherId: "",
+          })),
+          ...["8.A", "8.B", "8.C"].map((classCode, index) => ({
+            id: `row-language-${index}`,
+            classCode,
+            subjectCode: "JAZ2",
+            secondarySubjectCode: "",
+            weeklyPeriods: 3,
+            lessonShape: "SEPARATE",
+            doublePeriodsCount: 0,
+            organization: "SPLIT",
+            rotationPlacement: "SAME_DAY",
+            primaryTeacherId: "teacher-language-one",
+            secondaryTeacherId: "",
+          })),
+        ],
+      }),
+    );
+  });
+
+  await page.goto("/coverage?schoolYearId=local-school-year");
+
+  await expect(page.getByTestId("coverage-7.A-VOL")).toHaveCount(0);
+  for (const classCode of ["8.A", "8.B", "8.C"]) {
+    await expect(
+      page.getByTestId(`coverage-${classCode}-JAZ2`),
+    ).toHaveAttribute("data-status", "PARTIAL");
+    await expect(
+      page.getByTestId(`coverage-${classCode}-JAZ2`),
+    ).toHaveAttribute("data-shared", "true");
+  }
+
+  await page.getByRole("button", { name: "Doplnit vše automaticky" }).click();
+
+  for (const classCode of ["8.A", "8.B", "8.C"]) {
+    await expect(
+      page.getByTestId(`coverage-${classCode}-JAZ2`),
+    ).toHaveAttribute("data-status", "FULL");
+  }
+
+  const stored = await page.evaluate(() => ({
+    staffing: JSON.parse(
+      localStorage.getItem("rozvrhar:staffing-plan:v1") ?? "{}",
+    ),
+    teaching: JSON.parse(
+      localStorage.getItem("rozvrhar:teaching-plan:v1") ?? "{}",
+    ),
+    shared: JSON.parse(
+      localStorage.getItem("rozvrhar:teaching-plan-shared:v1") ?? "{}",
+    ),
+  }));
+
+  expect(
+    stored.teaching.rows.filter(
+      (row: { subjectCode: string }) => row.subjectCode === "VOL",
+    ),
+  ).toHaveLength(0);
+  const languageRows = stored.teaching.rows.filter(
+    (row: { subjectCode: string }) => row.subjectCode === "JAZ2",
+  );
+  expect(languageRows).toHaveLength(1);
+  expect(languageRows[0].primaryTeacherId).toBe("teacher-language-one");
+  expect(languageRows[0].secondaryTeacherId).toBe("teacher-language-two");
+  expect(stored.shared[languageRows[0].id].additionalClassCodes).toEqual([
+    "8.B",
+    "8.C",
+  ]);
+  expect(
+    stored.staffing.teachers.map(
+      (teacher: {
+        id: string;
+        subjectLoads: Array<{ subjectCode: string; weeklyPeriods: number }>;
+      }) => [
+        teacher.id,
+        teacher.subjectLoads.find((load) => load.subjectCode === "JAZ2")
+          ?.weeklyPeriods,
+      ],
+    ),
+  ).toEqual([
+    ["teacher-language-one", 3],
+    ["teacher-language-two", 3],
+  ]);
+});

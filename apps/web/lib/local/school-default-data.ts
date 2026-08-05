@@ -29,7 +29,7 @@ const REGULAR_SUBJECTS: SchoolCurriculumSubject[] = [
   subject("TV", "Tělesná výchova", 2, 2, 2, 2),
   subject("VZ", "Výchova ke zdraví", 0, 1, 1, 0),
   subject("PC", "Pracovní činnosti", 1, 1, 1, 0),
-  subject("VOL", "Povinně volitelné předměty", 1, 2, 1, 1),
+  subject("VOL", "Povinně volitelné předměty", 1, 0, 1, 1),
 ];
 
 const SPORTS_SUBJECTS: SchoolCurriculumSubject[] = [
@@ -72,6 +72,21 @@ function subject(
   };
 }
 
+export function enforceCurrentSchoolCurriculumRules(
+  curriculum: SchoolCurriculum,
+): SchoolCurriculum {
+  const enforced = structuredClone(curriculum);
+  for (const profile of [enforced.profiles.REGULAR, enforced.profiles.SPORTS]) {
+    const elective = profile.subjects.find(
+      (subject) => subject.subjectCode === "VOL",
+    );
+    if (elective) {
+      elective.weeklyPeriodsByGrade["7"] = 0;
+    }
+  }
+  return enforced;
+}
+
 export const DEFAULT_SCHOOL_CURRICULUM: SchoolCurriculum = {
   version: 1,
   profiles: {
@@ -89,5 +104,5 @@ export const DEFAULT_SCHOOL_CURRICULUM: SchoolCurriculum = {
 };
 
 export function createDefaultSchoolCurriculum(): SchoolCurriculum {
-  return structuredClone(DEFAULT_SCHOOL_CURRICULUM);
+  return enforceCurrentSchoolCurriculumRules(DEFAULT_SCHOOL_CURRICULUM);
 }

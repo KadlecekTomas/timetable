@@ -31,6 +31,7 @@ export interface CoverageCell {
   status: CoverageStatus;
   teacherNames: string[];
   missingRoles: string[];
+  sharedClassCodes: string[];
   rows: CoverageCellRow[];
 }
 
@@ -223,6 +224,7 @@ export function buildCoverageOverview(
 
   for (const row of plan.rows) {
     const roles = rolesForRow(row);
+    const targetClasses = rowTargetClasses(row);
     const seenTeacherBySubject = new Map<string, Set<string>>();
     const evaluatedRoles = roles.map((role) => {
       const seen =
@@ -247,7 +249,7 @@ export function buildCoverageOverview(
       }
     }
 
-    for (const classCode of rowTargetClasses(row)) {
+    for (const classCode of targetClasses) {
       for (const { role, assigned } of evaluatedRoles) {
         const key = coverageCellKey(classCode, role.subjectCode);
         const teacher = teacherById.get(role.teacherId);
@@ -267,6 +269,7 @@ export function buildCoverageOverview(
             status: "MISSING",
             teacherNames: [],
             missingRoles: [],
+            sharedClassCodes: [],
             rows: [],
           } satisfies CoverageCell);
 
@@ -282,6 +285,11 @@ export function buildCoverageOverview(
           }
         } else {
           cell.missingRoles.push(role.roleLabel);
+        }
+        if (targetClasses.length > 1) {
+          cell.sharedClassCodes = [
+            ...new Set([...cell.sharedClassCodes, ...targetClasses]),
+          ];
         }
         cell.rows.push({
           rowId: row.id,
@@ -310,6 +318,9 @@ export function buildCoverageOverview(
         left.localeCompare(right, "cs-CZ"),
       ),
       missingRoles: [...new Set(cell.missingRoles)],
+      sharedClassCodes: [...cell.sharedClassCodes].sort((left, right) =>
+        left.localeCompare(right, "cs-CZ", { numeric: true }),
+      ),
     }))
     .sort((left, right) =>
       `${left.classCode}|${left.subjectCode}`.localeCompare(

@@ -237,3 +237,50 @@ test("existing generated data requires explicit replacement confirmation", () =>
   assert.deepEqual(forced.blockers, []);
   assert.equal(forced.project.generationRuns.length, 0);
 });
+
+test("shared split language creates two assignments for all participating classes", () => {
+  const staffingPlan: StaffingPlan = {
+    version: 1,
+    updatedAt: "test",
+    teachers: [
+      teacher("language-one", "JAZ2", 3),
+      teacher("language-two", "JAZ2", 3),
+    ],
+  };
+  const teachingPlan: TeachingPlan = {
+    version: 1,
+    updatedAt: "test",
+    classes: [
+      { id: "8a", code: "8.A", grade: 8, profile: "REGULAR" },
+      { id: "8b", code: "8.B", grade: 8, profile: "SPORTS" },
+      { id: "8c", code: "8.C", grade: 8, profile: "REGULAR" },
+    ],
+    rows: [
+      row({
+        id: "shared-language",
+        classCode: "8.A",
+        additionalClassCodes: ["8.B", "8.C"],
+        subjectCode: "JAZ2",
+        weeklyPeriods: 3,
+        organization: "SPLIT",
+        primaryTeacherId: "language-one",
+        secondaryTeacherId: "language-two",
+      }),
+    ],
+  };
+
+  const result = buildSchoolProjectForGeneration({
+    existingProject: project(),
+    staffingPlan,
+    teachingPlan,
+    forceReplaceGeneratedData: false,
+  });
+
+  assert.deepEqual(result.blockers, []);
+  assert.equal(result.project.assignments.length, 2);
+  for (const assignment of result.project.assignments) {
+    assert.equal(assignment.classId, "class:8-A");
+    assert.deepEqual(assignment.additionalClassIds, ["class:8-B", "class:8-C"]);
+    assert.equal(assignment.weeklyPeriods, 3);
+  }
+});
