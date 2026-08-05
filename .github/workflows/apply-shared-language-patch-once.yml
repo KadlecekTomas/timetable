@@ -1,0 +1,58 @@
+name: Apply shared language patch once
+
+on:
+  push:
+    branches:
+      - fix/shared-second-language-no-grade7-electives
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/shared-second-language-no-grade7-electives
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: python scripts/patch-shared-language-and-grade7-vol.py
+      - run: npm install
+      - name: Format changed files
+        run: |
+          npx prettier --write \
+            apps/web/lib/local/school-default-data.ts \
+            apps/web/lib/local/teaching-plan-school-v2.ts \
+            apps/web/lib/local/teaching-plan-school-v3.ts \
+            apps/web/lib/local/school-project-generation.ts \
+            apps/web/lib/domain/coverage-overview.ts \
+            apps/web/app/coverage/page.tsx \
+            apps/web/tests/school-default-data.test.ts \
+            apps/web/tests/mandatory-school-splits.test.ts \
+            apps/web/tests/school-project-generation.test.ts \
+            apps/web/tests/coverage-overview.test.ts \
+            apps/web/e2e/auto-cover.spec.ts
+      - run: npm run typecheck --workspace @timetable/web
+      - run: npm run test --workspace @timetable/web
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f \
+            apps/web/lib/local/school-default-data.ts \
+            apps/web/lib/local/teaching-plan-school-v2.ts \
+            apps/web/lib/local/teaching-plan-school-v3.ts \
+            apps/web/lib/local/school-project-generation.ts \
+            apps/web/lib/domain/coverage-overview.ts \
+            apps/web/app/coverage/page.tsx \
+            apps/web/tests/school-default-data.test.ts \
+            apps/web/tests/mandatory-school-splits.test.ts \
+            apps/web/tests/school-project-generation.test.ts \
+            apps/web/tests/coverage-overview.test.ts \
+            apps/web/e2e/auto-cover.spec.ts
+          git commit -m "fix: share second language groups and remove grade-seven electives"
+          git push origin HEAD:fix/shared-second-language-no-grade7-electives
