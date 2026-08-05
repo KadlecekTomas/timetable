@@ -9,10 +9,7 @@ import {
   type StaffingTeacher,
 } from "../lib/local/staffing-plan";
 
-function teacher(
-  baseLoad: number,
-  overtimeLoad = 0,
-): StaffingTeacher {
+function teacher(baseLoad: number, overtimeLoad = 0): StaffingTeacher {
   const total = baseLoad + overtimeLoad;
   return {
     id: "teacher-test",
