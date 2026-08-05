@@ -140,7 +140,7 @@ export async function createStaffingWorkbookTemplate(): Promise<Uint8Array> {
 
   worksheet.mergeCells("A2:T2");
   worksheet.getCell("A2").value =
-    "Každý učitel je jeden řádek. Celkový úvazek musí přesně odpovídat součtu hodin jednotlivých předmětů.";
+    "Každý učitel je jeden řádek. Celkem musí přesně odpovídat součtu předmětů; hodiny nad 22 se v aplikaci zobrazí jako nadúvazek.";
   worksheet.getCell("A2").font = { bold: true, color: { argb: COLORS.text } };
   worksheet.getCell("A2").fill = {
     type: "pattern",
@@ -484,6 +484,7 @@ export async function analyzeStaffingWorkbook(
       firstName,
       lastName,
       targetWeeklyLoad: target ?? 0,
+      baseWeeklyLoad: Math.min(target ?? 0, 22),
       subjectLoads,
       unavailableDays,
     };

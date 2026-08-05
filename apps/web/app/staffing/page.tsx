@@ -28,11 +28,14 @@ import { LOCAL_SCHOOL_YEAR_ID, localApiFetch } from "@/lib/local/api";
 import {
   STAFFING_DAYS,
   MAX_WEEKLY_TEACHER_LOAD,
+  MAX_WEEKLY_TEACHER_TOTAL_LOAD,
   STAFFING_SUBJECTS,
   assignedWeeklyLoad,
+  baseWeeklyLoad,
   createEmptyStaffingTeacher,
   createEmptySubjectLoad,
   loadStaffingPlan,
+  overtimeWeeklyLoad,
   saveStaffingPlan,
   teacherCodesForPlan,
   validateStaffingPlan,
@@ -76,6 +79,7 @@ function teacherFingerprint(teacher: StaffingTeacher): string {
     firstName: teacher.firstName,
     lastName: teacher.lastName,
     targetWeeklyLoad: teacher.targetWeeklyLoad,
+    baseWeeklyLoad: baseWeeklyLoad(teacher),
     subjectLoads: teacher.subjectLoads,
     unavailableDays: teacher.unavailableDays,
   });
@@ -603,7 +607,7 @@ export default function StaffingPage() {
       <PageHeader
         eyebrow="Krok 1"
         title="Učitelé a úvazky"
-        description="Nejdřív zapište pouze lidi, jejich celkový úvazek, rozdělení hodin mezi předměty a celé dny, kdy nemohou učit. Každou kartu uložte samostatně."
+        description="Zapište základní úvazek, případný nadúvazek, rozdělení hodin mezi předměty a celé dny, kdy učitel nemůže. Každou kartu uložte samostatně."
         actions={
           <Button
             type="button"
@@ -851,6 +855,8 @@ export default function StaffingPage() {
                 "Učitel se stejným jménem je uveden vícekrát.",
               ]
             : validation.messages;
+          const baseLoad = baseWeeklyLoad(teacher);
+          const overtimeLoad = overtimeWeeklyLoad(teacher);
           const percentage =
             teacher.targetWeeklyLoad > 0
               ? Math.min(
@@ -884,6 +890,9 @@ export default function StaffingPage() {
                     <p className="text-xs text-text-muted">
                       {validation.assignedWeeklyLoad} z{" "}
                       {teacher.targetWeeklyLoad} hodin
+                      {overtimeLoad > 0
+                        ? ` · ${baseLoad} základ + ${overtimeLoad} nadúvazek`
+                        : ""}
                     </p>
                   </div>
                 </div>
@@ -918,7 +927,7 @@ export default function StaffingPage() {
               </div>
 
               <div className="space-y-6 p-5">
-                <div className="grid gap-4 md:grid-cols-[1fr_1fr_180px]">
+                <div className="grid gap-4 md:grid-cols-[1fr_1fr_180px_180px]">
                   <label className="space-y-1.5 text-sm font-medium text-text-primary">
                     Jméno
                     <input
@@ -948,20 +957,24 @@ export default function StaffingPage() {
                     />
                   </label>
                   <label className="space-y-1.5 text-sm font-medium text-text-primary">
-                    Úvazek týdně
+                    Základní úvazek (max. 22 h)
                     <div className="relative">
                       <input
+                        aria-label="Úvazek týdně"
                         type="number"
                         min={0}
                         max={MAX_WEEKLY_TEACHER_LOAD}
                         step={1}
-                        value={teacher.targetWeeklyLoad}
-                        onChange={(event) =>
+                        value={baseLoad}
+                        onChange={(event) => {
+                          const nextBase = numberValue(event.target.value);
                           updateTeacher(teacher.id, (current) => ({
                             ...current,
-                            targetWeeklyLoad: numberValue(event.target.value),
-                          }))
-                        }
+                            baseWeeklyLoad: nextBase,
+                            targetWeeklyLoad:
+                              nextBase + overtimeWeeklyLoad(current),
+                          }));
+                        }}
                         className={`${inputClass} pr-9`}
                       />
                       <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-muted">
@@ -969,6 +982,41 @@ export default function StaffingPage() {
                       </span>
                     </div>
                   </label>
+                  <label className="space-y-1.5 text-sm font-medium text-text-primary">
+                    Nadúvazek / přesčas
+                    <div className="relative">
+                      <input
+                        aria-label="Nadúvazek týdně"
+                        type="number"
+                        min={0}
+                        max={Math.max(
+                          0,
+                          MAX_WEEKLY_TEACHER_TOTAL_LOAD - baseLoad,
+                        )}
+                        step={1}
+                        value={overtimeLoad}
+                        onChange={(event) => {
+                          const nextOvertime = numberValue(event.target.value);
+                          updateTeacher(teacher.id, (current) => ({
+                            ...current,
+                            baseWeeklyLoad: baseWeeklyLoad(current),
+                            targetWeeklyLoad:
+                              baseWeeklyLoad(current) + nextOvertime,
+                          }));
+                        }}
+                        className={`${inputClass} pr-9`}
+                      />
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-muted">
+                        h
+                      </span>
+                    </div>
+                  </label>
+                </div>
+                <div className="rounded-xl border border-primary/20 bg-primary-subtle px-4 py-3 text-sm text-text-secondary">
+                  <strong className="text-text-primary">
+                    Celkem k rozdělení: {teacher.targetWeeklyLoad} h
+                  </strong>{" "}
+                  · {baseLoad} h základní úvazek + {overtimeLoad} h nadúvazek
                 </div>
 
                 <div>

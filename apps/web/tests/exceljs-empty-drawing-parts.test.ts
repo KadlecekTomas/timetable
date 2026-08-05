@@ -7,7 +7,6 @@ import ExcelJS from "exceljs";
 import JSZip from "jszip";
 
 import { analyzeStaffingWorkbook } from "../lib/import/staffing-workbook-school-v2";
-import { validateStaffingPlan } from "../lib/local/staffing-plan";
 
 const EMPTY_DRAWING = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>`;
@@ -96,7 +95,7 @@ test("ExcelJS can load the empty drawing/person parts emitted by the real workbo
   assert.ok(workbook.getWorksheet("Úvazky 20252026"));
 });
 
-test("the sanitized real 2027 workbook imports a recoverable draft and keeps readiness errors", async () => {
+test("the sanitized real 2027 workbook imports balanced overtime as a valid draft", async () => {
   const bytes = await sanitizedRealWorkbook();
   const analysis = await analyzeStaffingWorkbook(bytes);
 
@@ -105,23 +104,31 @@ test("the sanitized real 2027 workbook imports a recoverable draft and keeps rea
   assert.ok(
     analysis.issues.some(
       (issue) =>
-        issue.severity === "ERROR" && issue.message.includes("Maximum je 22"),
+        issue.severity === "WARNING" && issue.message.includes("nadúvazek"),
     ),
+    "Hours above the base load must be preserved as a visible overtime warning.",
+  );
+
+  const overtimeTeacher = analysis.plan.teachers.find(
+    (teacher) => teacher.targetWeeklyLoad > 22,
   );
   assert.ok(
-    analysis.plan.teachers.some((teacher) => teacher.targetWeeklyLoad > 22),
-    "The importer must preserve the original overload for manual correction.",
+    overtimeTeacher,
+    "The real workbook must retain its overtime teacher.",
   );
-  assert.ok(
-    validateStaffingPlan(analysis.plan).some((message) =>
-      message.includes("0 do 22 hodin"),
+  assert.equal(overtimeTeacher.baseWeeklyLoad, 22);
+  assert.equal(
+    overtimeTeacher.subjectLoads.reduce(
+      (total, subject) => total + subject.weeklyPeriods,
+      0,
     ),
-    "The imported draft must remain blocked from completion until the overload is fixed.",
+    overtimeTeacher.targetWeeklyLoad,
+    "A fully distributed 25-hour load must be valid as 22 base plus overtime.",
   );
   assert.ok(
     "allocationDraft" in analysis &&
       analysis.allocationDraft &&
       analysis.allocationDraft.rows.length > 0,
-    "Valid teaching rows must remain available in the partial allocation draft.",
+    "Valid teaching rows must remain available in the allocation draft.",
   );
 });

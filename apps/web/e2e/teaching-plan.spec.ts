@@ -42,7 +42,7 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
   const tomasCard = page.getByTestId(tomasCardTestId!);
   await tomasCard.getByLabel("Jméno").fill("Tomáš");
   await tomasCard.getByLabel("Příjmení").fill("Kadleček");
-  await tomasCard.getByLabel("Úvazek týdně").fill("3");
+  await tomasCard.getByLabel("Úvazek týdně", { exact: true }).fill("3");
   await tomasCard.locator('select[aria-label="Předmět"]').selectOption("VV");
   await tomasCard.locator('input[aria-label="Počet hodin předmětu"]').fill("2");
   await tomasCard.getByRole("button", { name: "Přidat další předmět" }).click();
@@ -65,7 +65,7 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
   const vasakovaCard = page.getByTestId(vasakovaCardTestId!);
   await vasakovaCard.getByLabel("Jméno").fill("N.");
   await vasakovaCard.getByLabel("Příjmení").fill("Vašáková");
-  await vasakovaCard.getByLabel("Úvazek týdně").fill("1");
+  await vasakovaCard.getByLabel("Úvazek týdně", { exact: true }).fill("1");
   await vasakovaCard
     .locator('select[aria-label="Předmět"]')
     .selectOption("INF");

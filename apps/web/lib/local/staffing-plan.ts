@@ -1,6 +1,7 @@
 export const STAFFING_PLAN_STORAGE_KEY = "rozvrhar:staffing-plan:v1";
 export const STAFFING_PLAN_CHANGE_EVENT = "rozvrhar:staffing-plan-changed";
 export const MAX_WEEKLY_TEACHER_LOAD = 22;
+export const MAX_WEEKLY_TEACHER_TOTAL_LOAD = 60;
 
 export const STAFFING_DAYS = [
   { code: "MON", shortLabel: "Po", label: "Pondělí", dayIndex: 0 },
@@ -46,7 +47,10 @@ export interface StaffingTeacher {
   id: string;
   firstName: string;
   lastName: string;
+  /** Total weekly load including overtime. */
   targetWeeklyLoad: number;
+  /** Contractual/base load. Older saved plans omit this and are migrated automatically. */
+  baseWeeklyLoad?: number;
   subjectLoads: StaffingSubjectLoad[];
   unavailableDays: StaffingDayCode[];
 }
@@ -82,6 +86,7 @@ export function createEmptyStaffingTeacher(): StaffingTeacher {
     firstName: "",
     lastName: "",
     targetWeeklyLoad: 22,
+    baseWeeklyLoad: 22,
     subjectLoads: [createEmptySubjectLoad()],
     unavailableDays: [],
   };
@@ -89,6 +94,23 @@ export function createEmptyStaffingTeacher(): StaffingTeacher {
 
 export function createEmptyStaffingPlan(): StaffingPlan {
   return { version: 1, updatedAt: new Date().toISOString(), teachers: [] };
+}
+
+export function baseWeeklyLoad(teacher: StaffingTeacher): number {
+  if (Number.isFinite(teacher.baseWeeklyLoad)) {
+    return Number(teacher.baseWeeklyLoad);
+  }
+  const total = Number.isFinite(teacher.targetWeeklyLoad)
+    ? Number(teacher.targetWeeklyLoad)
+    : 0;
+  return Math.min(total, MAX_WEEKLY_TEACHER_LOAD);
+}
+
+export function overtimeWeeklyLoad(teacher: StaffingTeacher): number {
+  const total = Number.isFinite(teacher.targetWeeklyLoad)
+    ? Number(teacher.targetWeeklyLoad)
+    : 0;
+  return total - baseWeeklyLoad(teacher);
 }
 
 export function assignedWeeklyLoad(teacher: StaffingTeacher): number {
@@ -107,16 +129,30 @@ export function validateStaffingTeacher(
   const target = Number.isFinite(teacher.targetWeeklyLoad)
     ? teacher.targetWeeklyLoad
     : 0;
+  const baseLoad = baseWeeklyLoad(teacher);
+  const overtimeLoad = overtimeWeeklyLoad(teacher);
 
   if (!teacher.firstName.trim()) messages.push("Doplňte jméno.");
   if (!teacher.lastName.trim()) messages.push("Doplňte příjmení.");
   if (
-    !Number.isInteger(target) ||
-    target < 0 ||
-    target > MAX_WEEKLY_TEACHER_LOAD
+    !Number.isInteger(baseLoad) ||
+    baseLoad < 0 ||
+    baseLoad > MAX_WEEKLY_TEACHER_LOAD
   ) {
     messages.push(
-      `Úvazek musí být celé číslo od 0 do ${MAX_WEEKLY_TEACHER_LOAD} hodin.`,
+      `Základní úvazek musí být celé číslo od 0 do ${MAX_WEEKLY_TEACHER_LOAD} hodin.`,
+    );
+  }
+  if (!Number.isInteger(overtimeLoad) || overtimeLoad < 0) {
+    messages.push("Nadúvazek musí být celé nezáporné číslo.");
+  }
+  if (
+    !Number.isInteger(target) ||
+    target < 0 ||
+    target > MAX_WEEKLY_TEACHER_TOTAL_LOAD
+  ) {
+    messages.push(
+      `Celkem musí být celé číslo od 0 do ${MAX_WEEKLY_TEACHER_TOTAL_LOAD} hodin.`,
     );
   }
 
@@ -206,6 +242,14 @@ function normalizePlan(value: unknown): StaffingPlan {
       targetWeeklyLoad: Number.isFinite(teacher.targetWeeklyLoad)
         ? Number(teacher.targetWeeklyLoad)
         : 0,
+      baseWeeklyLoad: Number.isFinite(teacher.baseWeeklyLoad)
+        ? Number(teacher.baseWeeklyLoad)
+        : Math.min(
+            Number.isFinite(teacher.targetWeeklyLoad)
+              ? Number(teacher.targetWeeklyLoad)
+              : 0,
+            MAX_WEEKLY_TEACHER_LOAD,
+          ),
       subjectLoads: Array.isArray(teacher.subjectLoads)
         ? teacher.subjectLoads.map((item) => ({
             id: typeof item.id === "string" ? item.id : newId("subject-load"),
