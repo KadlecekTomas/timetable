@@ -72,17 +72,19 @@ test("generation inputs are prepared atomically and survive reload", async ({
   );
   await page.reload();
 
-  await expect(page.getByText(/Personální plán: 2 učitelů/)).toBeVisible();
-  await expect(page.getByText(/učební plán: 1 tříd a 1 řádků/)).toBeVisible();
+  await expect(page.getByText(/Personální plán: 2 učitelé/)).toBeVisible();
+  await expect(page.getByText(/učební plán: 1 třída a 1 řádek/)).toBeVisible();
   await page
     .getByRole("button", { name: "Připravit a zkontrolovat data" })
     .click();
   await expect(
-    page.getByText("Připraveno: 2 učitelů, 1 tříd, 2 předmětů a 4 vazeb."),
+    page.getByText(
+      "Připraveno: 2 učitelé, 1 třída, 2 předměty a 4 výukové vazby.",
+    ),
   ).toBeVisible();
   await expect(
     page.getByText(
-      /Projekt: 2 učitelů · 1 tříd · 2 předmětů · 4 vazeb · aktuální/,
+      /Připravený projekt: 2 učitelé · 1 třída · 2 předměty · 4 výukové vazby · aktuální/,
     ),
   ).toBeVisible();
 
@@ -117,7 +119,7 @@ test("generation inputs are prepared atomically and survive reload", async ({
   await page.reload();
   await expect(
     page.getByText(
-      /Projekt: 2 učitelů · 1 tříd · 2 předmětů · 4 vazeb · aktuální/,
+      /Připravený projekt: 2 učitelé · 1 třída · 2 předměty · 4 výukové vazby · aktuální/,
     ),
   ).toBeVisible();
   await page.goto("/coverage?schoolYearId=local-school-year");

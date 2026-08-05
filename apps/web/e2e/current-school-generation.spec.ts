@@ -206,10 +206,12 @@ test("shared second language can be prepared, solved and opened as a valid timet
     .getByRole("button", { name: "Připravit a zkontrolovat data" })
     .click();
   await expect(
-    page.getByText(/Připraveno: 2 učitelů, 13 tříd, 1 předmětů a 2 vazeb\./),
+    page.getByText(
+      /Připraveno: 2 učitelé, 13 tříd, 1 předmět a 2 výukové vazby\./,
+    ),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Kontrola připravenosti prošla" }),
+    page.getByRole("heading", { name: "Zadání je připravené" }),
   ).toBeVisible();
 
   const prepared = await readProject(page);

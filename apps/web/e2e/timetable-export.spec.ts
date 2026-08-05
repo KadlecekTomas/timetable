@@ -103,7 +103,10 @@ test("school leadership downloads a readable Excel with class and teacher sheets
   });
 
   await page.goto("/");
-  await page.getByRole("link", { name: "Nastavení" }).click();
+  await page
+    .getByRole("link", { name: "Nastavení a záloha", exact: true })
+    .first()
+    .click();
   await page.getByLabel("Název školy").fill("ZŠ Export");
   await page.getByRole("button", { name: "Uložit nastavení" }).click();
   await expect(
@@ -129,7 +132,7 @@ test("school leadership downloads a readable Excel with class and teacher sheets
 
   await page.getByRole("link", { name: "Tvorba rozvrhu" }).click();
   await expect(
-    page.getByRole("heading", { name: "Kontrola připravenosti prošla" }),
+    page.getByRole("heading", { name: "Zadání je připravené" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Vytvořit nový návrh" }).click();
   await expect(
