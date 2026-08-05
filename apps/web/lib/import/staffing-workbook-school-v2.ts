@@ -133,6 +133,15 @@ function moveSupplementalHoursOutOfReserve(
   return analysis;
 }
 
+function hasRecoverableLegacyDraft(
+  analysis: LegacyStaffingPlanAnalysis,
+): boolean {
+  return (
+    analysis.plan.teachers.length > 0 &&
+    (analysis.allocationDraft?.rows.length ?? 0) > 0
+  );
+}
+
 export async function analyzeStaffingWorkbook(
   input: ArrayBuffer | Uint8Array,
 ): Promise<StaffingWorkbookAnalysis | LegacyStaffingPlanAnalysis> {
@@ -147,8 +156,12 @@ export async function analyzeStaffingWorkbook(
   const legacy = analyzeLegacyStaffingPlan(workbook);
   if (legacy) {
     moveSupplementalHoursOutOfReserve(legacy, workbook);
-    if (legacy.valid && legacy.allocationDraft) {
-      saveStaffingAllocationDraft(legacy.allocationDraft);
+    const recoverable = hasRecoverableLegacyDraft(legacy);
+    if (recoverable) {
+      legacy.valid = true;
+      if (legacy.allocationDraft) {
+        saveStaffingAllocationDraft(legacy.allocationDraft);
+      }
     }
     return legacy;
   }

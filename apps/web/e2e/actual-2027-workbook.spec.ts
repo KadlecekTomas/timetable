@@ -308,7 +308,7 @@ async function createActualLikeWorkbook(filePath: string): Promise<void> {
   await writeFile(filePath, new Uint8Array(await workbook.xlsx.writeBuffer()));
 }
 
-test("actual 2027 staffing layout blocks contractual overloads without crashing", async ({
+test("actual 2027 staffing layout saves valid data and keeps overloads visible", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1800, height: 1200 });
@@ -329,12 +329,25 @@ test("actual 2027 staffing layout blocks contractual overloads without crashing"
     .setInputFiles(workbookPath);
 
   await expect(
-    page.getByText("Excel obsahuje blokující chyby.", { exact: false }),
+    page.getByText("Excel byl načten.", { exact: false }),
   ).toBeVisible();
   await expect(page.getByText(/Maximum je 22 hodin/).first()).toBeVisible();
   await expect(
     page.getByText("Nahrajte druhý Excel a uvidíte skutečné pokrytí"),
-  ).toBeVisible();
+  ).not.toBeVisible();
+
+  const storedStaffing = await page.evaluate(() => {
+    const raw = window.localStorage.getItem("rozvrhar:staffing-plan:v1");
+    return raw
+      ? (JSON.parse(raw) as {
+          teachers: Array<{ targetWeeklyLoad: number }>;
+        })
+      : null;
+  });
+  expect(storedStaffing?.teachers.length ?? 0).toBeGreaterThan(0);
+  expect(
+    storedStaffing?.teachers.some((teacher) => teacher.targetWeeklyLoad > 22),
+  ).toBe(true);
 
   await mkdir(artifactDirectory, { recursive: true });
   await page.screenshot({
