@@ -112,7 +112,10 @@ test("the sanitized real 2027 workbook imports balanced overtime as a valid draf
   const overtimeTeacher = analysis.plan.teachers.find(
     (teacher) => teacher.targetWeeklyLoad > 22,
   );
-  assert.ok(overtimeTeacher, "The real workbook must retain its overtime teacher.");
+  assert.ok(
+    overtimeTeacher,
+    "The real workbook must retain its overtime teacher.",
+  );
   assert.equal(overtimeTeacher.baseWeeklyLoad, 22);
   assert.equal(
     overtimeTeacher.subjectLoads.reduce(
