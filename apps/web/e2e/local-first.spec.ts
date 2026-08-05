@@ -128,7 +128,7 @@ test("entire project survives backup, deletion and restore without a server data
 
   await page.getByRole("link", { name: "Tvorba rozvrhu" }).click();
   await expect(
-    page.getByRole("heading", { name: "Data připravená pro solver" }),
+    page.getByRole("heading", { name: "Připravit data pro tvorbu rozvrhu" }),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "Připravit a zkontrolovat data" })
