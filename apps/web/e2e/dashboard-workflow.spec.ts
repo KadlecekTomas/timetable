@@ -136,7 +136,9 @@ test("dashboard follows working data and detects stale prepared inputs", async (
     },
   );
   await page.reload();
-  await expect(page.getByText("Je potřeba obnovit", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Je potřeba obnovit", { exact: true }),
+  ).toBeVisible();
 
   await page.goto("/data?schoolYearId=local-school-year");
   await expect(

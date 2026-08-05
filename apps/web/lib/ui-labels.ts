@@ -1,8 +1,4 @@
-export type CzechCountForms = readonly [
-  one: string,
-  few: string,
-  many: string,
-];
+export type CzechCountForms = readonly [one: string, few: string, many: string];
 
 export function formatCzechCount(
   count: number,

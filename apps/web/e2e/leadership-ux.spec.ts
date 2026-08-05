@@ -13,8 +13,9 @@ const primaryRoutes = [
 ];
 
 async function expectNoUnnamedControls(page: Page) {
-  const unnamedButtons = await page.locator("button:visible").evaluateAll(
-    (buttons) =>
+  const unnamedButtons = await page
+    .locator("button:visible")
+    .evaluateAll((buttons) =>
       buttons
         .filter((button) => {
           const ownLabel = button.getAttribute("aria-label")?.trim();
@@ -27,28 +28,32 @@ async function expectNoUnnamedControls(page: Page) {
           return !ownLabel && !title && !text && !childLabel;
         })
         .map((button) => button.outerHTML),
-  );
+    );
 
-  expect(unnamedButtons, "Každé viditelné tlačítko musí mít srozumitelný název").toEqual(
-    [],
-  );
+  expect(
+    unnamedButtons,
+    "Každé viditelné tlačítko musí mít srozumitelný název",
+  ).toEqual([]);
 }
 
 async function expectNoPlaceholderLinks(page: Page) {
-  const placeholderLinks = await page.locator("a:visible").evaluateAll((links) =>
-    links
-      .map((link) => link.getAttribute("href")?.trim() ?? "")
-      .filter(
-        (href) =>
-          !href ||
-          href === "#" ||
-          href.toLowerCase().startsWith("javascript:"),
-      ),
-  );
+  const placeholderLinks = await page
+    .locator("a:visible")
+    .evaluateAll((links) =>
+      links
+        .map((link) => link.getAttribute("href")?.trim() ?? "")
+        .filter(
+          (href) =>
+            !href ||
+            href === "#" ||
+            href.toLowerCase().startsWith("javascript:"),
+        ),
+    );
 
-  expect(placeholderLinks, "Viditelné odkazy nesmí končit na prázdném cíli").toEqual(
-    [],
-  );
+  expect(
+    placeholderLinks,
+    "Viditelné odkazy nesmí končit na prázdném cíli",
+  ).toEqual([]);
 }
 
 test("leadership workflow has working navigation and no blind controls", async ({

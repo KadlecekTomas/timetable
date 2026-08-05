@@ -178,7 +178,7 @@ export default function HomePage() {
       ) : null}
 
       <section className="rounded-xl border border-info-border bg-info-subtle p-5 text-sm text-text-secondary">
-        Pracovní data: {" "}
+        Pracovní data:{" "}
         <strong>
           {formatCzechCount(staffing.teachers.length, [
             "učitel",
@@ -186,7 +186,7 @@ export default function HomePage() {
             "učitelů",
           ])}
         </strong>{" "}
-        a {" "}
+        a{" "}
         <strong>
           {formatCzechCount(teaching.classes.length, [
             "třída",
@@ -194,7 +194,7 @@ export default function HomePage() {
             "tříd",
           ])}
         </strong>
-        . {" "}
+        .{" "}
         {state?.prepared === "CURRENT"
           ? "Data jsou připravena pro generátor."
           : state?.prepared === "STALE"
