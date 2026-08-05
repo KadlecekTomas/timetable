@@ -20,7 +20,7 @@ const navigation = [
   { label: "Přehled", icon: LayoutDashboard, href: "/" },
   { label: "1. Učitelé a úvazky", icon: UsersRound, href: "/staffing" },
   { label: "2. Pokrytí výuky", icon: BookOpenCheck, href: "/coverage" },
-  { label: "3. Podrobný editor výuky", icon: BookOpen, href: "/teaching-plan" },
+  { label: "3. Výukový plán", icon: BookOpen, href: "/teaching-plan" },
   { label: "4. Tvorba rozvrhu", icon: ClipboardCheck, href: "/generate" },
   { label: "5. Rozvrh", icon: CalendarDays, href: "/timetable" },
 ];
@@ -99,20 +99,21 @@ export function AppShell({ children }: AppShellProps) {
             className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <Settings aria-hidden="true" className="size-4" />
-            Nastavení
+            Nastavení a záloha
           </Link>
         </div>
       </aside>
 
       <div className="min-w-0">
         <div className="flex h-16 items-center justify-between border-b border-border bg-surface px-6">
-          <p className="text-sm text-text-muted">Pracovní prostředí</p>
-          <button
-            type="button"
-            className="rounded-md px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          <p className="text-sm text-text-muted">Lokální pracovní prostředí</p>
+          <Link
+            href={appendContext("/settings")}
+            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
-            Tomáš Kadleček
-          </button>
+            <Settings aria-hidden="true" className="size-4" />
+            Nastavení a záloha
+          </Link>
         </div>
         <main className="mx-auto w-full max-w-[1440px] p-6 lg:p-8">
           {children}
