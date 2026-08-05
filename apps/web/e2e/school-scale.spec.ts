@@ -883,11 +883,11 @@ test("school leadership can import 40 teachers, generate the complete second-sta
   const backupPath = await download.path();
   expect(backupPath).not.toBeNull();
   const backup = JSON.parse((await readFile(backupPath!)).toString("utf8")) as {
-    project: StoredProject;
+    data: { project: StoredProject };
   };
-  expect(backup.project.teachers).toHaveLength(40);
-  expect(backup.project.classes).toHaveLength(13);
-  expect(backup.project.timetableVersions).toHaveLength(1);
+  expect(backup.data.project.teachers).toHaveLength(40);
+  expect(backup.data.project.classes).toHaveLength(13);
+  expect(backup.data.project.timetableVersions).toHaveLength(1);
 
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);

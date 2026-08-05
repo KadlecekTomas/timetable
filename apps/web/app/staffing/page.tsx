@@ -66,6 +66,17 @@ function nextVersion(
   return payload.schoolYearVersion ?? fallback + 1;
 }
 
+function formatSavedTime(value: string | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("cs-CZ", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(date);
+}
+
 export default function StaffingPage() {
   const searchParams = useSearchParams();
   const schoolYearId = searchParams.get("schoolYearId") ?? LOCAL_SCHOOL_YEAR_ID;
@@ -85,9 +96,12 @@ export default function StaffingPage() {
   const [syncProgress, setSyncProgress] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
 
   useEffect(() => {
-    setPlan(loadStaffingPlan());
+    const stored = loadStaffingPlan();
+    setPlan(stored);
+    setLastSavedAt(stored.updatedAt);
     setLoaded(true);
   }, []);
 
@@ -117,9 +131,22 @@ export default function StaffingPage() {
   );
 
   function commit(next: StaffingPlan): void {
-    const saved = saveStaffingPlan(next);
-    setPlan(saved);
-    setMessage(null);
+    try {
+      const saved = saveStaffingPlan(next);
+      setPlan(saved);
+      setLastSavedAt(saved.updatedAt);
+      setMessage(null);
+      setError((current) =>
+        current?.startsWith("Automatické ukládání") ? null : current,
+      );
+    } catch (cause) {
+      setPlan(next);
+      setError(
+        cause instanceof Error
+          ? `Automatické ukládání selhalo: ${cause.message}`
+          : "Automatické ukládání selhalo. Změny zůstaly otevřené na stránce.",
+      );
+    }
   }
 
   function updateTeacher(
@@ -205,7 +232,7 @@ export default function StaffingPage() {
       }
       commit(result.plan);
       setMessage(
-        `Načteno ${result.summary.teachers} učitelů. Zkontrolujte karty a poté je uložte do projektu.`,
+        `Načteno ${result.summary.teachers} učitelů. Zkontrolujte karty; všechny změny se ukládají automaticky.`,
       );
     } catch (cause) {
       setError(
@@ -412,6 +439,31 @@ export default function StaffingPage() {
         }
       />
 
+      <section
+        data-testid="staffing-autosave-status"
+        aria-live="polite"
+        className="flex items-start gap-3 rounded-xl border border-success-border bg-success-subtle p-4"
+      >
+        <CheckCircle2
+          className="mt-0.5 size-5 shrink-0 text-success"
+          aria-hidden="true"
+        />
+        <div>
+          <h2 className="font-semibold text-text-primary">
+            Automaticky uloženo v tomto prohlížeči
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-text-secondary">
+            Každá úprava se uloží okamžitě. Rozpracované, neúplné i přetížené
+            úvazky zůstanou zachované a můžete je opravit později. Není potřeba
+            hledat potvrzovací tlačítko
+            {formatSavedTime(lastSavedAt)
+              ? ` · poslední změna ${formatSavedTime(lastSavedAt)}`
+              : ""}
+            .
+          </p>
+        </div>
+      </section>
+
       <section className="grid gap-3 md:grid-cols-3">
         {[
           ["1", "Stáhněte Excel", "Jeden učitel = jeden jednoduchý řádek."],
@@ -538,7 +590,8 @@ export default function StaffingPage() {
               Seznam učitelů
             </h2>
             <p className="mt-1 text-sm text-text-secondary">
-              Změny se průběžně ukládají jako místní koncept v tomto prohlížeči.
+              Každá změna se automaticky uloží jako místní koncept. I nehotová
+              karta zůstane po obnovení stránky zachovaná.
             </p>
           </div>
           <Button type="button" variant="outline" onClick={addTeacher}>
