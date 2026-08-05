@@ -28,23 +28,17 @@ jobs:
             apps/web/app/coverage/page.tsx \
             apps/web/lib/domain/auto-cover-teaching-plan.ts \
             apps/web/tests/auto-cover-teaching-plan.test.ts \
-            apps/web/e2e/auto-cover.spec.ts \
-            .github/workflows/ci.yml
+            apps/web/e2e/auto-cover.spec.ts
       - run: npm run typecheck --workspace @timetable/web
       - run: npm run test --workspace @timetable/web
-      - name: Commit implementation and remove one-time helper
+      - name: Commit implementation
         run: |
-          rm scripts/patch-auto-cover-ui.py
-          rm .github/workflows/apply-auto-cover-ui-once.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f \
             apps/web/app/coverage/page.tsx \
             apps/web/lib/domain/auto-cover-teaching-plan.ts \
             apps/web/tests/auto-cover-teaching-plan.test.ts \
-            apps/web/e2e/auto-cover.spec.ts \
-            .github/workflows/ci.yml \
-            scripts/patch-auto-cover-ui.py \
-            .github/workflows/apply-auto-cover-ui-once.yml
+            apps/web/e2e/auto-cover.spec.ts
           git commit -m "feat: complete missing teacher coverage automatically"
           git push origin HEAD:agent/auto-complete-coverage
