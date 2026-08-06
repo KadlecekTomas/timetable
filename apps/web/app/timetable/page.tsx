@@ -10,6 +10,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Fragment,
@@ -306,8 +307,15 @@ export default function TimetablePage() {
           Zatím není dostupný návrh rozvrhu
         </h1>
         <p className="mt-2 text-sm text-text-secondary">
-          Nejprve dokončete vytvoření návrhu.
+          Nejprve připravte zadání a vytvořte nový návrh.
         </p>
+        <Button asChild className="mt-5">
+          <Link
+            href={`/generate?schoolYearId=${encodeURIComponent(schoolYearId ?? "local-school-year")}`}
+          >
+            Přejít k tvorbě rozvrhu
+          </Link>
+        </Button>
       </div>
     );
   }

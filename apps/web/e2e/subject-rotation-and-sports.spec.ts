@@ -253,7 +253,7 @@ test("sports B class keeps A allocation and Czech-Math groups swap atomically", 
 
   await page.goto("/generate?schoolYearId=local-school-year");
   await expect(
-    page.getByRole("heading", { name: "Kontrola připravenosti prošla" }),
+    page.getByRole("heading", { name: "Zadání je připravené" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Vytvořit nový návrh" }).click();
   await expect(

@@ -619,7 +619,10 @@ test("school leadership can import 40 teachers, generate the complete second-sta
     page.getByRole("heading", { name: "Příprava školního rozvrhu" }),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "Nastavení" }).click();
+  await page
+    .getByRole("link", { name: "Nastavení a záloha", exact: true })
+    .first()
+    .click();
   await page.getByLabel("Název školy").fill("ZŠ Kapacitní test");
   await page.getByRole("button", { name: "Uložit nastavení" }).click();
   await expect(
@@ -758,10 +761,12 @@ test("school leadership can import 40 teachers, generate the complete second-sta
   }
 
   await page.getByRole("link", { name: "Přehled" }).click();
-  await expect(page.getByText("Připravená data jsou zastaralá")).toBeVisible();
+  await expect(
+    page.getByText("Připravená data je potřeba obnovit."),
+  ).toBeVisible();
   await page.getByRole("link", { name: "Tvorba rozvrhu" }).click();
   await expect(
-    page.getByRole("heading", { name: "Kontrola připravenosti prošla" }),
+    page.getByRole("heading", { name: "Zadání je připravené" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Vytvořit nový návrh" }).click();
   await expect(
@@ -876,7 +881,10 @@ test("school leadership can import 40 teachers, generate the complete second-sta
   expect(restoredLesson?.period).toBe(validMove.lesson.period);
   expect(validateSchedule(afterUndo.snapshot, afterUndo.lessons)).toEqual([]);
 
-  await page.getByRole("link", { name: "Nastavení" }).click();
+  await page
+    .getByRole("link", { name: "Nastavení a záloha", exact: true })
+    .first()
+    .click();
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Stáhnout zálohu projektu" }).click();
   const download = await downloadPromise;

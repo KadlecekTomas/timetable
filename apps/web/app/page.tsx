@@ -38,6 +38,7 @@ import {
   validateTeachingPlan,
   type TeachingPlan,
 } from "@/lib/local/teaching-plan";
+import { formatCzechCount } from "@/lib/ui-labels";
 
 interface DashboardState {
   staffing: StaffingPlan;
@@ -57,8 +58,8 @@ const emptyTeaching: TeachingPlan = {
 
 function preparationLabel(state: PreparedInputState): string {
   if (state === "CURRENT") return "Připraveno";
-  if (state === "STALE") return "Připravená data jsou zastaralá";
-  return "Ještě nebyla připravena";
+  if (state === "STALE") return "Je potřeba obnovit";
+  return "Čeká na přípravu";
 }
 
 export default function HomePage() {
@@ -159,7 +160,7 @@ export default function HomePage() {
       <PageHeader
         eyebrow="Přehled"
         title="Příprava školního rozvrhu"
-        description="Postupujte od personálního plánu přes pokrytí výuky až k přípravě dat pro generátor."
+        description="Nejdřív zkontrolujte úvazky a pokrytí výuky. Rozvrh vytvořte až po odstranění blokujících problémů."
         actions={
           <Button asChild>
             <Link href={cta.href}>
@@ -177,9 +178,23 @@ export default function HomePage() {
       ) : null}
 
       <section className="rounded-xl border border-info-border bg-info-subtle p-5 text-sm text-text-secondary">
-        Pracovní data obsahují{" "}
-        <strong>{staffing.teachers.length} učitelů</strong> a{" "}
-        <strong>{teaching.classes.length} tříd</strong>.{" "}
+        Pracovní data:{" "}
+        <strong>
+          {formatCzechCount(staffing.teachers.length, [
+            "učitel",
+            "učitelé",
+            "učitelů",
+          ])}
+        </strong>{" "}
+        a{" "}
+        <strong>
+          {formatCzechCount(teaching.classes.length, [
+            "třída",
+            "třídy",
+            "tříd",
+          ])}
+        </strong>
+        .{" "}
         {state?.prepared === "CURRENT"
           ? "Data jsou připravena pro generátor."
           : state?.prepared === "STALE"
@@ -192,7 +207,11 @@ export default function HomePage() {
           step="1"
           title="Učitelé a úvazky"
           href={`/staffing?${context}`}
-          action="Nahrát učitele a úvazky"
+          action={
+            staffing.teachers.length === 0
+              ? "Nahrát učitele a úvazky"
+              : "Zkontrolovat učitele a úvazky"
+          }
           status={
             staffing.teachers.length === 0
               ? "Nezadáno"
@@ -247,7 +266,7 @@ export default function HomePage() {
           step="3"
           title="Výukový plán"
           href={`/teaching-plan?${context}`}
-          action="Otevřít podrobný editor"
+          action="Otevřít výukový plán"
           status={
             teaching.rows.length === 0
               ? "Nezadáno"

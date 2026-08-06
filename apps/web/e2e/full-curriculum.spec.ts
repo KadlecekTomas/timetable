@@ -664,7 +664,10 @@ test("vedení školy vytvoří pedagogický rozvrh se čtyřmi matematikáři a 
   });
 
   await page.goto("/");
-  await page.getByRole("link", { name: "Nastavení" }).click();
+  await page
+    .getByRole("link", { name: "Nastavení a záloha", exact: true })
+    .first()
+    .click();
   await page.getByLabel("Název školy").fill("ZŠ Plný druhý stupeň");
   await page.getByRole("button", { name: "Uložit nastavení" }).click();
 
@@ -810,7 +813,9 @@ test("vedení školy vytvoří pedagogický rozvrh se čtyřmi matematikáři a 
   }
 
   await page.getByRole("link", { name: "Přehled" }).click();
-  await expect(page.getByText("Připravená data jsou zastaralá")).toBeVisible();
+  await expect(
+    page.getByText("Připravená data je potřeba obnovit."),
+  ).toBeVisible();
   await page.getByRole("link", { name: "Tvorba rozvrhu" }).click();
   await page.getByRole("button", { name: "Vytvořit nový návrh" }).click();
   await expect(

@@ -96,7 +96,10 @@ test("entire project survives backup, deletion and restore without a server data
     page.getByRole("heading", { name: "Příprava školního rozvrhu" }),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "Nastavení" }).click();
+  await page
+    .getByRole("link", { name: "Nastavení a záloha", exact: true })
+    .first()
+    .click();
   await expect(
     page.getByRole("heading", { name: "Lokální projekt školy" }),
   ).toBeVisible();
@@ -124,7 +127,9 @@ test("entire project survives backup, deletion and restore without a server data
   ).toBeVisible();
 
   await page.getByRole("link", { name: "Přehled" }).click();
-  await expect(page.getByText("Připravená data jsou zastaralá")).toBeVisible();
+  await expect(
+    page.getByText("Připravená data je potřeba obnovit."),
+  ).toBeVisible();
 
   await page.getByRole("link", { name: "Tvorba rozvrhu" }).click();
   await expect(
@@ -134,7 +139,7 @@ test("entire project survives backup, deletion and restore without a server data
     .getByRole("button", { name: "Připravit a zkontrolovat data" })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Kontrola připravenosti prošla" }),
+    page.getByRole("heading", { name: "Zadání je připravené" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Vytvořit nový návrh" }).click();
   await expect(
@@ -148,7 +153,10 @@ test("entire project survives backup, deletion and restore without a server data
     page.getByRole("button", { name: /M\s+NOV\s+101/ }).first(),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "Nastavení" }).click();
+  await page
+    .getByRole("link", { name: "Nastavení a záloha", exact: true })
+    .first()
+    .click();
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Stáhnout zálohu projektu" }).click();
   const download = await downloadPromise;
@@ -183,9 +191,14 @@ test("entire project survives backup, deletion and restore without a server data
   await expect(
     page.getByRole("link", { name: "Začít nahráním učitelů" }),
   ).toBeVisible();
-  await expect(page.getByText("Ještě nebyla připravena")).toBeVisible();
+  await expect(
+    page.getByText("Data zatím nebyla připravena pro generátor."),
+  ).toBeVisible();
 
-  await page.getByRole("link", { name: "Nastavení" }).click();
+  await page
+    .getByRole("link", { name: "Nastavení a záloha", exact: true })
+    .first()
+    .click();
   await page.locator('input[type="file"]').setInputFiles({
     name: download.suggestedFilename(),
     mimeType: "application/json",

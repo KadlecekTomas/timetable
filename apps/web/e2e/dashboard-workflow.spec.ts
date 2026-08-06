@@ -90,9 +90,9 @@ test("dashboard follows working data and detects stale prepared inputs", async (
   );
   await page.reload();
   await expect(
-    page.getByText(/Pracovní data obsahují 2 učitelů a 1 tříd/),
+    page.getByText(/Pracovní data: 2 učitelé a 1 třída/),
   ).toBeVisible();
-  await expect(page.getByText("Ještě nebyla připravena")).toBeVisible();
+  await expect(page.getByText("Čeká na přípravu")).toBeVisible();
   await expect(page.getByText("100 %")).toBeVisible();
   await mkdir(screenshotDirectory, { recursive: true });
   await page.screenshot({
@@ -107,7 +107,7 @@ test("dashboard follows working data and detects stale prepared inputs", async (
     .click();
   await expect(
     page.getByText(
-      /Projekt: 2 učitelů · 1 tříd · 2 předmětů · 4 vazeb · aktuální/,
+      /Připravený projekt: 2 učitelé · 1 třída · 2 předměty · 4 výukové vazby · aktuální/,
     ),
   ).toBeVisible();
   await page.goto("/");
@@ -136,7 +136,9 @@ test("dashboard follows working data and detects stale prepared inputs", async (
     },
   );
   await page.reload();
-  await expect(page.getByText("Připravená data jsou zastaralá")).toBeVisible();
+  await expect(
+    page.getByText("Je potřeba obnovit", { exact: true }),
+  ).toBeVisible();
 
   await page.goto("/data?schoolYearId=local-school-year");
   await expect(

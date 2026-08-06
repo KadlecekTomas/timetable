@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { ReadinessReport } from "@/lib/domain/contracts";
+import { generationFailureMessage } from "@/lib/generation-errors";
 import {
   getLocalProject,
   localApiFetch,
@@ -33,7 +34,7 @@ import {
   loadTeachingPlan,
   subscribeTeachingPlan,
 } from "@/lib/local/teaching-plan";
-import { generationStatusLabels } from "@/lib/ui-labels";
+import { formatCzechCount, generationStatusLabels } from "@/lib/ui-labels";
 
 interface RunView {
   id: string;
@@ -213,7 +214,7 @@ export default function GeneratePage() {
       if (!response.ok)
         throw new Error(payload.error?.message ?? "Data nelze připravit.");
       setPreparationMessage(
-        `Připraveno: ${payload.teachers} učitelů, ${payload.classes} tříd, ${payload.subjects} předmětů a ${payload.assignments} vazeb.`,
+        `Připraveno: ${formatCzechCount(payload.teachers ?? 0, ["učitel", "učitelé", "učitelů"])}, ${formatCzechCount(payload.classes ?? 0, ["třída", "třídy", "tříd"])}, ${formatCzechCount(payload.subjects ?? 0, ["předmět", "předměty", "předmětů"])} a ${formatCzechCount(payload.assignments ?? 0, ["výuková vazba", "výukové vazby", "výukových vazeb"])}.`,
       );
       await load();
     } catch (cause) {
@@ -242,6 +243,9 @@ export default function GeneratePage() {
     return (
       <div className="rounded-xl border border-warning-border bg-warning-subtle p-6">
         <h1 className="text-lg font-semibold">Nejprve vyberte školní rok</h1>
+        <Button asChild className="mt-4">
+          <Link href="/">Vrátit se na přehled</Link>
+        </Button>
       </div>
     );
   }
@@ -251,7 +255,7 @@ export default function GeneratePage() {
       <PageHeader
         eyebrow="Fáze 5–6"
         title="Tvorba rozvrhu"
-        description="Zadání se odešle přímo plánovacímu modulu. Výsledek se po dokončení automaticky uloží do lokálního projektu v tomto prohlížeči."
+        description="Po spuštění se návrh vytvoří a uloží do tohoto prohlížeče. Před výpočtem musí projít kontrola zadání."
         actions={
           <Button variant="outline" onClick={() => void load()}>
             <RefreshCw className="size-4" aria-hidden="true" />
@@ -273,15 +277,52 @@ export default function GeneratePage() {
               Připravit data pro tvorbu rozvrhu
             </h2>
             <p className="mt-1 text-sm text-text-secondary">
-              Personální plán: {preparation?.staffingTeachers ?? 0} učitelů ·
-              učební plán: {preparation?.teachingClasses ?? 0} tříd a{" "}
-              {preparation?.teachingRows ?? 0} řádků.
+              Personální plán:{" "}
+              {formatCzechCount(preparation?.staffingTeachers ?? 0, [
+                "učitel",
+                "učitelé",
+                "učitelů",
+              ])}
+              {" · "}učební plán:{" "}
+              {formatCzechCount(preparation?.teachingClasses ?? 0, [
+                "třída",
+                "třídy",
+                "tříd",
+              ])}{" "}
+              a{" "}
+              {formatCzechCount(preparation?.teachingRows ?? 0, [
+                "řádek",
+                "řádky",
+                "řádků",
+              ])}
+              .
             </p>
             <p className="mt-1 text-xs text-text-muted">
-              Projekt: {preparation?.projectTeachers ?? 0} učitelů ·{" "}
-              {preparation?.projectClasses ?? 0} tříd ·{" "}
-              {preparation?.projectSubjects ?? 0} předmětů ·{" "}
-              {preparation?.projectAssignments ?? 0} vazeb ·{" "}
+              Připravený projekt:{" "}
+              {formatCzechCount(preparation?.projectTeachers ?? 0, [
+                "učitel",
+                "učitelé",
+                "učitelů",
+              ])}
+              {" · "}
+              {formatCzechCount(preparation?.projectClasses ?? 0, [
+                "třída",
+                "třídy",
+                "tříd",
+              ])}
+              {" · "}
+              {formatCzechCount(preparation?.projectSubjects ?? 0, [
+                "předmět",
+                "předměty",
+                "předmětů",
+              ])}
+              {" · "}
+              {formatCzechCount(preparation?.projectAssignments ?? 0, [
+                "výuková vazba",
+                "výukové vazby",
+                "výukových vazeb",
+              ])}
+              {" · "}
               {preparation?.state === "CURRENT"
                 ? "aktuální"
                 : preparation?.state === "STALE"
@@ -304,7 +345,7 @@ export default function GeneratePage() {
             className="font-medium text-primary hover:underline"
             href={`/data?schoolYearId=${encodeURIComponent(schoolYearId)}`}
           >
-            Volitelně upravit učebny a omezení
+            Volitelně upravit učebny
           </Link>
         </p>
       </section>
@@ -325,13 +366,15 @@ export default function GeneratePage() {
             )}
             <div>
               <h2 className="font-semibold text-text-primary">
-                {readiness?.ready
-                  ? "Kontrola připravenosti prošla"
-                  : "Kontrola připravenosti blokuje tvorbu"}
+                {readiness == null
+                  ? "Kontroluji připravenost…"
+                  : readiness.ready
+                    ? "Zadání je připravené"
+                    : "Před tvorbou je potřeba opravit zadání"}
               </h2>
               <p className="mt-1 text-sm text-text-secondary">
                 {readiness?.ready
-                  ? `${readiness.summary.assignments} vazeb · ${readiness.summary.weekly_periods} hodin týdně`
+                  ? `${formatCzechCount(readiness.summary.assignments, ["výuková vazba", "výukové vazby", "výukových vazeb"])} · ${formatCzechCount(readiness.summary.weekly_periods, ["hodina týdně", "hodiny týdně", "hodin týdně"])}`
                   : (readiness?.blockers[0]?.message ??
                     "Načítám kontrolu připravenosti…")}
               </p>
@@ -423,6 +466,12 @@ export default function GeneratePage() {
                       Vytvořeno{" "}
                       {new Date(run.createdAt).toLocaleString("cs-CZ")}
                     </p>
+                    {["FAILED", "INFEASIBLE"].includes(run.status) ? (
+                      <p className="mt-1 max-w-xl text-xs text-danger-strong">
+                        {generationFailureMessage(run.explanation) ??
+                          "Výpočet skončil bez výsledku. Zkuste jej spustit znovu."}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -451,7 +500,8 @@ export default function GeneratePage() {
           </div>
         ) : (
           <div className="p-8 text-center text-sm text-text-muted">
-            Zatím nebyla spuštěna žádná tvorba rozvrhu.
+            Zatím nebyl vytvořen žádný návrh. Jakmile zadání projde kontrolou,
+            spusťte tvorbu výše.
           </div>
         )}
       </section>

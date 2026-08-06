@@ -1287,6 +1287,37 @@ function solverEndpoint(): string {
   return `${configured || "/solver"}/solve`;
 }
 
+type SolverPayload = SolverResponse & {
+  detail?: unknown;
+  error?: {
+    code?: string;
+    message?: string;
+    details?: Record<string, unknown>;
+  };
+};
+
+async function readSolverPayload(response: Response): Promise<SolverPayload> {
+  const responseText = await response.text();
+  if (!responseText) {
+    return {
+      status: "FAILED",
+      objective_value: 0,
+      lessons: [],
+      detail: null,
+    };
+  }
+  try {
+    return JSON.parse(responseText) as SolverPayload;
+  } catch {
+    return {
+      status: "FAILED",
+      objective_value: 0,
+      lessons: [],
+      detail: responseText,
+    };
+  }
+}
+
 async function createGenerationRun(
   body: Record<string, unknown>,
 ): Promise<Response> {
@@ -1339,20 +1370,30 @@ async function createGenerationRun(
       body: JSON.stringify(snapshot),
       signal: AbortSignal.timeout((timeLimitSeconds + 30) * 1000),
     });
-    const solverPayload = (await solverResponse.json()) as SolverResponse & {
-      detail?: unknown;
-    };
+    const solverPayload = await readSolverPayload(solverResponse);
     if (!solverResponse.ok) {
+      const explanation =
+        solverPayload.detail ?? solverPayload.error ?? solverPayload;
+      const failureMessage =
+        solverPayload.error?.message ??
+        (solverResponse.status === 422
+          ? "Plánovací modul nenašel proveditelný rozvrh."
+          : "Výpočet se nepodařilo spustit.");
       await mutateProject((next) => {
         const run = next.generationRuns.find((item) => item.id === runId);
         if (!run) return;
         run.status = solverResponse.status === 422 ? "INFEASIBLE" : "FAILED";
-        run.explanation = solverPayload.detail ?? solverPayload;
+        run.explanation = explanation;
         run.finishedAt = now();
       });
-      return jsonResponse(
-        { generationRunId: runId, status: "QUEUED", inputSnapshotHash },
-        202,
+      return errorResponse(
+        solverResponse.status,
+        solverPayload.error?.code ??
+          (solverResponse.status === 422
+            ? "TIMETABLE_INFEASIBLE"
+            : "SOLVER_REQUEST_FAILED"),
+        failureMessage,
+        { generationRunId: runId, explanation },
       );
     }
 
@@ -1416,16 +1457,28 @@ async function createGenerationRun(
       run.finishedAt = timestamp;
     });
   } catch (error) {
+    const timedOut = error instanceof Error && error.name === "TimeoutError";
+    const networkFailure = error instanceof TypeError;
+    const message = timedOut
+      ? "Výpočet překročil časový limit. Zvolte delší limit a spusťte jej znovu."
+      : networkFailure
+        ? "Plánovací modul je dočasně nedostupný. Výpočet nebyl zahájen."
+        : error instanceof Error
+          ? error.message
+          : "Neznámá chyba výpočtu.";
     await mutateProject((next) => {
       const run = next.generationRuns.find((item) => item.id === runId);
       if (!run) return;
       run.status = "FAILED";
-      run.explanation = {
-        message:
-          error instanceof Error ? error.message : "Neznámá chyba výpočtu.",
-      };
+      run.explanation = { message };
       run.finishedAt = now();
     });
+    return errorResponse(
+      timedOut ? 504 : 502,
+      timedOut ? "SOLVER_TIMEOUT" : "GENERATION_FAILED",
+      message,
+      { generationRunId: runId },
+    );
   }
 
   return jsonResponse(
