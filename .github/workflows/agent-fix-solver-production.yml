@@ -1,0 +1,220 @@
+name: Apply production solver diagnostics
+
+on:
+  push:
+    branches: [agent/leadership-ux-gate]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/leadership-ux-gate
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Patch local generation errors and UI
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          api_path = Path("apps/web/lib/local/api.ts")
+          api = api_path.read_text(encoding="utf-8")
+
+          endpoint = '''function solverEndpoint(): string {
+            const configured = process.env.NEXT_PUBLIC_SOLVER_URL?.replace(/\\/$/, "");
+            return `${configured || "/solver"}/solve`;
+          }
+          '''
+          endpoint_replacement = '''function solverEndpoint(): string {
+            const configured = process.env.NEXT_PUBLIC_SOLVER_URL?.replace(/\\/$/, "");
+            return `${configured || "/solver"}/solve`;
+          }
+
+          type SolverPayload = SolverResponse & {
+            detail?: unknown;
+            error?: {
+              code?: string;
+              message?: string;
+              details?: Record<string, unknown>;
+            };
+          };
+
+          async function readSolverPayload(response: Response): Promise<SolverPayload> {
+            const responseText = await response.text();
+            if (!responseText) {
+              return {
+                status: "FAILED",
+                objective_value: 0,
+                lessons: [],
+                detail: null,
+              };
+            }
+            try {
+              return JSON.parse(responseText) as SolverPayload;
+            } catch {
+              return {
+                status: "FAILED",
+                objective_value: 0,
+                lessons: [],
+                detail: responseText,
+              };
+            }
+          }
+          '''
+          if endpoint not in api:
+            raise SystemExit("solverEndpoint block not found")
+          api = api.replace(endpoint, endpoint_replacement, 1)
+
+          parser = '''    const solverPayload = (await solverResponse.json()) as SolverResponse & {
+              detail?: unknown;
+            };
+          '''
+          if parser not in api:
+            raise SystemExit("solver response parser not found")
+          api = api.replace(
+            parser,
+            '    const solverPayload = await readSolverPayload(solverResponse);\n',
+            1,
+          )
+
+          failure = '''    if (!solverResponse.ok) {
+              await mutateProject((next) => {
+                const run = next.generationRuns.find((item) => item.id === runId);
+                if (!run) return;
+                run.status = solverResponse.status === 422 ? "INFEASIBLE" : "FAILED";
+                run.explanation = solverPayload.detail ?? solverPayload;
+                run.finishedAt = now();
+              });
+              return jsonResponse(
+                { generationRunId: runId, status: "QUEUED", inputSnapshotHash },
+                202,
+              );
+            }
+          '''
+          failure_replacement = '''    if (!solverResponse.ok) {
+              const explanation =
+                solverPayload.detail ?? solverPayload.error ?? solverPayload;
+              const failureMessage =
+                solverPayload.error?.message ??
+                (solverResponse.status === 422
+                  ? "Plánovací modul nenašel proveditelný rozvrh."
+                  : "Výpočet se nepodařilo spustit.");
+              await mutateProject((next) => {
+                const run = next.generationRuns.find((item) => item.id === runId);
+                if (!run) return;
+                run.status = solverResponse.status === 422 ? "INFEASIBLE" : "FAILED";
+                run.explanation = explanation;
+                run.finishedAt = now();
+              });
+              return errorResponse(
+                solverResponse.status,
+                solverPayload.error?.code ??
+                  (solverResponse.status === 422
+                    ? "TIMETABLE_INFEASIBLE"
+                    : "SOLVER_REQUEST_FAILED"),
+                failureMessage,
+                { generationRunId: runId, explanation },
+              );
+            }
+          '''
+          if failure not in api:
+            raise SystemExit("solver failure block not found")
+          api = api.replace(failure, failure_replacement, 1)
+
+          catch = '''  } catch (error) {
+            await mutateProject((next) => {
+              const run = next.generationRuns.find((item) => item.id === runId);
+              if (!run) return;
+              run.status = "FAILED";
+              run.explanation = {
+                message:
+                  error instanceof Error ? error.message : "Neznámá chyba výpočtu.",
+              };
+              run.finishedAt = now();
+            });
+          }
+
+          return jsonResponse(
+          '''
+          catch_replacement = '''  } catch (error) {
+            const timedOut = error instanceof Error && error.name === "TimeoutError";
+            const networkFailure = error instanceof TypeError;
+            const message = timedOut
+              ? "Výpočet překročil časový limit. Zvolte delší limit a spusťte jej znovu."
+              : networkFailure
+                ? "Plánovací modul je dočasně nedostupný. Výpočet nebyl zahájen."
+                : error instanceof Error
+                  ? error.message
+                  : "Neznámá chyba výpočtu.";
+            await mutateProject((next) => {
+              const run = next.generationRuns.find((item) => item.id === runId);
+              if (!run) return;
+              run.status = "FAILED";
+              run.explanation = { message };
+              run.finishedAt = now();
+            });
+            return errorResponse(
+              timedOut ? 504 : 502,
+              timedOut ? "SOLVER_TIMEOUT" : "GENERATION_FAILED",
+              message,
+              { generationRunId: runId },
+            );
+          }
+
+          return jsonResponse(
+          '''
+          if catch not in api:
+            raise SystemExit("solver catch block not found")
+          api = api.replace(catch, catch_replacement, 1)
+          api_path.write_text(api, encoding="utf-8")
+
+          page_path = Path("apps/web/app/generate/page.tsx")
+          page = page_path.read_text(encoding="utf-8")
+          import_anchor = 'import type { ReadinessReport } from "@/lib/domain/contracts";\n'
+          if import_anchor not in page:
+            raise SystemExit("generate import anchor not found")
+          page = page.replace(
+            import_anchor,
+            import_anchor + 'import { generationFailureMessage } from "@/lib/generation-errors";\n',
+            1,
+          )
+
+          created = '''                    <p className="mt-1 text-xs text-text-muted">
+                                Vytvořeno{" "}
+                                {new Date(run.createdAt).toLocaleString("cs-CZ")}
+                              </p>
+          '''
+          created_replacement = '''                    <p className="mt-1 text-xs text-text-muted">
+                                Vytvořeno{" "}
+                                {new Date(run.createdAt).toLocaleString("cs-CZ")}
+                              </p>
+                              {["FAILED", "INFEASIBLE"].includes(run.status) ? (
+                                <p className="mt-1 max-w-xl text-xs text-danger-strong">
+                                  {generationFailureMessage(run.explanation) ??
+                                    "Výpočet skončil bez výsledku. Zkuste jej spustit znovu."}
+                                </p>
+                              ) : null}
+          '''
+          if created not in page:
+            raise SystemExit("generation timestamp block not found")
+          page = page.replace(created, created_replacement, 1)
+          page_path.write_text(page, encoding="utf-8")
+          PY
+      - run: npx prettier --write apps/web/lib/local/api.ts apps/web/app/generate/page.tsx
+      - name: Commit patched files
+        run: |
+          if git diff --quiet -- apps/web/lib/local/api.ts apps/web/app/generate/page.tsx; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/lib/local/api.ts apps/web/app/generate/page.tsx
+          git commit -m "fix(ui): expose solver failures immediately"
+          git push origin HEAD:agent/leadership-ux-gate
