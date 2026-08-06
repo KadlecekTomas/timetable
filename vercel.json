@@ -8,7 +8,7 @@
     "solver": {
       "root": "apps/solver",
       "framework": "fastapi",
-      "entrypoint": "app.main:app",
+      "entrypoint": "app.vercel:app",
       "routes": [
         {
           "src": "/solver/(.*)",
