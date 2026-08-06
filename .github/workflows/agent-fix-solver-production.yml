@@ -26,146 +26,118 @@ jobs:
 
           api_path = Path("apps/web/lib/local/api.ts")
           api = api_path.read_text(encoding="utf-8")
+          generation_start = api.index("async function createGenerationRun(")
 
           if "type SolverPayload =" not in api:
-              marker = "\n\nasync function createGenerationRun("
-              position = api.index(marker, api.index("function solverEndpoint"))
-              helper = '''
+              insert_at = api.index("\n\nasync function createGenerationRun(")
+              helper = "\n".join([
+                  "",
+                  "",
+                  "type SolverPayload = SolverResponse & {",
+                  "  detail?: unknown;",
+                  "  error?: {",
+                  "    code?: string;",
+                  "    message?: string;",
+                  "    details?: Record<string, unknown>;",
+                  "  };",
+                  "};",
+                  "",
+                  "async function readSolverPayload(response: Response): Promise<SolverPayload> {",
+                  "  const responseText = await response.text();",
+                  "  if (!responseText) {",
+                  "    return {",
+                  '      status: "FAILED",',
+                  "      objective_value: 0,",
+                  "      lessons: [],",
+                  "      detail: null,",
+                  "    };",
+                  "  }",
+                  "  try {",
+                  "    return JSON.parse(responseText) as SolverPayload;",
+                  "  } catch {",
+                  "    return {",
+                  '      status: "FAILED",',
+                  "      objective_value: 0,",
+                  "      lessons: [],",
+                  "      detail: responseText,",
+                  "    };",
+                  "  }",
+                  "}",
+              ])
+              api = api[:insert_at] + helper + api[insert_at:]
+              generation_start = api.index("async function createGenerationRun(")
 
-          type SolverPayload = SolverResponse & {
-            detail?: unknown;
-            error?: {
-              code?: string;
-              message?: string;
-              details?: Record<string, unknown>;
-            };
-          };
+          new_parser = "    const solverPayload = await readSolverPayload(solverResponse);"
+          if new_parser not in api:
+              parser_start = api.index(
+                  "    const solverPayload = (await solverResponse.json())",
+                  generation_start,
+              )
+              parser_end = api.index("    if (!solverResponse.ok) {", parser_start)
+              api = api[:parser_start] + new_parser + "\n" + api[parser_end:]
 
-          async function readSolverPayload(response: Response): Promise<SolverPayload> {
-            const responseText = await response.text();
-            if (!responseText) {
-              return {
-                status: "FAILED",
-                objective_value: 0,
-                lessons: [],
-                detail: null,
-              };
-            }
-            try {
-              return JSON.parse(responseText) as SolverPayload;
-            } catch {
-              return {
-                status: "FAILED",
-                objective_value: 0,
-                lessons: [],
-                detail: responseText,
-              };
-            }
-          }
-          '''
-              api = api[:position] + helper + api[position:]
+          if "const failureMessage =" not in api:
+              failure_start = api.index("    if (!solverResponse.ok) {", generation_start)
+              failure_end = api.index("\n\n    const hardIssues", failure_start)
+              new_failure = "\n".join([
+                  "    if (!solverResponse.ok) {",
+                  "      const explanation =",
+                  "        solverPayload.detail ?? solverPayload.error ?? solverPayload;",
+                  "      const failureMessage =",
+                  "        solverPayload.error?.message ??",
+                  "        (solverResponse.status === 422",
+                  '          ? "Plánovací modul nenašel proveditelný rozvrh."',
+                  '          : "Výpočet se nepodařilo spustit.");',
+                  "      await mutateProject((next) => {",
+                  "        const run = next.generationRuns.find((item) => item.id === runId);",
+                  "        if (!run) return;",
+                  '        run.status = solverResponse.status === 422 ? "INFEASIBLE" : "FAILED";',
+                  "        run.explanation = explanation;",
+                  "        run.finishedAt = now();",
+                  "      });",
+                  "      return errorResponse(",
+                  "        solverResponse.status,",
+                  "        solverPayload.error?.code ??",
+                  "          (solverResponse.status === 422",
+                  '            ? "TIMETABLE_INFEASIBLE"',
+                  '            : "SOLVER_REQUEST_FAILED"),',
+                  "        failureMessage,",
+                  "        { generationRunId: runId, explanation },",
+                  "      );",
+                  "    }",
+              ])
+              api = api[:failure_start] + new_failure + api[failure_end:]
 
-          old_parser = '''    const solverPayload = (await solverResponse.json()) as SolverResponse & {
-            detail?: unknown;
-          };
-          '''
-          new_parser = "    const solverPayload = await readSolverPayload(solverResponse);\n"
-          if old_parser in api:
-              api = api.replace(old_parser, new_parser, 1)
-          elif new_parser not in api:
-              raise SystemExit("solver response parser not found")
-
-          old_failure = '''    if (!solverResponse.ok) {
-            await mutateProject((next) => {
-              const run = next.generationRuns.find((item) => item.id === runId);
-              if (!run) return;
-              run.status = solverResponse.status === 422 ? "INFEASIBLE" : "FAILED";
-              run.explanation = solverPayload.detail ?? solverPayload;
-              run.finishedAt = now();
-            });
-            return jsonResponse(
-              { generationRunId: runId, status: "QUEUED", inputSnapshotHash },
-              202,
-            );
-          }
-          '''
-          new_failure = '''    if (!solverResponse.ok) {
-            const explanation =
-              solverPayload.detail ?? solverPayload.error ?? solverPayload;
-            const failureMessage =
-              solverPayload.error?.message ??
-              (solverResponse.status === 422
-                ? "Plánovací modul nenašel proveditelný rozvrh."
-                : "Výpočet se nepodařilo spustit.");
-            await mutateProject((next) => {
-              const run = next.generationRuns.find((item) => item.id === runId);
-              if (!run) return;
-              run.status = solverResponse.status === 422 ? "INFEASIBLE" : "FAILED";
-              run.explanation = explanation;
-              run.finishedAt = now();
-            });
-            return errorResponse(
-              solverResponse.status,
-              solverPayload.error?.code ??
-                (solverResponse.status === 422
-                  ? "TIMETABLE_INFEASIBLE"
-                  : "SOLVER_REQUEST_FAILED"),
-              failureMessage,
-              { generationRunId: runId, explanation },
-            );
-          }
-          '''
-          if old_failure in api:
-              api = api.replace(old_failure, new_failure, 1)
-          elif "const failureMessage =" not in api:
-              raise SystemExit("solver failure block not found")
-
-          old_catch = '''  } catch (error) {
-            await mutateProject((next) => {
-              const run = next.generationRuns.find((item) => item.id === runId);
-              if (!run) return;
-              run.status = "FAILED";
-              run.explanation = {
-                message:
-                  error instanceof Error ? error.message : "Neznámá chyba výpočtu.",
-              };
-              run.finishedAt = now();
-            });
-          }
-
-          return jsonResponse(
-          '''
-          new_catch = '''  } catch (error) {
-            const timedOut = error instanceof Error && error.name === "TimeoutError";
-            const networkFailure = error instanceof TypeError;
-            const message = timedOut
-              ? "Výpočet překročil časový limit. Zvolte delší limit a spusťte jej znovu."
-              : networkFailure
-                ? "Plánovací modul je dočasně nedostupný. Výpočet nebyl zahájen."
-                : error instanceof Error
-                  ? error.message
-                  : "Neznámá chyba výpočtu.";
-            await mutateProject((next) => {
-              const run = next.generationRuns.find((item) => item.id === runId);
-              if (!run) return;
-              run.status = "FAILED";
-              run.explanation = { message };
-              run.finishedAt = now();
-            });
-            return errorResponse(
-              timedOut ? 504 : 502,
-              timedOut ? "SOLVER_TIMEOUT" : "GENERATION_FAILED",
-              message,
-              { generationRunId: runId },
-            );
-          }
-
-          return jsonResponse(
-          '''
-          if old_catch in api:
-              api = api.replace(old_catch, new_catch, 1)
-          elif "const timedOut =" not in api:
-              raise SystemExit("solver catch block not found")
+          if "const timedOut =" not in api:
+              catch_start = api.index("  } catch (error) {", generation_start)
+              catch_end = api.index("\n\n  return jsonResponse(", catch_start)
+              new_catch = "\n".join([
+                  "  } catch (error) {",
+                  '    const timedOut = error instanceof Error && error.name === "TimeoutError";',
+                  "    const networkFailure = error instanceof TypeError;",
+                  "    const message = timedOut",
+                  '      ? "Výpočet překročil časový limit. Zvolte delší limit a spusťte jej znovu."',
+                  "      : networkFailure",
+                  '        ? "Plánovací modul je dočasně nedostupný. Výpočet nebyl zahájen."',
+                  "        : error instanceof Error",
+                  "          ? error.message",
+                  '          : "Neznámá chyba výpočtu.";',
+                  "    await mutateProject((next) => {",
+                  "      const run = next.generationRuns.find((item) => item.id === runId);",
+                  "      if (!run) return;",
+                  '      run.status = "FAILED";',
+                  "      run.explanation = { message };",
+                  "      run.finishedAt = now();",
+                  "    });",
+                  "    return errorResponse(",
+                  "      timedOut ? 504 : 502,",
+                  '      timedOut ? "SOLVER_TIMEOUT" : "GENERATION_FAILED",',
+                  "      message,",
+                  "      { generationRunId: runId },",
+                  "    );",
+                  "  }",
+              ])
+              api = api[:catch_start] + new_catch + api[catch_end:]
 
           api_path.write_text(api, encoding="utf-8")
 
@@ -174,28 +146,24 @@ jobs:
           import_line = 'import { generationFailureMessage } from "@/lib/generation-errors";\n'
           if import_line not in page:
               anchor = 'import type { ReadinessReport } from "@/lib/domain/contracts";\n'
+              if anchor not in page:
+                  raise SystemExit("generate import anchor not found")
               page = page.replace(anchor, anchor + import_line, 1)
 
-          old_created = '''                    <p className="mt-1 text-xs text-text-muted">
-                                Vytvořeno{" "}
-                                {new Date(run.createdAt).toLocaleString("cs-CZ")}
-                              </p>
-          '''
-          new_created = '''                    <p className="mt-1 text-xs text-text-muted">
-                                Vytvořeno{" "}
-                                {new Date(run.createdAt).toLocaleString("cs-CZ")}
-                              </p>
-                              {["FAILED", "INFEASIBLE"].includes(run.status) ? (
-                                <p className="mt-1 max-w-xl text-xs text-danger-strong">
-                                  {generationFailureMessage(run.explanation) ??
-                                    "Výpočet skončil bez výsledku. Zkuste jej spustit znovu."}
-                                </p>
-                              ) : null}
-          '''
-          if old_created in page:
-              page = page.replace(old_created, new_created, 1)
-          elif "generationFailureMessage(run.explanation)" not in page:
-              raise SystemExit("generation timestamp block not found")
+          if "generationFailureMessage(run.explanation)" not in page:
+              timestamp = '                      Vytvořeno{" "}'
+              timestamp_at = page.index(timestamp)
+              paragraph_end = page.index("                    </p>", timestamp_at)
+              paragraph_end += len("                    </p>")
+              failure_copy = "\n" + "\n".join([
+                  '                    {["FAILED", "INFEASIBLE"].includes(run.status) ? (',
+                  '                      <p className="mt-1 max-w-xl text-xs text-danger-strong">',
+                  "                        {generationFailureMessage(run.explanation) ??",
+                  '                          "Výpočet skončil bez výsledku. Zkuste jej spustit znovu."}',
+                  "                      </p>",
+                  "                    ) : null}",
+              ])
+              page = page[:paragraph_end] + failure_copy + page[paragraph_end:]
 
           page_path.write_text(page, encoding="utf-8")
           PY
