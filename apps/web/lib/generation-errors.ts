@@ -20,10 +20,7 @@ export function generationFailureMessage(explanation: unknown): string | null {
 
   const nestedError = recordValue(root.error);
   if (nestedError) {
-    if (
-      typeof nestedError.message === "string" &&
-      nestedError.message.trim()
-    ) {
+    if (typeof nestedError.message === "string" && nestedError.message.trim()) {
       return nestedError.message.trim();
     }
     const details = recordValue(nestedError.details);
