@@ -1,5 +1,7 @@
 import type { NextRequest } from "next/server";
 
+import { resolveSolverBaseUrl } from "@/lib/solver-url";
+
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -10,16 +12,12 @@ type RouteContext = {
   params: Promise<{ path: string[] }>;
 };
 
-function solverBaseUrl(): string {
-  return (process.env.SOLVER_URL ?? "http://solver:8000").replace(/\/$/, "");
-}
-
 function upstreamUrl(request: NextRequest, path: string[]): string {
   const source = new URL(request.url);
   const encodedPath = path
     .map((segment) => encodeURIComponent(segment))
     .join("/");
-  return `${solverBaseUrl()}/${encodedPath}${source.search}`;
+  return `${resolveSolverBaseUrl()}/${encodedPath}${source.search}`;
 }
 
 function requestHeaders(request: NextRequest): Headers {
@@ -93,7 +91,7 @@ async function proxySolver(
       {
         error: {
           code: "SOLVER_PROXY_FAILED",
-          message: "Komunikace s plánovacím modulem selhala.",
+          message: "Plánovací modul je dočasně nedostupný.",
           details: { message },
         },
       },
