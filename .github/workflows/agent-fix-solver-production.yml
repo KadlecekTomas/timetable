@@ -27,15 +27,10 @@ jobs:
           api_path = Path("apps/web/lib/local/api.ts")
           api = api_path.read_text(encoding="utf-8")
 
-          endpoint = '''function solverEndpoint(): string {
-            const configured = process.env.NEXT_PUBLIC_SOLVER_URL?.replace(/\\/$/, "");
-            return `${configured || "/solver"}/solve`;
-          }
-          '''
-          endpoint_replacement = '''function solverEndpoint(): string {
-            const configured = process.env.NEXT_PUBLIC_SOLVER_URL?.replace(/\\/$/, "");
-            return `${configured || "/solver"}/solve`;
-          }
+          if "type SolverPayload =" not in api:
+              marker = "\n\nasync function createGenerationRun("
+              position = api.index(marker, api.index("function solverEndpoint"))
+              helper = '''
 
           type SolverPayload = SolverResponse & {
             detail?: unknown;
@@ -68,67 +63,64 @@ jobs:
             }
           }
           '''
-          if endpoint not in api:
-            raise SystemExit("solverEndpoint block not found")
-          api = api.replace(endpoint, endpoint_replacement, 1)
+              api = api[:position] + helper + api[position:]
 
-          parser = '''    const solverPayload = (await solverResponse.json()) as SolverResponse & {
-              detail?: unknown;
-            };
+          old_parser = '''    const solverPayload = (await solverResponse.json()) as SolverResponse & {
+            detail?: unknown;
+          };
           '''
-          if parser not in api:
-            raise SystemExit("solver response parser not found")
-          api = api.replace(
-            parser,
-            '    const solverPayload = await readSolverPayload(solverResponse);\n',
-            1,
-          )
+          new_parser = "    const solverPayload = await readSolverPayload(solverResponse);\n"
+          if old_parser in api:
+              api = api.replace(old_parser, new_parser, 1)
+          elif new_parser not in api:
+              raise SystemExit("solver response parser not found")
 
-          failure = '''    if (!solverResponse.ok) {
-              await mutateProject((next) => {
-                const run = next.generationRuns.find((item) => item.id === runId);
-                if (!run) return;
-                run.status = solverResponse.status === 422 ? "INFEASIBLE" : "FAILED";
-                run.explanation = solverPayload.detail ?? solverPayload;
-                run.finishedAt = now();
-              });
-              return jsonResponse(
-                { generationRunId: runId, status: "QUEUED", inputSnapshotHash },
-                202,
-              );
-            }
+          old_failure = '''    if (!solverResponse.ok) {
+            await mutateProject((next) => {
+              const run = next.generationRuns.find((item) => item.id === runId);
+              if (!run) return;
+              run.status = solverResponse.status === 422 ? "INFEASIBLE" : "FAILED";
+              run.explanation = solverPayload.detail ?? solverPayload;
+              run.finishedAt = now();
+            });
+            return jsonResponse(
+              { generationRunId: runId, status: "QUEUED", inputSnapshotHash },
+              202,
+            );
+          }
           '''
-          failure_replacement = '''    if (!solverResponse.ok) {
-              const explanation =
-                solverPayload.detail ?? solverPayload.error ?? solverPayload;
-              const failureMessage =
-                solverPayload.error?.message ??
+          new_failure = '''    if (!solverResponse.ok) {
+            const explanation =
+              solverPayload.detail ?? solverPayload.error ?? solverPayload;
+            const failureMessage =
+              solverPayload.error?.message ??
+              (solverResponse.status === 422
+                ? "Plánovací modul nenašel proveditelný rozvrh."
+                : "Výpočet se nepodařilo spustit.");
+            await mutateProject((next) => {
+              const run = next.generationRuns.find((item) => item.id === runId);
+              if (!run) return;
+              run.status = solverResponse.status === 422 ? "INFEASIBLE" : "FAILED";
+              run.explanation = explanation;
+              run.finishedAt = now();
+            });
+            return errorResponse(
+              solverResponse.status,
+              solverPayload.error?.code ??
                 (solverResponse.status === 422
-                  ? "Plánovací modul nenašel proveditelný rozvrh."
-                  : "Výpočet se nepodařilo spustit.");
-              await mutateProject((next) => {
-                const run = next.generationRuns.find((item) => item.id === runId);
-                if (!run) return;
-                run.status = solverResponse.status === 422 ? "INFEASIBLE" : "FAILED";
-                run.explanation = explanation;
-                run.finishedAt = now();
-              });
-              return errorResponse(
-                solverResponse.status,
-                solverPayload.error?.code ??
-                  (solverResponse.status === 422
-                    ? "TIMETABLE_INFEASIBLE"
-                    : "SOLVER_REQUEST_FAILED"),
-                failureMessage,
-                { generationRunId: runId, explanation },
-              );
-            }
+                  ? "TIMETABLE_INFEASIBLE"
+                  : "SOLVER_REQUEST_FAILED"),
+              failureMessage,
+              { generationRunId: runId, explanation },
+            );
+          }
           '''
-          if failure not in api:
-            raise SystemExit("solver failure block not found")
-          api = api.replace(failure, failure_replacement, 1)
+          if old_failure in api:
+              api = api.replace(old_failure, new_failure, 1)
+          elif "const failureMessage =" not in api:
+              raise SystemExit("solver failure block not found")
 
-          catch = '''  } catch (error) {
+          old_catch = '''  } catch (error) {
             await mutateProject((next) => {
               const run = next.generationRuns.find((item) => item.id === runId);
               if (!run) return;
@@ -143,7 +135,7 @@ jobs:
 
           return jsonResponse(
           '''
-          catch_replacement = '''  } catch (error) {
+          new_catch = '''  } catch (error) {
             const timedOut = error instanceof Error && error.name === "TimeoutError";
             const networkFailure = error instanceof TypeError;
             const message = timedOut
@@ -170,28 +162,26 @@ jobs:
 
           return jsonResponse(
           '''
-          if catch not in api:
-            raise SystemExit("solver catch block not found")
-          api = api.replace(catch, catch_replacement, 1)
+          if old_catch in api:
+              api = api.replace(old_catch, new_catch, 1)
+          elif "const timedOut =" not in api:
+              raise SystemExit("solver catch block not found")
+
           api_path.write_text(api, encoding="utf-8")
 
           page_path = Path("apps/web/app/generate/page.tsx")
           page = page_path.read_text(encoding="utf-8")
-          import_anchor = 'import type { ReadinessReport } from "@/lib/domain/contracts";\n'
-          if import_anchor not in page:
-            raise SystemExit("generate import anchor not found")
-          page = page.replace(
-            import_anchor,
-            import_anchor + 'import { generationFailureMessage } from "@/lib/generation-errors";\n',
-            1,
-          )
+          import_line = 'import { generationFailureMessage } from "@/lib/generation-errors";\n'
+          if import_line not in page:
+              anchor = 'import type { ReadinessReport } from "@/lib/domain/contracts";\n'
+              page = page.replace(anchor, anchor + import_line, 1)
 
-          created = '''                    <p className="mt-1 text-xs text-text-muted">
+          old_created = '''                    <p className="mt-1 text-xs text-text-muted">
                                 Vytvořeno{" "}
                                 {new Date(run.createdAt).toLocaleString("cs-CZ")}
                               </p>
           '''
-          created_replacement = '''                    <p className="mt-1 text-xs text-text-muted">
+          new_created = '''                    <p className="mt-1 text-xs text-text-muted">
                                 Vytvořeno{" "}
                                 {new Date(run.createdAt).toLocaleString("cs-CZ")}
                               </p>
@@ -202,9 +192,11 @@ jobs:
                                 </p>
                               ) : null}
           '''
-          if created not in page:
-            raise SystemExit("generation timestamp block not found")
-          page = page.replace(created, created_replacement, 1)
+          if old_created in page:
+              page = page.replace(old_created, new_created, 1)
+          elif "generationFailureMessage(run.explanation)" not in page:
+              raise SystemExit("generation timestamp block not found")
+
           page_path.write_text(page, encoding="utf-8")
           PY
       - run: npx prettier --write apps/web/lib/local/api.ts apps/web/app/generate/page.tsx
