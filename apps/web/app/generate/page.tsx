@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { ReadinessReport } from "@/lib/domain/contracts";
+import { generationFailureMessage } from "@/lib/generation-errors";
 import {
   getLocalProject,
   localApiFetch,
@@ -465,6 +466,12 @@ export default function GeneratePage() {
                       Vytvořeno{" "}
                       {new Date(run.createdAt).toLocaleString("cs-CZ")}
                     </p>
+                    {["FAILED", "INFEASIBLE"].includes(run.status) ? (
+                      <p className="mt-1 max-w-xl text-xs text-danger-strong">
+                        {generationFailureMessage(run.explanation) ??
+                          "Výpočet skončil bez výsledku. Zkuste jej spustit znovu."}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
