@@ -1,4 +1,3 @@
-import os
 import time
 from collections import defaultdict
 from dataclasses import dataclass
@@ -418,8 +417,6 @@ def _solver_time_limit_seconds(
     request_started: float,
 ) -> float:
     requested = float(payload.time_limit_seconds)
-    if os.getenv("VERCEL") != "1":
-        return requested
     elapsed = max(0.0, time.monotonic() - request_started)
     remaining_budget = max(1.0, VERCEL_REQUEST_BUDGET_SECONDS - elapsed)
     return min(requested, remaining_budget)

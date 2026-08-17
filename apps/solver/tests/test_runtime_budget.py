@@ -2,8 +2,7 @@ from app.main import VERCEL_REQUEST_BUDGET_SECONDS, _solver_time_limit_seconds
 from app.models import SolveRequest
 
 
-def test_vercel_budget_leaves_response_headroom(monkeypatch) -> None:
-    monkeypatch.setenv("VERCEL", "1")
+def test_maximum_solver_request_leaves_response_headroom(monkeypatch) -> None:
     monkeypatch.setattr("app.main.time.monotonic", lambda: 12.0)
     payload = SolveRequest(assignments=[], time_limit_seconds=300)
 
@@ -11,9 +10,8 @@ def test_vercel_budget_leaves_response_headroom(monkeypatch) -> None:
     assert _solver_time_limit_seconds(payload, request_started=0.0) == 258.0
 
 
-def test_non_vercel_keeps_requested_solver_limit(monkeypatch) -> None:
-    monkeypatch.delenv("VERCEL", raising=False)
-    monkeypatch.setattr("app.main.time.monotonic", lambda: 999.0)
-    payload = SolveRequest(assignments=[], time_limit_seconds=300)
+def test_three_minute_mode_keeps_full_requested_limit(monkeypatch) -> None:
+    monkeypatch.setattr("app.main.time.monotonic", lambda: 12.0)
+    payload = SolveRequest(assignments=[], time_limit_seconds=180)
 
-    assert _solver_time_limit_seconds(payload, request_started=0.0) == 300.0
+    assert _solver_time_limit_seconds(payload, request_started=0.0) == 180.0
