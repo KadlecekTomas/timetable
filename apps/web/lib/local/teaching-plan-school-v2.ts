@@ -382,14 +382,16 @@ export function loadTeachingPlan(): TeachingPlan {
         );
 
   if (typeof window !== "undefined" && (applyNewDraft || !storedPlanExists)) {
-    const saved = saveTeachingPlan(plan);
+    // saveTeachingPlan dispatches TEACHING_PLAN_CHANGE_EVENT synchronously.
+    // Mark this draft as applied first so event listeners cannot re-enter
+    // loadTeachingPlan and recursively save the same imported workbook.
     if (draftFingerprint) {
       window.localStorage.setItem(
         ALLOCATION_DRAFT_APPLIED_STORAGE_KEY,
         draftFingerprint,
       );
     }
-    return saved;
+    return saveTeachingPlan(plan);
   }
   return plan;
 }
