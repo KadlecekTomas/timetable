@@ -113,13 +113,23 @@ test("supplied curriculum is seeded and staffing evidence decides split teaching
     0,
   );
   assert.equal(regularTotal, 120);
-  assert.equal(sportsTotal, 122);
-  assert.equal(
-    curriculum.profiles.REGULAR.subjects.find(
+  assert.equal(sportsTotal, 124);
+
+  for (const profile of [
+    curriculum.profiles.REGULAR,
+    curriculum.profiles.SPORTS,
+  ]) {
+    assert.deepEqual(
+      profile.subjects.find((subject) => subject.subjectCode === "FY")
+        ?.weeklyPeriodsByGrade,
+      { "6": 2, "7": 2, "8": 2, "9": 2 },
+    );
+    const electives = profile.subjects.find(
       (subject) => subject.subjectCode === "VOL",
-    )?.weeklyPeriodsByGrade["7"],
-    0,
-  );
+    );
+    assert.equal(electives?.weeklyPeriodsByGrade["6"], 0);
+    assert.equal(electives?.weeklyPeriodsByGrade["7"], 0);
+  }
 
   const plan = createDefaultSchoolTeachingPlan(
     curriculum,
@@ -129,7 +139,7 @@ test("supplied curriculum is seeded and staffing evidence decides split teaching
   assert.equal(plan.classes.length, 13);
   assert.equal(
     plan.rows.reduce((total, row) => total + row.weeklyPeriods, 0),
-    392,
+    394,
   );
 
   const informatics = plan.rows.filter((row) => row.subjectCode === "INF");
@@ -182,7 +192,7 @@ test("empty local data still loads the supplied curriculum", () => {
   assert.equal(plan.classes.length, 13);
   assert.equal(
     plan.rows.reduce((total, row) => total + row.weeklyPeriods, 0),
-    392,
+    394,
   );
 });
 
