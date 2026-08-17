@@ -56,14 +56,16 @@ test("beginner staffing flow saves the teacher card before project sync", async 
     "true",
   );
 
-  const tuesdayThird = page.getByRole("button", {
-    name: "Út 3. hodina volná",
-  });
-  await expect(tuesdayThird).toBeVisible();
-  await tuesdayThird.click();
-  await expect(
-    page.getByRole("button", { name: "Út 3. hodina blokovaná" }),
-  ).toHaveAttribute("aria-pressed", "true");
+  await page.getByLabel("Út blokovat od").selectOption("1");
+  await page.getByLabel("Út blokovat do").selectOption("6");
+  await page.getByRole("button", { name: "Út blokovat rozsah" }).click();
+  for (let period = 1; period <= 6; period += 1) {
+    await expect(
+      page.getByRole("button", {
+        name: `Út ${period}. hodina blokovaná`,
+      }),
+    ).toHaveAttribute("aria-pressed", "true");
+  }
   await expect(page.getByTestId("staffing-manual-save-status")).toContainText(
     "1 neuložená karta",
   );
@@ -88,7 +90,7 @@ test("beginner staffing flow saves the teacher card before project sync", async 
     .click();
   await expect(
     page.getByText(
-      "Hotovo. Uloženo 1 učitelů a 9 tvrdých blokací dostupnosti.",
+      "Hotovo. Uloženo 1 učitelů a 14 tvrdých blokací dostupnosti.",
     ),
   ).toBeVisible();
 
@@ -151,7 +153,7 @@ test("beginner staffing flow saves the teacher card before project sync", async 
       maxWeeklyLoad: null,
     },
   ]);
-  expect(stored.project.availability).toHaveLength(9);
+  expect(stored.project.availability).toHaveLength(14);
   const mondayRules = stored.project.availability.filter(
     (rule) => rule.dayOfWeek === 0,
   );
@@ -161,20 +163,28 @@ test("beginner staffing flow saves the teacher card before project sync", async 
       (rule) => rule.entityType === "TEACHER" && rule.kind === "UNAVAILABLE",
     ),
   ).toBe(true);
+  const tuesdayRules = stored.project.availability.filter(
+    (rule) => rule.dayOfWeek === 1,
+  );
+  expect(tuesdayRules).toHaveLength(6);
+  expect(tuesdayRules.map((rule) => rule.period).sort()).toEqual([
+    0, 1, 2, 3, 4, 5,
+  ]);
   expect(
-    stored.project.availability.some(
-      (rule) =>
-        rule.entityType === "TEACHER" &&
-        rule.dayOfWeek === 1 &&
-        rule.period === 2 &&
-        rule.kind === "UNAVAILABLE",
+    tuesdayRules.every(
+      (rule) => rule.entityType === "TEACHER" && rule.kind === "UNAVAILABLE",
     ),
   ).toBe(true);
   expect(stored.staffingPlan.teachers).toHaveLength(1);
   expect(stored.staffingPlan.teachers[0]!.targetWeeklyLoad).toBe(22);
   expect(stored.staffingPlan.teachers[0]!.unavailableDays).toEqual(["MON"]);
   expect(stored.staffingPlan.teachers[0]!.unavailablePeriods).toEqual([
+    { day: "TUE", period: 0 },
+    { day: "TUE", period: 1 },
     { day: "TUE", period: 2 },
+    { day: "TUE", period: 3 },
+    { day: "TUE", period: 4 },
+    { day: "TUE", period: 5 },
   ]);
   expect(
     stored.staffingPlan.teachers[0]!.subjectLoads.map((item) => [
