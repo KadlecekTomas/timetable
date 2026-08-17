@@ -114,6 +114,13 @@ test("CJ/M partial split keeps one teacher per subject and generates a two-leg s
   });
   assert.deepEqual(result.blockers, []);
   assert.equal(result.project.assignments.length, 6);
+  assert.ok(
+    result.project.assignments.every((assignment) =>
+      assignment.assignmentCode.includes(
+        assignment.subjectId.replace("subject:", ""),
+      ),
+    ),
+  );
   const whole = result.project.assignments.filter(
     (assignment) => assignment.group === "WHOLE",
   );

@@ -240,7 +240,7 @@ export function buildSchoolProjectForGeneration({
     if (!classId || !subjectId || !teacherId) return;
     assignments.push({
       id: `assignment:${token(row.id)}-${suffix}`,
-      assignmentCode: `${token(row.classCode)}-${token(row.id)}-${suffix}`,
+      assignmentCode: `${token(row.classCode)}-${token(subjectCode)}-${token(row.id)}-${suffix}`,
       classId,
       subjectId,
       teacherId,
