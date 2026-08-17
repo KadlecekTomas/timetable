@@ -27,30 +27,13 @@ jobs:
         run: |
           python <<'PY'
           from pathlib import Path
-
           helper = Path('.github/workflows/agent-fix-cjm-import.yml').read_text().splitlines()
           start = next(i for i, line in enumerate(helper) if line.strip() == "python <<'PY'") + 1
           end = next(i for i in range(start, len(helper)) if helper[i].strip() == 'PY')
-          script_lines = []
-          for line in helper[start:end]:
-              script_lines.append(line[10:] if line.startswith('          ') else line)
+          script_lines = [line[10:] if line.startswith('          ') else line for line in helper[start:end]]
           script = '\n'.join(script_lines) + '\n'
-          bad = '''    for (const teacher of resolved) {
-              addSubjectHours(
-                teacher,
-                requirement.subject.code,
-                requirement.weeklyPeriods,
-              );
-            }
-          '''
-          good = '''    for (const teacher of resolved) {
-      addSubjectHours(
-        teacher,
-        requirement.subject.code,
-        requirement.weeklyPeriods,
-      );
-    }
-          '''
+          bad = "    for (const teacher of resolved) {\n              addSubjectHours(\n                teacher,\n                requirement.subject.code,\n                requirement.weeklyPeriods,\n              );\n            }\n          "
+          good = "    for (const teacher of resolved) {\n      addSubjectHours(\n        teacher,\n        requirement.subject.code,\n        requirement.weeklyPeriods,\n      );\n    }\n          "
           if bad not in script:
               raise SystemExit('Legacy staffing replacement block was not found in extracted script')
           script = script.replace(bad, good, 1)
