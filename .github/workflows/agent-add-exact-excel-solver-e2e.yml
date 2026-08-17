@@ -1,81 +1,59 @@
-name: Agent wire exact Excel solver fixture
+name: Exact uploaded Excel solver gate
 
 on:
   push:
     branches:
       - agent/fix-real-excel-generation
 
-permissions:
-  contents: write
-
 jobs:
-  wire-test:
+  exact-excel-solver:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    env:
+      SOLVER_URL: http://127.0.0.1:8000
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/fix-real-excel-generation
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - run: npm install
-      - name: Extract exact workbook fixture
+      - run: pip install "."
+        working-directory: apps/solver
+      - run: npx playwright install --with-deps chromium
+      - name: Build web
+        run: npm run build --workspace @timetable/web
+      - name: Start solver and web
         shell: bash
         run: |
-          python <<'PY'
-          from pathlib import Path
-
-          test_path = Path('apps/web/tests/real-legacy-excel-generation.test.ts')
-          source = test_path.read_text()
-          start = source.index('const ACTUAL_MATRIX:')
-          end = source.index('function project(): LocalProject')
-          fixture_block = source[start:end]
-          fixture_block = fixture_block.replace(
-              'const ACTUAL_MATRIX:',
-              'export const ACTUAL_MATRIX:',
-              1,
-          ).replace(
-              'const ACTUAL_LAYOUT:',
-              'export const ACTUAL_LAYOUT:',
-              1,
-          ).replace(
-              'async function workbookBytes(): Promise<Uint8Array> {',
-              'export async function exactUploadedWorkbookBytes(): Promise<Uint8Array> {',
-              1,
-          )
-          helper = 'import ExcelJS from "exceljs";\n\n' + fixture_block
-          helper_path = Path('apps/web/test-support/exact-uploaded-excel-fixture.ts')
-          helper_path.parent.mkdir(parents=True, exist_ok=True)
-          helper_path.write_text(helper)
-
-          source = source.replace('import ExcelJS from "exceljs";\n\n', '', 1)
-          start = source.index('const ACTUAL_MATRIX:')
-          end = source.index('function project(): LocalProject')
-          source = (
-              source[:start]
-              + 'import { exactUploadedWorkbookBytes } from "../test-support/exact-uploaded-excel-fixture";\n\n'
-              + source[end:]
-          )
-          source = source.replace(
-              'await workbookBytes()',
-              'await exactUploadedWorkbookBytes()',
-          )
-          test_path.write_text(source)
-          PY
-          npx prettier --write apps/web/test-support/exact-uploaded-excel-fixture.ts apps/web/tests/real-legacy-excel-generation.test.ts apps/web/e2e/exact-uploaded-excel-generation.spec.ts
-      - name: Verify compile and unit tests
-        shell: bash
-        run: |
-          npm run typecheck --workspace @timetable/web
-          npm run test --workspace @timetable/web
-      - name: Commit exact solver fixture
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/web/test-support apps/web/tests/real-legacy-excel-generation.test.ts apps/web/e2e/exact-uploaded-excel-generation.spec.ts
-          git commit -m "test: share exact uploaded Excel fixture with solver e2e"
-          git push origin HEAD:agent/fix-real-excel-generation
+          nohup bash -c 'cd apps/solver && uvicorn app.main:app --host 127.0.0.1 --port 8000' > /tmp/solver.log 2>&1 &
+          nohup npm run start --workspace @timetable/web > /tmp/web.log 2>&1 &
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null && \
+               curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null && \
+               curl --fail --silent http://127.0.0.1:3000/solver/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/solver.log || true
+          cat /tmp/web.log || true
+          exit 1
+      - name: Generate timetable from exact anonymized uploaded Excel
+        run: npm run e2e --workspace @timetable/web -- e2e/exact-uploaded-excel-generation.spec.ts --retries=0
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exact-uploaded-excel-solver-failure
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+            /tmp/solver.log
+            /tmp/web.log
+          if-no-files-found: ignore
