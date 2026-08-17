@@ -23,7 +23,10 @@ jobs:
           cache: npm
       - run: npm install
       - name: Apply editor integration
-        run: python .github/scripts/cjm_editor_patch.py
+        shell: bash
+        run: |
+          sed -i 's/id: schoolYearId,/id: LOCAL_SCHOOL_YEAR_ID,/' .github/scripts/cjm_editor_patch.py
+          python .github/scripts/cjm_editor_patch.py
       - name: Verify web
         shell: bash
         run: |
