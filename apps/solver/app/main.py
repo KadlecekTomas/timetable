@@ -1,3 +1,4 @@
+import time
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -50,6 +51,7 @@ SUBJECT_LATE_WEIGHTS = {
     "PC": 0,
 }
 DEFAULT_SUBJECT_LATE_WEIGHT = 300
+VERCEL_REQUEST_BUDGET_SECONDS = 270.0
 
 
 @dataclass(frozen=True)
@@ -410,8 +412,19 @@ def _search_workers(payload: SolveRequest) -> int:
     return 8 if payload.time_limit_seconds >= 120 else 1
 
 
+def _solver_time_limit_seconds(
+    payload: SolveRequest,
+    request_started: float,
+) -> float:
+    requested = float(payload.time_limit_seconds)
+    elapsed = max(0.0, time.monotonic() - request_started)
+    remaining_budget = max(1.0, VERCEL_REQUEST_BUDGET_SECONDS - elapsed)
+    return min(requested, remaining_budget)
+
+
 @app.post("/solve", response_model=SolveResponse)
 def solve(payload: SolveRequest) -> SolveResponse:
+    request_started = time.monotonic()
     blocks = _blocks(payload)
     fixed = _fixed_by_block(payload)
     preflight = _preflight_diagnostics(payload, blocks)
@@ -653,8 +666,12 @@ def solve(payload: SolveRequest) -> SolveResponse:
     model.minimize(sum(objective_terms))
 
     workers = _search_workers(payload)
+    effective_time_limit_seconds = _solver_time_limit_seconds(
+        payload,
+        request_started,
+    )
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = float(payload.time_limit_seconds)
+    solver.parameters.max_time_in_seconds = effective_time_limit_seconds
     solver.parameters.num_search_workers = workers
     solver.parameters.random_seed = payload.random_seed
     status = solver.solve(model)
@@ -667,7 +684,8 @@ def solve(payload: SolveRequest) -> SolveResponse:
                     "message": ("Solver v časovém limitu nenalezl kandidáta. To samo o sobě nedokazuje, že model nemá řešení."),
                     "entityIds": [],
                     "details": {
-                        "timeLimitSeconds": payload.time_limit_seconds,
+                        "requestedTimeLimitSeconds": payload.time_limit_seconds,
+                        "effectiveTimeLimitSeconds": effective_time_limit_seconds,
                         "workers": workers,
                     },
                 }
@@ -754,6 +772,22 @@ def solve(payload: SolveRequest) -> SolveResponse:
             "message": "Solver použil jedno vlákno a pevný random seed.",
         }
     )
+    runtime_budget_diagnostic = (
+        {
+            "code": "RUNTIME_TIME_BUDGET_APPLIED",
+            "message": (
+                "Produkční výpočet byl ukončen s bezpečnou rezervou před "
+                "serverovým timeoutem, aby bylo možné vrátit a uložit nejlepší "
+                "nalezený návrh."
+            ),
+            "details": {
+                "requestedTimeLimitSeconds": payload.time_limit_seconds,
+                "effectiveTimeLimitSeconds": effective_time_limit_seconds,
+            },
+        }
+        if effective_time_limit_seconds < float(payload.time_limit_seconds)
+        else None
+    )
     return SolveResponse(
         status=status_name,
         objective_value=float(solver.objective_value),
@@ -775,6 +809,7 @@ def solve(payload: SolveRequest) -> SolveResponse:
                 ),
             },
             search_diagnostic,
+            *([runtime_budget_diagnostic] if runtime_budget_diagnostic else []),
         ],
         solver_stats={
             "solverVersion": ortools.__version__,
@@ -784,5 +819,7 @@ def solve(payload: SolveRequest) -> SolveResponse:
             "bestObjectiveBound": solver.best_objective_bound,
             "randomSeed": payload.random_seed,
             "workers": workers,
+            "requestedTimeLimitSeconds": payload.time_limit_seconds,
+            "effectiveTimeLimitSeconds": effective_time_limit_seconds,
         },
     )

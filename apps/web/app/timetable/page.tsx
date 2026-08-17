@@ -70,7 +70,7 @@ interface LessonView {
   period: number;
   duration: number;
   room_id: string | null;
-  group: "WHOLE" | "GROUP_1" | "GROUP_2";
+  group: "WHOLE" | "GROUP_1" | "GROUP_2" | "GROUP_3";
   locked: boolean;
   manually_changed?: boolean;
   origin: string;
@@ -413,16 +413,16 @@ export default function TimetablePage() {
             ) : null}
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-border bg-surface">
-            <div className="min-w-[980px]">
-              <div className="grid grid-cols-[96px_repeat(5,minmax(170px,1fr))] border-b border-border bg-surface-subtle">
+          <div className="overflow-x-auto rounded-2xl border border-border bg-surface shadow-sm">
+            <div className="min-w-[1180px]">
+              <div className="grid grid-cols-[88px_repeat(5,minmax(210px,1fr))] border-b border-border bg-surface-subtle">
                 <div className="p-3 text-xs font-medium text-text-muted">
                   Hodina
                 </div>
                 {dayNames.slice(0, 5).map((day) => (
                   <div
                     key={day}
-                    className="border-l border-border p-3 text-sm font-semibold text-text-primary"
+                    className="border-l border-border p-3 text-center text-sm font-semibold text-text-primary"
                   >
                     {day}
                   </div>
@@ -431,7 +431,7 @@ export default function TimetablePage() {
               {Array.from({ length: maximumPeriods }, (_, period) => (
                 <Fragment key={period}>
                   {period === MORNING_PERIOD_LIMIT ? (
-                    <div className="grid grid-cols-[96px_repeat(5,minmax(170px,1fr))] border-b border-warning-border bg-warning-subtle">
+                    <div className="grid grid-cols-[88px_repeat(5,minmax(210px,1fr))] border-b border-warning-border bg-warning-subtle">
                       <div className="col-span-6 px-4 py-2 text-center text-xs font-semibold text-warning-strong">
                         Obědová přestávka · nejméně {MIN_LUNCH_BREAK_MINUTES}{" "}
                         minut
@@ -440,28 +440,42 @@ export default function TimetablePage() {
                   ) : null}
                   <div
                     key={`period-${period}`}
-                    className="grid min-h-24 grid-cols-[96px_repeat(5,minmax(170px,1fr))] border-b border-border last:border-b-0"
+                    className="grid min-h-24 grid-cols-[88px_repeat(5,minmax(210px,1fr))] border-b border-border last:border-b-0"
                   >
-                    <div className="p-3 text-center text-sm font-semibold text-text-muted">
+                    <div className="sticky left-0 z-10 border-r border-border bg-surface px-2 py-3 text-center text-sm font-semibold text-text-muted">
                       {schoolPeriodLabel(period)}
                     </div>
                     {dayNames.slice(0, 5).map((_day, day) => {
-                      const cellLessons = payload?.lessons.filter(
-                        (lesson) =>
-                          lesson.day === day && lesson.period === period,
-                      );
+                      const cellLessons = (payload?.lessons ?? [])
+                        .filter(
+                          (lesson) =>
+                            lesson.day === day && lesson.period === period,
+                        )
+                        .sort((left, right) =>
+                          left.group.localeCompare(right.group),
+                        );
                       const disabled =
                         period >= (payload?.periodsPerDay[day] ?? 0);
+                      const lessonLayoutClass =
+                        cellLessons.length >= 3
+                          ? "grid grid-cols-3 gap-1.5"
+                          : cellLessons.length === 2
+                            ? "grid grid-cols-2 gap-2"
+                            : "space-y-2";
                       return (
                         <div
                           key={`${day}-${period}`}
+                          data-testid={`timetable-cell-${day}-${period}`}
+                          data-layout={
+                            cellLessons.length > 1 ? "parallel" : "single"
+                          }
                           className={
                             disabled
                               ? "border-l border-border bg-surface-subtle p-2"
-                              : "space-y-2 border-l border-border p-2"
+                              : `border-l border-border p-2 ${lessonLayoutClass}`
                           }
                         >
-                          {cellLessons?.map((lesson) => (
+                          {cellLessons.map((lesson) => (
                             <button
                               key={lesson.id}
                               type="button"
@@ -469,7 +483,7 @@ export default function TimetablePage() {
                                 setMoveIssues([]);
                                 setSelectedLesson(lesson);
                               }}
-                              className="w-full rounded-md border border-primary/30 bg-primary-subtle p-2.5 text-left transition hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                              className="group min-w-0 overflow-hidden rounded-xl border border-primary/25 bg-primary-subtle p-2.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                             >
                               <div className="flex items-start justify-between gap-2">
                                 <strong className="text-sm text-text-primary">
@@ -490,17 +504,32 @@ export default function TimetablePage() {
                                   ) : null}
                                 </span>
                               </div>
-                              <p className="mt-1 text-xs text-text-secondary">
-                                {view === "class"
-                                  ? lesson.teacher?.code
-                                  : (lesson.schoolClasses
-                                      ?.map((item) => item.code)
-                                      .join(" + ") ?? lesson.schoolClass?.code)}
-                                {lesson.group !== "WHOLE"
-                                  ? ` · ${teachingGroupLabels[lesson.group] ?? lesson.group}`
-                                  : ""}
-                              </p>
-                              <p className="mt-1 text-xs text-text-muted">
+                              <div className="mt-1 flex min-w-0 items-center gap-1.5">
+                                <span className="min-w-0 flex-1 truncate text-xs font-medium text-text-secondary">
+                                  {view === "class"
+                                    ? lesson.teacher?.code
+                                    : (lesson.schoolClasses
+                                        ?.map((item) => item.code)
+                                        .join(" + ") ??
+                                      lesson.schoolClass?.code)}
+                                </span>
+                                {lesson.group !== "WHOLE" ? (
+                                  <span
+                                    className="shrink-0 rounded-md border border-primary/20 bg-surface/70 px-1.5 py-0.5 text-[10px] font-semibold text-primary"
+                                    title={
+                                      teachingGroupLabels[lesson.group] ??
+                                      lesson.group
+                                    }
+                                  >
+                                    {lesson.group === "GROUP_1"
+                                      ? "S1"
+                                      : lesson.group === "GROUP_2"
+                                        ? "S2"
+                                        : "S3"}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <p className="mt-1 truncate text-[11px] text-text-muted">
                                 {lesson.room?.code ?? "bez učebny"}
                                 {lesson.duration === 2 ? " · dvojhodina" : ""}
                               </p>
@@ -607,9 +636,22 @@ export default function TimetablePage() {
                   {selectedLesson.subject?.name} ·{" "}
                   {selectedLesson.schoolClasses
                     ?.map((item) => item.code)
-                    .join(" + ") ?? selectedLesson.schoolClass?.code}{" "}
-                  · {selectedLesson.teacher?.code}
+                    .join(" + ") ?? selectedLesson.schoolClass?.code}
                 </p>
+                <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+                  <span className="text-text-muted">Vyučující</span>
+                  <strong className="text-text-primary">
+                    {selectedLesson.teacher?.name ??
+                      selectedLesson.teacher?.code ??
+                      "neuveden"}
+                  </strong>
+                  {selectedLesson.teacher?.name &&
+                  selectedLesson.teacher?.code ? (
+                    <span className="font-mono text-xs text-text-muted">
+                      {selectedLesson.teacher.code}
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <button
                 type="button"
