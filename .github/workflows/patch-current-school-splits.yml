@@ -1,0 +1,67 @@
+name: Patch current school splits
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'agent/current-school-curriculum-splits'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply targeted rule-order fix
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("apps/web/lib/local/teaching-plan-school-v3.ts")
+          text = path.read_text()
+          old = '''export function applySchoolOperationalRules(
+            plan: TeachingPlan,
+            staffingPlan: StaffingPlan,
+            allocationDraft: StaffingAllocationDraft | null = null,
+          ): TeachingPlan {
+            return enforceCurrentSchoolTeachingStructure(
+              base.applySchoolOperationalRules(plan, staffingPlan, allocationDraft),
+            );
+          }
+          '''
+          new = '''export function applySchoolOperationalRules(
+            plan: TeachingPlan,
+            staffingPlan: StaffingPlan,
+            allocationDraft: StaffingAllocationDraft | null = null,
+          ): TeachingPlan {
+            const structured = enforceCurrentSchoolTeachingStructure(plan);
+            return enforceCurrentSchoolTeachingStructure(
+              base.applySchoolOperationalRules(
+                structured,
+                staffingPlan,
+                allocationDraft,
+              ),
+            );
+          }
+          '''
+          if old not in text:
+              raise SystemExit("target function not found")
+          path.write_text(text.replace(old, new))
+          PY
+      - run: npm install
+      - run: npm run format
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/lib/local/teaching-plan-school-v3.ts
+          git commit -m "fix: preserve split teachers before operational rules"
+          git push origin HEAD:${{ github.head_ref }}
