@@ -36,18 +36,11 @@ jobs:
           p.write_text(text)
           PY
           python .github/scripts/cjm_patch.py
-          python <<'PY'
-          from pathlib import Path
-          p = Path('apps/web/tests/mandatory-school-splits.test.ts')
-          text = p.read_text()
-          text = text.replace('assert.equal(czech?.requiredSlots, 2);', 'assert.equal(czech?.requiredSlots, 1);')
-          text = text.replace('assert.equal(math?.requiredSlots, 2);', 'assert.equal(math?.requiredSlots, 1);')
-          p.write_text(text)
-          PY
+          python .github/scripts/cjm_editor_patch.py
       - name: Format and verify
         shell: bash
         run: |
-          npx prettier --write apps/web/lib/import/legacy-school-workbook-parser.ts apps/web/lib/import/legacy-staffing-plan.ts apps/web/lib/local/teaching-plan-school-v3.ts apps/web/lib/domain/coverage-overview.ts apps/web/lib/domain/auto-cover-teaching-plan.ts apps/web/lib/local/school-project-generation.ts apps/web/tests/partial-split-generation.test.ts apps/web/tests/compact-staffing-matrix.test.ts apps/web/tests/mandatory-school-splits.test.ts
+          npx prettier --write apps/web/lib/import/legacy-school-workbook-parser.ts apps/web/lib/import/legacy-staffing-plan.ts apps/web/lib/local/teaching-plan-school-v3.ts apps/web/lib/domain/coverage-overview.ts apps/web/lib/domain/auto-cover-teaching-plan.ts apps/web/lib/local/school-project-generation.ts apps/web/app/teaching-plan/page.tsx apps/web/tests/partial-split-generation.test.ts apps/web/tests/compact-staffing-matrix.test.ts apps/web/tests/mandatory-school-splits.test.ts
           npm run typecheck --workspace @timetable/web
           npm run test --workspace @timetable/web
       - name: Commit verified source fix
@@ -55,6 +48,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/web/lib apps/web/tests
+          git add apps/web/lib apps/web/app/teaching-plan/page.tsx apps/web/tests
           git commit -m "fix: import compact staffing matrix and keep CJM teacher"
           git push origin HEAD:agent/fix-cjm-same-teacher-rotation
