@@ -280,6 +280,26 @@ export function saveTeachingPlan(plan: TeachingPlan): TeachingPlan {
   return enforceCurrentSchoolTeachingStructure(base.saveTeachingPlan(enforced));
 }
 
+export function rowTeacherPeriods(
+  row: TeachingPlanRow,
+  teacherId: string,
+): number {
+  const periods = base.rowTeacherPeriods(row, teacherId);
+  if (
+    row.organization === "SPLIT" &&
+    Number.isInteger(row.splitWeeklyPeriods) &&
+    row.secondaryTeacherId === teacherId &&
+    row.primaryTeacherId !== teacherId
+  ) {
+    const splitPeriods = Math.max(
+      1,
+      Math.min(row.weeklyPeriods, Number(row.splitWeeklyPeriods)),
+    );
+    return periods - row.weeklyPeriods + splitPeriods;
+  }
+  return periods;
+}
+
 export function validateTeachingPlan(
   plan: TeachingPlan,
   staffingPlan: StaffingPlan,
