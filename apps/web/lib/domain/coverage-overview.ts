@@ -160,20 +160,31 @@ function rolesForRow(row: TeachingPlanRow): CoverageRole[] {
   }
 
   if (row.organization === "SPLIT") {
+    const configured = Number.isInteger(row.splitWeeklyPeriods)
+      ? Number(row.splitWeeklyPeriods)
+      : periods;
+    const splitPeriods = Math.max(0, Math.min(periods, configured));
+    const wholePeriods = Math.max(0, periods - splitPeriods);
     return [
       {
         subjectCode: row.subjectCode,
-        roleLabel: "učitel 1. skupiny",
+        roleLabel:
+          wholePeriods > 0
+            ? "hlavní učitel celé třídy + 1. skupiny"
+            : "učitel 1. skupiny",
         teacherId: row.primaryTeacherId,
         teacherHours: periods,
-        classPeriods: periods / 2,
+        classPeriods: wholePeriods + splitPeriods / 2,
       },
       {
         subjectCode: row.subjectCode,
-        roleLabel: "učitel 2. skupiny",
+        roleLabel:
+          wholePeriods > 0
+            ? `učitel 2. skupiny (${splitPeriods} h týdně)`
+            : "učitel 2. skupiny",
         teacherId: row.secondaryTeacherId,
-        teacherHours: periods,
-        classPeriods: periods / 2,
+        teacherHours: splitPeriods,
+        classPeriods: splitPeriods / 2,
       },
     ];
   }
