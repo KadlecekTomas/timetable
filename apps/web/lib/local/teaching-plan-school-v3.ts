@@ -65,9 +65,7 @@ function applyStoredSplitPeriods(plan: TeachingPlan): TeachingPlan {
   return {
     ...plan,
     rows: plan.rows.map((row) =>
-      stored[row.id]
-        ? { ...row, splitWeeklyPeriods: stored[row.id] }
-        : row,
+      stored[row.id] ? { ...row, splitWeeklyPeriods: stored[row.id] } : row,
     ),
   };
 }
@@ -82,7 +80,10 @@ function writeStoredSplitPeriods(plan: TeachingPlan): void {
         : [],
     ),
   );
-  window.localStorage.setItem(SPLIT_PERIODS_STORAGE_KEY, JSON.stringify(stored));
+  window.localStorage.setItem(
+    SPLIT_PERIODS_STORAGE_KEY,
+    JSON.stringify(stored),
+  );
 }
 
 function sortedClassCodes(codes: string[]): string[] {

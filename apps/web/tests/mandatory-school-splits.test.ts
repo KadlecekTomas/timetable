@@ -146,8 +146,9 @@ test("second foreign language is shared by grade and grade-six/seven electives d
     enforced.rows.some(
       (row) =>
         row.subjectCode === "VOL" &&
-        [row.classCode, ...(row.additionalClassCodes ?? [])].some((classCode) =>
-          classCode.startsWith("6.") || classCode.startsWith("7."),
+        [row.classCode, ...(row.additionalClassCodes ?? [])].some(
+          (classCode) =>
+            classCode.startsWith("6.") || classCode.startsWith("7."),
         ),
     ),
     false,

@@ -77,7 +77,11 @@ test("five-hour Czech creates four whole periods plus exactly one parallel split
     },
   ];
 
-  const enforced = applySchoolOperationalRules(teachingPlan, staffingPlan, null);
+  const enforced = applySchoolOperationalRules(
+    teachingPlan,
+    staffingPlan,
+    null,
+  );
   const row = enforced.rows[0];
   assert.equal(row?.organization, "SPLIT");
   assert.equal(row?.splitWeeklyPeriods, 1);
@@ -136,7 +140,11 @@ test("missing second teacher leaves only half of the split period uncovered", ()
     },
   ];
 
-  const enforced = applySchoolOperationalRules(teachingPlan, staffingPlan, null);
+  const enforced = applySchoolOperationalRules(
+    teachingPlan,
+    staffingPlan,
+    null,
+  );
   const overview = buildCoverageOverview(enforced, staffingPlan);
   const cell = overview.cellByKey.get(coverageCellKey("6.A", "CJ"));
 

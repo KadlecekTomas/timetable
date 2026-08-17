@@ -370,10 +370,7 @@ export function buildCoverageOverview(
     ),
   );
   const coveredClassPeriods = rounded(
-    finalizedCells.reduce(
-      (total, cell) => total + cell.coveredClassPeriods,
-      0,
-    ),
+    finalizedCells.reduce((total, cell) => total + cell.coveredClassPeriods, 0),
   );
   const missingClassPeriods = rounded(
     Math.max(0, requiredClassPeriods - coveredClassPeriods),
