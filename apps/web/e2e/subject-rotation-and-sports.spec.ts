@@ -292,4 +292,20 @@ test("sports B class keeps A allocation and Czech-Math groups swap atomically", 
   expect(leg1Day).toBe(leg2Day);
   expect(leg1Period).not.toBe(leg2Period);
   await capture(page, "13-vygenerovana-atomicka-rotace.png");
+
+  await page.getByRole("link", { name: "Otevřít návrh" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Kvalita návrhu" }),
+  ).toBeVisible();
+  const parallelCell = page.locator('[data-layout="parallel"]').first();
+  await expect(parallelCell).toBeVisible();
+  const parallelCards = parallelCell.locator("button");
+  expect(await parallelCards.count()).toBeGreaterThanOrEqual(2);
+  const firstBox = await parallelCards.nth(0).boundingBox();
+  const secondBox = await parallelCards.nth(1).boundingBox();
+  expect(firstBox).not.toBeNull();
+  expect(secondBox).not.toBeNull();
+  expect(Math.abs(firstBox!.y - secondBox!.y)).toBeLessThan(3);
+  expect(secondBox!.x).toBeGreaterThan(firstBox!.x);
+  await capture(page, "14-paralelni-skupiny-vedle-sebe.png");
 });
