@@ -636,9 +636,22 @@ export default function TimetablePage() {
                   {selectedLesson.subject?.name} ·{" "}
                   {selectedLesson.schoolClasses
                     ?.map((item) => item.code)
-                    .join(" + ") ?? selectedLesson.schoolClass?.code}{" "}
-                  · {selectedLesson.teacher?.code}
+                    .join(" + ") ?? selectedLesson.schoolClass?.code}
                 </p>
+                <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+                  <span className="text-text-muted">Vyučující</span>
+                  <strong className="text-text-primary">
+                    {selectedLesson.teacher?.name ??
+                      selectedLesson.teacher?.code ??
+                      "neuveden"}
+                  </strong>
+                  {selectedLesson.teacher?.name &&
+                  selectedLesson.teacher?.code ? (
+                    <span className="font-mono text-xs text-text-muted">
+                      {selectedLesson.teacher.code}
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <button
                 type="button"

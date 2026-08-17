@@ -307,5 +307,15 @@ test("sports B class keeps A allocation and Czech-Math groups swap atomically", 
   expect(secondBox).not.toBeNull();
   expect(Math.abs(firstBox!.y - secondBox!.y)).toBeLessThan(3);
   expect(secondBox!.x).toBeGreaterThan(firstBox!.x);
+
+  await parallelCards.nth(0).click();
+  const detailDialog = page.getByRole("dialog");
+  await expect(
+    detailDialog.getByRole("heading", { name: "Detail výukového bloku" }),
+  ).toBeVisible();
+  await expect(detailDialog.getByText("Vyučující")).toBeVisible();
+  await expect(detailDialog).toContainText(/Český Učitel|Matematický Učitel/);
+  await detailDialog.getByRole("button", { name: "Zavřít" }).click();
+
   await capture(page, "14-paralelni-skupiny-vedle-sebe.png");
 });
