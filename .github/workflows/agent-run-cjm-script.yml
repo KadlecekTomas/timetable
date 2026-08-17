@@ -32,11 +32,32 @@ jobs:
           end = next(i for i in range(start, len(helper)) if helper[i].strip() == 'PY')
           script_lines = [line[10:] if line.startswith('          ') else line for line in helper[start:end]]
           script = '\n'.join(script_lines) + '\n'
-          bad = "    for (const teacher of resolved) {\n              addSubjectHours(\n                teacher,\n                requirement.subject.code,\n                requirement.weeklyPeriods,\n              );\n            }\n          "
-          good = "    for (const teacher of resolved) {\n      addSubjectHours(\n        teacher,\n        requirement.subject.code,\n        requirement.weeklyPeriods,\n      );\n    }\n          "
-          if bad not in script:
-              raise SystemExit('Legacy staffing replacement block was not found in extracted script')
-          script = script.replace(bad, good, 1)
+          section_start = script.index('# 2) X+1 means class periods')
+          section_end = script.index('# 3) School partial CJ/M split')
+          corrected_section = """# 2) X+1 means class periods + one extra teacher period for the same teacher.
+path = \"apps/web/lib/import/legacy-staffing-plan.ts\"
+replace(path,
+'''    for (const teacher of resolved) {
+      addSubjectHours(
+        teacher,
+        requirement.subject.code,
+        requirement.weeklyPeriods,
+      );
+    }
+''',
+'''    const teacherWeeklyPeriods =
+      requirement.weeklyPeriods + requirement.teacherExtraPeriods;
+    for (const teacher of resolved) {
+      addSubjectHours(
+        teacher,
+        requirement.subject.code,
+        teacherWeeklyPeriods,
+      );
+    }
+''')
+
+"""
+          script = script[:section_start] + corrected_section + script[section_end:]
           exec(compile(script, '<agent-cjm-patch>', 'exec'))
           PY
       - name: Format and verify
