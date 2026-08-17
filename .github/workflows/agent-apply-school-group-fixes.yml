@@ -64,6 +64,7 @@ jobs:
       - name: Format changed sources
         run: |
           npx prettier --write \
+            .github/workflows/agent-apply-school-group-fixes.yml \
             AGENTS.md \
             apps/web/app/settings/page.tsx \
             apps/web/app/teaching-plan/page.tsx \
