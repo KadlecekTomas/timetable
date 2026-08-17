@@ -3,7 +3,8 @@
   "git": {
     "deploymentEnabled": {
       "agent/fix-staffing-save-button-layout": false,
-      "agent/fix-vercel-solver-timeout-and-timetable-layout": false
+      "agent/fix-vercel-solver-timeout-and-timetable-layout": false,
+      "agent/production-hardening-2026-08-17": false
     }
   },
   "services": {

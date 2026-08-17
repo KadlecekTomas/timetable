@@ -25,7 +25,7 @@ V části **Nastavení** proto aplikace umožňuje:
 - obnovit celý projekt na stejném nebo jiném zařízení;
 - bezpečně vymazat lokální projekt až po dvojím potvrzení.
 
-Doporučený postup je stáhnout zálohu po každé významné změně a uložit ji na školní Google Disk nebo jiné spravované úložiště.
+Doporučený postup je stáhnout zálohu po každé významné změně a uložit ji na školní Google Disk nebo jiné spravované úložiště. Před přechodem z Preview URL na produkční doménu je nutné projekt exportovat a na finální doméně obnovit, protože browser storage je vázané na origin.
 
 ## Hlavní workflow
 
@@ -44,7 +44,8 @@ Doporučený postup je stáhnout zálohu po každé významné změně a uložit
 
 - Povinná omezení se nesmí porušit.
 - Učitel, třída ani učebna nesmí být ve stejný čas na dvou místech.
-- Dělená výuka používá skupiny 1 a 2.
+- Standardní dělená výuka používá skupiny 1 a 2; první cizí jazyk může používat i třetí souběžnou skupinu.
+- Tělesná výchova zůstává vždy ve dvou skupinách.
 - Import je atomický a ukazuje chybu na konkrétním listu, řádku a sloupci.
 - Výsledek solveru prochází nezávislou kontrolou tvrdých omezení v prohlížeči.
 - Každý návrh obsahuje vysvětlitelné hodnocení kvality.
@@ -111,18 +112,28 @@ Repozitář obsahuje konfiguraci pro dvě služby v jednom Vercel projektu:
 - `web` jako Next.js frontend;
 - `solver` jako FastAPI backend pod cestou `/solver`.
 
-Vercel projekt musí používat režim **Services**. Před produkčním použitím musí proběhnout Preview deployment a stejný local-first Playwright scénář proti jeho veřejné URL. CI v GitHub Actions ověřuje databázově nezávislý runtime lokálně, nikoli dostupnost konkrétního Vercel účtu nebo povolení beta funkce Services.
+Vercel projekt musí používat režim **Services**. Pro jedno GitHub repo má být jako produkční Git integrace používaný jen jeden aktivní Services projekt, aby každý push nevytvářel duplicitní buildy a nevyčerpával build-rate limit.
+
+Před produkčním použitím musí proběhnout Preview deployment a stejný local-first Playwright scénář proti jeho veřejné URL. CI v GitHub Actions ověřuje databázově nezávislý runtime lokálně, nikoli dostupnost konkrétního Vercel účtu nebo povolení beta funkce Services.
+
+Pětiminutový režim solveru používá interní bezpečnostní rozpočet kratší než platformní timeout, aby měl backend čas vrátit nejlepší nalezený výsledek místo ukončení requestu platformou.
 
 ## Automatická verifikace
 
-CI ověřuje:
+CI ověřuje na stejné hlavní verzi Node.js jako produkční Vercel runtime:
 
+- reprodukovatelnou instalaci přes `npm ci` a lockfile;
 - formátování, lint a TypeScript;
 - webové a doménové jednotkové testy;
 - produkční build webu bez databáze;
 - solver lint a testy;
 - kompletní workflow Excel → IndexedDB → solver → rozvrh → záloha → vymazání → obnova;
+- realistický školní workflow a plný curriculum/export scénář;
 - stejnou kritickou browserovou bránu třikrát za sebou bez retry.
+
+## Podporovaný produkční klient
+
+Pro pilotní provoz je referenční a automaticky testovaný aktuální **Desktop Chrome**. Safari a Firefox nejsou zatím součástí release gate a nemají být deklarované jako garantované browsery bez samostatného ověření.
 
 ## Důležité omezení
 
