@@ -283,8 +283,9 @@ export function applySchoolOperationalRules(
   staffingPlan: StaffingPlan,
   allocationDraft: StaffingAllocationDraft | null = null,
 ): TeachingPlan {
+  const structured = enforceCurrentSchoolTeachingStructure(plan);
   return enforceCurrentSchoolTeachingStructure(
-    base.applySchoolOperationalRules(plan, staffingPlan, allocationDraft),
+    base.applySchoolOperationalRules(structured, staffingPlan, allocationDraft),
   );
 }
 
