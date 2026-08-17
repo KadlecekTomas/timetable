@@ -1,0 +1,686 @@
+name: Agent apply CJM and compact import fix
+
+on:
+  push:
+    branches:
+      - agent/fix-cjm-same-teacher-rotation
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/fix-cjm-same-teacher-rotation
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - name: Apply source changes
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if new in text:
+                  return
+              if old not in text:
+                  raise SystemExit(f"Missing expected block in {path}: {old[:120]!r}")
+              p.write_text(text.replace(old, new))
+
+          # 1) Recognize compact class matrices and X+1 teacher-hour notation.
+          path = "apps/web/lib/import/legacy-school-workbook-parser.ts"
+          replace(path,
+          'const LEGACY_INDIVIDUALS_SHEET = "jednotlivci";\nconst CLASS_COLUMNS = [3, 7, 11, 15, 19] as const;\n',
+          'const LEGACY_INDIVIDUALS_SHEET = "jednotlivci";\n')
+          replace(path,
+          '  weeklyPeriods: number;\n  row: number;\n',
+          '  weeklyPeriods: number;\n  teacherExtraPeriods: number;\n  row: number;\n')
+          replace(path,
+          '''function integerValue(value: string): number | null {
+            if (!value) return null;
+            const parsed = Number(value.replace(",", "."));
+            return Number.isInteger(parsed) ? parsed : null;
+          }
+          ''',
+          '''function teachingHoursValue(
+            value: string,
+          ): { weeklyPeriods: number; teacherExtraPeriods: number } | null {
+            const normalized = value.trim().replace(/\\s+/g, "");
+            const match = normalized.match(/^(\\d+)(?:\\+(\\d+))?$/);
+            if (!match) return null;
+            const weeklyPeriods = Number(match[1]);
+            const teacherExtraPeriods = Number(match[2] ?? 0);
+            if (
+              !Number.isInteger(weeklyPeriods) ||
+              weeklyPeriods <= 0 ||
+              !Number.isInteger(teacherExtraPeriods) ||
+              teacherExtraPeriods < 0
+            ) {
+              return null;
+            }
+            return { weeklyPeriods, teacherExtraPeriods };
+          }
+          ''')
+          replace(path,
+          '''function findClassBlocks(worksheet: Worksheet): ClassBlock[] {
+            const blocks: ClassBlock[] = [];
+            for (let row = 1; row <= worksheet.rowCount; row += 1) {
+              const slots = CLASS_COLUMNS.flatMap((column) => {
+                const code = normalizeClassCode(cellText(worksheet.getCell(row, column)));
+                return code
+                  ? [
+                      {
+                        code,
+                        column,
+                        homeroomTeacher: cellText(worksheet.getCell(row, column + 1)),
+                      },
+                    ]
+                  : [];
+              });
+              if (slots.length > 0) blocks.push({ row, slots });
+            }
+            return blocks;
+          }
+          ''',
+          '''function findClassBlocks(worksheet: Worksheet): ClassBlock[] {
+            const blocks: ClassBlock[] = [];
+            for (let row = 1; row <= worksheet.rowCount; row += 1) {
+              const slots: ClassSlot[] = [];
+              for (
+                let column = 1;
+                column <= Math.max(1, worksheet.columnCount - 2);
+                column += 1
+              ) {
+                const code = normalizeClassCode(cellText(worksheet.getCell(row, column)));
+                if (!code) continue;
+                const headerRow = findSubjectHeaderRow(
+                  worksheet,
+                  row,
+                  Math.min(worksheet.rowCount, row + 6),
+                  column,
+                );
+                if (!headerRow) continue;
+                slots.push({
+                  code,
+                  column,
+                  homeroomTeacher: cellText(worksheet.getCell(row, column + 1)),
+                });
+              }
+              if (slots.length > 0) blocks.push({ row, slots });
+            }
+            return blocks;
+          }
+          ''')
+          replace(path,
+          '''        const weeklyPeriods = integerValue(rawHours);
+                  if (!rawSubject || weeklyPeriods == null || weeklyPeriods <= 0) {
+          ''',
+          '''        const parsedHours = teachingHoursValue(rawHours);
+                  if (!rawSubject || !parsedHours) {
+          ''')
+          replace(path,
+          '''        requirements.push({
+                    classCode: slot.code,
+                    subject: subjectDescriptor(rawSubject),
+                    rawTeacher,
+                    weeklyPeriods,
+                    row,
+                    teacherColumn: slot.column + 1,
+                  });
+          ''',
+          '''        requirements.push({
+                    classCode: slot.code,
+                    subject: subjectDescriptor(rawSubject),
+                    rawTeacher,
+                    weeklyPeriods: parsedHours.weeklyPeriods,
+                    teacherExtraPeriods: parsedHours.teacherExtraPeriods,
+                    row,
+                    teacherColumn: slot.column + 1,
+                  });
+          ''')
+          replace(path,
+          '''  const staffingSheet = workbook.worksheets.find((worksheet) =>
+              worksheet.name.toLocaleLowerCase("cs-CZ").startsWith("úvazky"),
+            );
+            const individualsSheet = workbook.worksheets.find(
+              (worksheet) => asciiKey(worksheet.name) === LEGACY_INDIVIDUALS_SHEET,
+            );
+            if (!staffingSheet || !individualsSheet) return null;
+
+            const issues: ImportIssueDraft[] = [];
+            const blocks = findClassBlocks(staffingSheet);
+            if (blocks.length === 0) return null;
+          ''',
+          '''  const preferredSheet = workbook.worksheets.find((worksheet) =>
+              worksheet.name.toLocaleLowerCase("cs-CZ").startsWith("úvazky"),
+            );
+            const candidates = [
+              ...(preferredSheet ? [preferredSheet] : []),
+              ...workbook.worksheets.filter((worksheet) => worksheet !== preferredSheet),
+            ];
+            const match = candidates
+              .map((worksheet) => ({ worksheet, blocks: findClassBlocks(worksheet) }))
+              .find((item) => item.blocks.length > 0);
+            if (!match) return null;
+            const staffingSheet = match.worksheet;
+            const blocks = match.blocks;
+            const individualsSheet = workbook.worksheets.find(
+              (worksheet) => asciiKey(worksheet.name) === LEGACY_INDIVIDUALS_SHEET,
+            );
+
+            const issues: ImportIssueDraft[] = [];
+          ''')
+          # Avoid an unused optional sheet while still retaining backwards-compatible detection.
+          replace(path,
+          '''  const aliases = new Map<string, TeacherSeed>();
+            for (let row = 1; row < blocks[0]!.row; row += 1) {
+          ''',
+          '''  void individualsSheet;
+            const aliases = new Map<string, TeacherSeed>();
+            for (let row = 1; row < blocks[0]!.row; row += 1) {
+          ''')
+
+          # 2) X+1 means class periods + one extra teacher period for the same teacher.
+          path = "apps/web/lib/import/legacy-staffing-plan.ts"
+          replace(path,
+          '''    for (const teacher of resolved) {
+              addSubjectHours(
+                teacher,
+                requirement.subject.code,
+                requirement.weeklyPeriods,
+              );
+            }
+          ''',
+          '''    const teacherWeeklyPeriods =
+              requirement.weeklyPeriods + requirement.teacherExtraPeriods;
+            for (const teacher of resolved) {
+              addSubjectHours(
+                teacher,
+                requirement.subject.code,
+                teacherWeeklyPeriods,
+              );
+            }
+          ''')
+
+          # 3) School partial CJ/M split: one teacher teaches whole class and both split halves.
+          path = "apps/web/lib/local/teaching-plan-school-v3.ts"
+          replace(path,
+          '''function isCurrentSchoolPlan(plan: TeachingPlan): boolean {
+            const allowedCodes = new Set<string>(SCHOOL_CLASS_CODES);
+          ''',
+          '''function isCurrentSchoolPlan(plan: TeachingPlan): boolean {
+            const allowedCodes = new Set<string>(SCHOOL_CLASS_CODES);
+          ''')
+          marker = '''function readStoredSplitPeriods(): Record<string, number> {'''
+          insertion = '''export function isSameTeacherPartialSplit(row: TeachingPlanRow): boolean {
+            if (
+              row.organization !== "SPLIT" ||
+              !SCHOOL_SINGLE_SPLIT_PERIOD_SUBJECT_CODES.has(row.subjectCode) ||
+              !Number.isInteger(row.splitWeeklyPeriods)
+            ) {
+              return false;
+            }
+            const splitPeriods = Math.max(
+              0,
+              Math.min(row.weeklyPeriods, Number(row.splitWeeklyPeriods)),
+            );
+            return splitPeriods > 0 && splitPeriods < row.weeklyPeriods;
+          }
+
+          function splitPeriodsForRow(row: TeachingPlanRow): number {
+            return Number.isInteger(row.splitWeeklyPeriods)
+              ? Math.max(0, Math.min(row.weeklyPeriods, Number(row.splitWeeklyPeriods)))
+              : row.weeklyPeriods;
+          }
+
+          function readStoredSplitPeriods(): Record<string, number> {'''
+          replace(path, marker, insertion)
+          replace(path,
+          '''      return {
+                ...row,
+                organization: "SPLIT" as const,
+                splitWeeklyPeriods: SCHOOL_SINGLE_SPLIT_PERIOD_SUBJECT_CODES.has(
+                  row.subjectCode,
+                )
+                  ? 1
+                  : row.weeklyPeriods,
+                additionalClassCodes:
+                  row.subjectCode === "TV" ? [] : row.additionalClassCodes,
+                sharedGroupLabel: row.subjectCode === "TV" ? "" : row.sharedGroupLabel,
+              };
+          ''',
+          '''      const singleSplit = SCHOOL_SINGLE_SPLIT_PERIOD_SUBJECT_CODES.has(
+                row.subjectCode,
+              );
+              return {
+                ...row,
+                organization: "SPLIT" as const,
+                splitWeeklyPeriods: singleSplit ? 1 : row.weeklyPeriods,
+                secondaryTeacherId: singleSplit
+                  ? row.primaryTeacherId
+                  : row.secondaryTeacherId,
+                additionalClassCodes:
+                  row.subjectCode === "TV" ? [] : row.additionalClassCodes,
+                sharedGroupLabel: row.subjectCode === "TV" ? "" : row.sharedGroupLabel,
+              };
+          ''')
+          replace(path,
+          '''export function rowTeacherPeriods(
+            row: TeachingPlanRow,
+            teacherId: string,
+          ): number {
+            const periods = base.rowTeacherPeriods(row, teacherId);
+            if (
+              row.organization === "SPLIT" &&
+              Number.isInteger(row.splitWeeklyPeriods) &&
+              row.secondaryTeacherId === teacherId &&
+              row.primaryTeacherId !== teacherId
+            ) {
+              const splitPeriods = Math.max(
+                1,
+                Math.min(row.weeklyPeriods, Number(row.splitWeeklyPeriods)),
+              );
+              return periods - row.weeklyPeriods + splitPeriods;
+            }
+            return periods;
+          }
+          ''',
+          '''export function rowTeacherPeriods(
+            row: TeachingPlanRow,
+            teacherId: string,
+          ): number {
+            const periods = base.rowTeacherPeriods(row, teacherId);
+            if (
+              isSameTeacherPartialSplit(row) &&
+              row.primaryTeacherId === teacherId &&
+              row.secondaryTeacherId === teacherId
+            ) {
+              return periods + splitPeriodsForRow(row);
+            }
+            if (
+              row.organization === "SPLIT" &&
+              Number.isInteger(row.splitWeeklyPeriods) &&
+              row.secondaryTeacherId === teacherId &&
+              row.primaryTeacherId !== teacherId
+            ) {
+              const splitPeriods = Math.max(
+                1,
+                Math.min(row.weeklyPeriods, Number(row.splitWeeklyPeriods)),
+              );
+              return periods - row.weeklyPeriods + splitPeriods;
+            }
+            return periods;
+          }
+          ''')
+          replace(path,
+          '''export function validateTeachingPlan(
+            plan: TeachingPlan,
+            staffingPlan: StaffingPlan,
+          ): string[] {
+            return base.validateTeachingPlan(
+              enforceCurrentSchoolTeachingStructure(plan),
+              staffingPlan,
+            );
+          }
+          ''',
+          '''export function validateTeachingPlan(
+            plan: TeachingPlan,
+            staffingPlan: StaffingPlan,
+          ): string[] {
+            const enforced = enforceCurrentSchoolTeachingStructure(plan);
+            const sameTeacherPrefixes = new Set(
+              enforced.rows
+                .filter(isSameTeacherPartialSplit)
+                .map((row) => `${row.classCode} ${row.subjectCode}:`),
+            );
+            return base.validateTeachingPlan(enforced, staffingPlan).filter((message) => {
+              const sameTeacherRow = [...sameTeacherPrefixes].some((prefix) =>
+                message.startsWith(prefix),
+              );
+              if (!sameTeacherRow) return true;
+              return !(
+                message.includes("Vyberte učitele druhé skupiny.") ||
+                message.includes("Každá skupina musí mít jiného učitele.")
+              );
+            });
+          }
+          ''')
+
+          # 4) Coverage shows one teacher with X+1 hours, not a fake missing second teacher.
+          path = "apps/web/lib/domain/coverage-overview.ts"
+          replace(path,
+          'import type { TeachingPlan, TeachingPlanRow } from "@/lib/local/teaching-plan";\n',
+          'import {\n  isSameTeacherPartialSplit,\n  type TeachingPlan,\n  type TeachingPlanRow,\n} from "@/lib/local/teaching-plan";\n')
+          replace(path,
+          '''    const splitPeriods = Math.max(0, Math.min(periods, configured));
+              const wholePeriods = Math.max(0, periods - splitPeriods);
+              return [
+          ''',
+          '''    const splitPeriods = Math.max(0, Math.min(periods, configured));
+              const wholePeriods = Math.max(0, periods - splitPeriods);
+              if (isSameTeacherPartialSplit(row)) {
+                return [
+                  {
+                    subjectCode: row.subjectCode,
+                    roleLabel: "učitel celé třídy + obou dělených skupin",
+                    teacherId: row.primaryTeacherId,
+                    teacherHours: periods + splitPeriods,
+                    classPeriods: periods,
+                  },
+                ];
+              }
+              return [
+          ''')
+
+          # 5) Auto-cover must keep the single CJ/M teacher and account for the +1 hour.
+          path = "apps/web/lib/domain/auto-cover-teaching-plan.ts"
+          replace(path,
+          'import type { TeachingPlan, TeachingPlanRow } from "@/lib/local/teaching-plan";\n',
+          'import {\n  isSameTeacherPartialSplit,\n  type TeachingPlan,\n  type TeachingPlanRow,\n} from "@/lib/local/teaching-plan";\n')
+          replace(path,
+          '''function slotHours(row: TeachingPlanRow): number {
+            const periods = positiveHours(row.weeklyPeriods);
+            return row.organization === "ROTATION" ? periods * 2 : periods;
+          }
+          ''',
+          '''function splitPeriods(row: TeachingPlanRow): number {
+            return Number.isInteger(row.splitWeeklyPeriods)
+              ? Math.max(0, Math.min(row.weeklyPeriods, Number(row.splitWeeklyPeriods)))
+              : row.weeklyPeriods;
+          }
+
+          function slotHours(row: TeachingPlanRow, field: TeacherField): number {
+            const periods = positiveHours(row.weeklyPeriods);
+            if (isSameTeacherPartialSplit(row)) {
+              return field === "primaryTeacherId" ? periods + splitPeriods(row) : 0;
+            }
+            return row.organization === "ROTATION" ? periods * 2 : periods;
+          }
+          ''')
+          replace(path,
+          '''  rows.forEach((row, rowIndex) => {
+              const hours = slotHours(row);
+              const primaryValid =
+          ''',
+          '''  rows.forEach((row, rowIndex) => {
+              const primaryHours = slotHours(row, "primaryTeacherId");
+              const sameTeacherPartial = isSameTeacherPartialSplit(row);
+              const primaryValid =
+          ''')
+          replace(path,
+          '''    if (row.organization === "WHOLE") {
+                row.secondaryTeacherId = "";
+              } else {
+                const secondaryValid =
+                  Boolean(row.secondaryTeacherId) &&
+                  validTeacherIds.has(row.secondaryTeacherId) &&
+                  row.secondaryTeacherId !== row.primaryTeacherId;
+                row.secondaryTeacherId = secondaryValid ? row.secondaryTeacherId : "";
+              }
+
+              if (row.primaryTeacherId) {
+                addScheduled(row.primaryTeacherId, row.subjectCode, hours);
+              } else if (row.subjectCode && hours > 0) {
+          ''',
+          '''    if (row.organization === "WHOLE") {
+                row.secondaryTeacherId = "";
+              } else if (sameTeacherPartial) {
+                row.secondaryTeacherId = row.primaryTeacherId;
+              } else {
+                const secondaryValid =
+                  Boolean(row.secondaryTeacherId) &&
+                  validTeacherIds.has(row.secondaryTeacherId) &&
+                  row.secondaryTeacherId !== row.primaryTeacherId;
+                row.secondaryTeacherId = secondaryValid ? row.secondaryTeacherId : "";
+              }
+
+              if (row.primaryTeacherId) {
+                addScheduled(row.primaryTeacherId, row.subjectCode, primaryHours);
+              } else if (row.subjectCode && primaryHours > 0) {
+          ''')
+          replace(path,
+          '''        teacherHours: hours,
+              });
+            }
+
+            if (row.organization !== "WHOLE") {
+              const secondarySubject = slotSubject(row, "secondaryTeacherId");
+              if (row.secondaryTeacherId) {
+                addScheduled(row.secondaryTeacherId, secondarySubject, hours);
+              } else if (secondarySubject && hours > 0) {
+          ''',
+          '''        teacherHours: primaryHours,
+              });
+            }
+
+            if (row.organization !== "WHOLE" && !sameTeacherPartial) {
+              const secondarySubject = slotSubject(row, "secondaryTeacherId");
+              const secondaryHours = slotHours(row, "secondaryTeacherId");
+              if (row.secondaryTeacherId) {
+                addScheduled(row.secondaryTeacherId, secondarySubject, secondaryHours);
+              } else if (secondarySubject && secondaryHours > 0) {
+          ''')
+          replace(path,
+          '''          teacherHours: hours,
+                });
+              }
+            }
+          });
+          ''',
+          '''          teacherHours: secondaryHours,
+                });
+              }
+            }
+          });
+          ''')
+          replace(path,
+          '''    row[slot.field] = selected.teacher.id;
+              addScheduled(selected.teacher.id, slot.subjectCode, slot.teacherHours);
+          ''',
+          '''    row[slot.field] = selected.teacher.id;
+              if (
+                slot.field === "primaryTeacherId" &&
+                isSameTeacherPartialSplit(row)
+              ) {
+                row.secondaryTeacherId = selected.teacher.id;
+              }
+              addScheduled(selected.teacher.id, slot.subjectCode, slot.teacherHours);
+          ''')
+
+          # 6) Generator materializes CJ/M as two swap legs, with the same teacher teaching both halves of their subject.
+          path = "apps/web/lib/local/school-project-generation.ts"
+          replace(path,
+          '''import {
+            inferredClassProfile,
+            rowTeacherPeriods,
+            type TeachingPlan,
+            type TeachingPlanRow,
+          } from "./teaching-plan";
+          ''',
+          '''import {
+            inferredClassProfile,
+            rowTeacherPeriods,
+            type TeachingPlan,
+            type TeachingPlanRow,
+          } from "./teaching-plan";
+          import { isSameTeacherPartialSplit } from "./teaching-plan-school-v3";
+          ''')
+          replace(path,
+          '''function generatedTeacherPeriods(
+            row: TeachingPlanRow,
+            teacherId: string,
+          ): number {
+            if (row.organization !== "SPLIT" || row.splitWeeklyPeriods === undefined) {
+              return rowTeacherPeriods(row, teacherId);
+            }
+            if (row.primaryTeacherId === teacherId) return row.weeklyPeriods;
+          ''',
+          '''function generatedTeacherPeriods(
+            row: TeachingPlanRow,
+            teacherId: string,
+          ): number {
+            if (isSameTeacherPartialSplit(row)) {
+              return row.primaryTeacherId === teacherId
+                ? row.weeklyPeriods + splitWeeklyPeriodsForRow(row)
+                : 0;
+            }
+            if (row.organization !== "SPLIT" || row.splitWeeklyPeriods === undefined) {
+              return rowTeacherPeriods(row, teacherId);
+            }
+            if (row.primaryTeacherId === teacherId) return row.weeklyPeriods;
+          ''')
+          loop_old = '''  for (const row of teachingPlan.rows) {
+            if (UNSCHEDULED_SUBJECT_CODES.has(row.subjectCode)) continue;
+            const rowKey = `${token(row.classCode)}-${token(row.id)}`;
+            if (row.organization === "WHOLE") {
+          '''
+          loop_new = '''  const partialCzechMathByClass = new Map<
+            string,
+            { czech?: TeachingPlanRow; math?: TeachingPlanRow }
+          >();
+            for (const row of teachingPlan.rows) {
+              if (
+                !isSameTeacherPartialSplit(row) ||
+                !["CJ", "M"].includes(row.subjectCode)
+              ) {
+                continue;
+              }
+              const pair = partialCzechMathByClass.get(row.classCode) ?? {};
+              if (row.subjectCode === "CJ") pair.czech = row;
+              if (row.subjectCode === "M") pair.math = row;
+              partialCzechMathByClass.set(row.classCode, pair);
+            }
+            const handledPartialRows = new Set<string>();
+
+            for (const row of teachingPlan.rows) {
+              if (UNSCHEDULED_SUBJECT_CODES.has(row.subjectCode)) continue;
+              if (
+                isSameTeacherPartialSplit(row) &&
+                ["CJ", "M"].includes(row.subjectCode)
+              ) {
+                if (handledPartialRows.has(row.id)) continue;
+                const pair = partialCzechMathByClass.get(row.classCode);
+                const czech = pair?.czech;
+                const math = pair?.math;
+                if (!czech || !math) {
+                  blockers.push(
+                    `${row.classCode}: dělená ČJ/M vyžaduje současně řádek češtiny i matematiky.`,
+                  );
+                  handledPartialRows.add(row.id);
+                  continue;
+                }
+                handledPartialRows.add(czech.id);
+                handledPartialRows.add(math.id);
+                const czechSplit = splitWeeklyPeriodsForRow(czech);
+                const mathSplit = splitWeeklyPeriodsForRow(math);
+                if (czechSplit !== mathSplit) {
+                  blockers.push(
+                    `${row.classCode}: ČJ a M musí mít stejný počet dělených hodin.`,
+                  );
+                  continue;
+                }
+                for (const source of [czech, math]) {
+                  const wholePeriods =
+                    source.weeklyPeriods - splitWeeklyPeriodsForRow(source);
+                  if (wholePeriods > 0) {
+                    push(
+                      source,
+                      "WHOLE",
+                      source.subjectCode,
+                      source.primaryTeacherId,
+                      "WHOLE",
+                      null,
+                      null,
+                      null,
+                      wholePeriods,
+                    );
+                  }
+                }
+                const rotationKey = `${token(row.classCode)}-CJ-M-PARTIAL`;
+                const leg1 = `${rotationKey}-L1`;
+                const leg2 = `${rotationKey}-L2`;
+                push(
+                  czech,
+                  "CJ-M-L1-G1",
+                  "CJ",
+                  czech.primaryTeacherId,
+                  "GROUP_1",
+                  leg1,
+                  rotationKey,
+                  1,
+                  czechSplit,
+                );
+                push(
+                  math,
+                  "CJ-M-L1-G2",
+                  "M",
+                  math.primaryTeacherId,
+                  "GROUP_2",
+                  leg1,
+                  rotationKey,
+                  1,
+                  mathSplit,
+                );
+                push(
+                  math,
+                  "CJ-M-L2-G1",
+                  "M",
+                  math.primaryTeacherId,
+                  "GROUP_1",
+                  leg2,
+                  rotationKey,
+                  2,
+                  mathSplit,
+                );
+                push(
+                  czech,
+                  "CJ-M-L2-G2",
+                  "CJ",
+                  czech.primaryTeacherId,
+                  "GROUP_2",
+                  leg2,
+                  rotationKey,
+                  2,
+                  czechSplit,
+                );
+                continue;
+              }
+              const rowKey = `${token(row.classCode)}-${token(row.id)}`;
+              if (row.organization === "WHOLE") {
+          '''
+          replace(path, loop_old, loop_new)
+
+          # 7) Regression: same-teacher CJ/M and swap generation.
+          Path("apps/web/tests/partial-split-generation.test.ts").write_text('''import assert from "node:assert/strict";\nimport test from "node:test";\n\nimport {\n  buildCoverageOverview,\n  coverageCellKey,\n} from "../lib/domain/coverage-overview";\nimport type { LocalProject } from "../lib/local/api";\nimport { buildSchoolProjectForGeneration } from "../lib/local/school-project-generation";\nimport type { StaffingPlan, StaffingTeacher } from "../lib/local/staffing-plan";\nimport {\n  applySchoolOperationalRules,\n  createEmptyTeachingPlan,\n  createTeachingPlanRow,\n  rowTeacherPeriods,\n} from "../lib/local/teaching-plan-school-v3";\n\nfunction project(): LocalProject {\n  return {\n    schemaVersion: 1,\n    id: "local-school-year",\n    schoolName: "Testovací škola",\n    label: "2026/2027",\n    status: "ACTIVE",\n    periodsPerDay: [8, 8, 8, 8, 7],\n    version: 1,\n    updatedAt: "2026-01-01T00:00:00.000Z",\n    teachers: [],\n    classes: [],\n    subjects: [],\n    roomTypes: [],\n    rooms: [],\n    assignments: [],\n    availability: [],\n    fixedLessons: [],\n    importBatches: [],\n    generationRuns: [],\n    timetableVersions: [],\n  };\n}\n\nfunction teacher(\n  id: string,\n  subjectCode: string,\n  weeklyPeriods: number,\n): StaffingTeacher {\n  return {\n    id,\n    firstName: `Učitel ${id}`,\n    lastName: "Testovací",\n    targetWeeklyLoad: weeklyPeriods,\n    subjectLoads: [\n      { id: `${id}-${subjectCode}`, subjectCode, weeklyPeriods },\n    ],\n    unavailableDays: [],\n  };\n}\n\ntest("CJ/M partial split keeps one teacher per subject and generates a two-leg swap", () => {\n  const staffingPlan: StaffingPlan = {\n    version: 1,\n    updatedAt: "test",\n    teachers: [teacher("cj-main", "CJ", 6), teacher("m-main", "M", 5)],\n  };\n  const teachingPlan = createEmptyTeachingPlan();\n  teachingPlan.rows = [\n    {\n      ...createTeachingPlanRow("6.A", "CJ"),\n      id: "6a-cj",\n      weeklyPeriods: 5,\n      organization: "WHOLE",\n      primaryTeacherId: "cj-main",\n    },\n    {\n      ...createTeachingPlanRow("6.A", "M"),\n      id: "6a-m",\n      weeklyPeriods: 4,\n      organization: "WHOLE",\n      primaryTeacherId: "m-main",\n    },\n  ];\n\n  const enforced = applySchoolOperationalRules(teachingPlan, staffingPlan, null);\n  const czech = enforced.rows.find((row) => row.subjectCode === "CJ");\n  const math = enforced.rows.find((row) => row.subjectCode === "M");\n  assert.ok(czech);\n  assert.ok(math);\n  assert.equal(czech.organization, "SPLIT");\n  assert.equal(czech.splitWeeklyPeriods, 1);\n  assert.equal(czech.secondaryTeacherId, "cj-main");\n  assert.equal(math.secondaryTeacherId, "m-main");\n  assert.equal(rowTeacherPeriods(czech, "cj-main"), 6);\n  assert.equal(rowTeacherPeriods(math, "m-main"), 5);\n\n  const overview = buildCoverageOverview(enforced, staffingPlan);\n  const czechCell = overview.cellByKey.get(coverageCellKey("6.A", "CJ"));\n  const mathCell = overview.cellByKey.get(coverageCellKey("6.A", "M"));\n  assert.equal(czechCell?.requiredClassPeriods, 5);\n  assert.equal(czechCell?.requiredTeacherHours, 6);\n  assert.equal(czechCell?.requiredSlots, 1);\n  assert.equal(czechCell?.assignedTeacherHours, 6);\n  assert.equal(czechCell?.rows[0]?.teacherId, "cj-main");\n  assert.equal(mathCell?.requiredClassPeriods, 4);\n  assert.equal(mathCell?.requiredTeacherHours, 5);\n  assert.equal(mathCell?.requiredSlots, 1);\n\n  const result = buildSchoolProjectForGeneration({\n    existingProject: project(),\n    staffingPlan,\n    teachingPlan: enforced,\n    forceReplaceGeneratedData: false,\n  });\n  assert.deepEqual(result.blockers, []);\n  assert.equal(result.project.assignments.length, 6);\n\n  const whole = result.project.assignments.filter(\n    (assignment) => assignment.group === "WHOLE",\n  );\n  assert.deepEqual(\n    whole.map((assignment) => [assignment.subjectId, assignment.weeklyPeriods]).sort(),\n    [["subject:CJ", 4], ["subject:M", 3]],\n  );\n\n  const rotation = result.project.assignments.filter(\n    (assignment) => assignment.rotationKey,\n  );\n  assert.equal(rotation.length, 4);\n  assert.equal(new Set(rotation.map((assignment) => assignment.rotationKey)).size, 1);\n  assert.deepEqual(\n    rotation\n      .map((assignment) => [\n        assignment.rotationLeg,\n        assignment.group,\n        assignment.subjectId,\n        assignment.teacherId,\n      ])\n      .sort(),\n    [\n      [1, "GROUP_1", "subject:CJ", "teacher:cj-main"],\n      [1, "GROUP_2", "subject:M", "teacher:m-main"],\n      [2, "GROUP_1", "subject:M", "teacher:m-main"],\n      [2, "GROUP_2", "subject:CJ", "teacher:cj-main"],\n    ],\n  );\n});\n\ntest("missing CJ teacher is one missing 6-hour role, not a fake second teacher", () => {\n  const staffingPlan: StaffingPlan = {\n    version: 1,\n    updatedAt: "test",\n    teachers: [teacher("m-main", "M", 5)],\n  };\n  const teachingPlan = createEmptyTeachingPlan();\n  teachingPlan.rows = [\n    {\n      ...createTeachingPlanRow("6.A", "CJ"),\n      weeklyPeriods: 5,\n      primaryTeacherId: "",\n    },\n    {\n      ...createTeachingPlanRow("6.A", "M"),\n      weeklyPeriods: 4,\n      primaryTeacherId: "m-main",\n    },\n  ];\n  const enforced = applySchoolOperationalRules(teachingPlan, staffingPlan, null);\n  const overview = buildCoverageOverview(enforced, staffingPlan);\n  const cell = overview.cellByKey.get(coverageCellKey("6.A", "CJ"));\n  assert.equal(cell?.requiredClassPeriods, 5);\n  assert.equal(cell?.requiredTeacherHours, 6);\n  assert.equal(cell?.requiredSlots, 1);\n  assert.equal(cell?.assignedTeacherHours, 0);\n  assert.equal(cell?.missingTeacherHours, 6);\n  assert.deepEqual(cell?.missingRoles, ["učitel celé třídy + obou dělených skupin"]);\n});\n''')
+
+          # 8) Regression fixture mirrors the user's compact B/F/J/N matrix and X+1 notation.
+          Path("apps/web/tests/compact-staffing-matrix.test.ts").write_text('''import assert from "node:assert/strict";\nimport test from "node:test";\n\nimport ExcelJS from "exceljs";\n\nimport { analyzeStaffingWorkbook } from "../lib/import/staffing-workbook-school-v2";\n\nasync function compactWorkbook(): Promise<Uint8Array> {\n  const workbook = new ExcelJS.Workbook();\n  const sheet = workbook.addWorksheet("List 1");\n  sheet.getCell("B4").value = "6.A";\n  sheet.getCell("F4").value = "6.B";\n  for (const column of ["B", "F"]) {\n    sheet.getCell(`${column}5`).value = "Předměty";\n    sheet.getCell(`${String.fromCharCode(column.charCodeAt(0) + 1)}5`).value =\n      "Učitel/učitelka";\n    sheet.getCell(`${String.fromCharCode(column.charCodeAt(0) + 2)}5`).value =\n      "Časová dotace";\n  }\n  sheet.getCell("B6").value = "Čj";\n  sheet.getCell("C6").value = "Novotná";\n  sheet.getCell("D6").value = "5+1";\n  sheet.getCell("B7").value = "M";\n  sheet.getCell("C7").value = "Pilat";\n  sheet.getCell("D7").value = "4+1";\n  sheet.getCell("B8").value = "Aj";\n  sheet.getCell("C8").value = "Syrůčková/Rus";\n  sheet.getCell("D8").value = 4;\n  sheet.getCell("B9").value = "Tv";\n  sheet.getCell("C9").value = "Mašek/Šárová";\n  sheet.getCell("D9").value = 2;\n\n  sheet.getCell("F6").value = "Čj";\n  sheet.getCell("G6").value = "Kvapilová";\n  sheet.getCell("H6").value = "4+1";\n  sheet.getCell("F7").value = "M";\n  sheet.getCell("G7").value = "Dostálová";\n  sheet.getCell("H7").value = "4+1";\n  sheet.getCell("F8").value = "Španělský jazyk";\n  sheet.getCell("G8").value = "Śpánková";\n  sheet.getCell("H8").value = 3;\n\n  sheet.getCell("B12").value = "7.A";\n  sheet.getCell("B13").value = "Předměty";\n  sheet.getCell("C13").value = "Učitel/učitelka";\n  sheet.getCell("D13").value = "Časová dotace";\n  sheet.getCell("B14").value = "Španělský jazyk";\n  sheet.getCell("C14").value = "Špánková";\n  sheet.getCell("D14").value = 3;\n\n  return new Uint8Array(await workbook.xlsx.writeBuffer());\n}\n\nfunction hours(analysis: Awaited<ReturnType<typeof analyzeStaffingWorkbook>>, lastName: string, subjectCode: string): number {\n  const teacher = analysis.plan.teachers.find((item) => item.lastName === lastName);\n  assert.ok(teacher, lastName);\n  return teacher.subjectLoads\n    .filter((item) => item.subjectCode === subjectCode)\n    .reduce((total, item) => total + item.weeklyPeriods, 0);\n}\n\ntest("compact school matrix imports X+1 as teacher hours and normalizes names", async () => {\n  const analysis = await analyzeStaffingWorkbook(await compactWorkbook());\n  assert.equal(analysis.valid, true);\n  assert.equal(hours(analysis, "Novotná", "CJ"), 6);\n  assert.equal(hours(analysis, "Pilat", "M"), 5);\n  assert.equal(hours(analysis, "Kvapilová", "CJ"), 5);\n  assert.equal(hours(analysis, "Dostálová", "M"), 5);\n  assert.equal(hours(analysis, "Syrůčková", "JAZ1"), 4);\n  assert.equal(hours(analysis, "Rus", "JAZ1"), 4);\n  assert.equal(hours(analysis, "Mašek", "TV"), 2);\n  assert.equal(hours(analysis, "Šárová", "TV"), 2);\n  const spankova = analysis.plan.teachers.filter((teacher) =>\n    teacher.lastName.normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase().includes("spankova"),\n  );\n  assert.equal(spankova.length, 1);\n  assert.equal(spankova[0]?.subjectLoads.find((item) => item.subjectCode === "JAZ2")?.weeklyPeriods, 6);\n\n  assert.ok("allocationDraft" in analysis);\n  if (!("allocationDraft" in analysis)) return;\n  const czech = analysis.allocationDraft?.rows.find(\n    (row) => row.classCode === "6.A" && row.subjectCode === "CJ",\n  );\n  assert.equal(czech?.weeklyPeriods, 5);\n  assert.equal(czech?.teacherIds.length, 1);\n});\n''')
+          PY
+      - name: Format changed files
+        run: npx prettier --write apps/web/lib/import/legacy-school-workbook-parser.ts apps/web/lib/import/legacy-staffing-plan.ts apps/web/lib/local/teaching-plan-school-v3.ts apps/web/lib/domain/coverage-overview.ts apps/web/lib/domain/auto-cover-teaching-plan.ts apps/web/lib/local/school-project-generation.ts apps/web/tests/partial-split-generation.test.ts apps/web/tests/compact-staffing-matrix.test.ts
+      - name: Typecheck and unit tests
+        run: |
+          npm run typecheck --workspace @timetable/web
+          npm run test --workspace @timetable/web
+      - name: Commit fix
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No source changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/lib apps/web/tests
+          git commit -m "fix: import compact staffing matrix and keep CJM teacher"
+          git push origin HEAD:agent/fix-cjm-same-teacher-rotation
