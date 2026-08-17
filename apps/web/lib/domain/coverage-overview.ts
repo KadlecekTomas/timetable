@@ -4,7 +4,11 @@ import {
   type StaffingPlan,
   type StaffingTeacher,
 } from "@/lib/local/staffing-plan";
-import type { TeachingPlan, TeachingPlanRow } from "@/lib/local/teaching-plan";
+import {
+  isSameTeacherPartialSplit,
+  type TeachingPlan,
+  type TeachingPlanRow,
+} from "@/lib/local/teaching-plan";
 
 export type CoverageStatus = "FULL" | "PARTIAL" | "MISSING";
 
@@ -166,6 +170,17 @@ function rolesForRow(row: TeachingPlanRow): CoverageRole[] {
       : periods;
     const splitPeriods = Math.max(0, Math.min(periods, configured));
     const wholePeriods = Math.max(0, periods - splitPeriods);
+    if (isSameTeacherPartialSplit(row)) {
+      return [
+        {
+          subjectCode: row.subjectCode,
+          roleLabel: "učitel celé třídy + obou dělených skupin",
+          teacherId: row.primaryTeacherId,
+          teacherHours: periods + splitPeriods,
+          classPeriods: periods,
+        },
+      ];
+    }
     return [
       {
         subjectCode: row.subjectCode,

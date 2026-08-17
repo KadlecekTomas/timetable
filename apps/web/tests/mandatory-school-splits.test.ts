@@ -68,12 +68,12 @@ test("current school plan splits exactly one Czech and math period and keeps oth
   const czech = overview.cellByKey.get(coverageCellKey("6.A", "CJ"));
   assert.equal(czech?.requiredClassPeriods, 5);
   assert.equal(czech?.requiredTeacherHours, 6);
-  assert.equal(czech?.requiredSlots, 2);
+  assert.equal(czech?.requiredSlots, 1);
 
   const math = overview.cellByKey.get(coverageCellKey("6.A", "M"));
   assert.equal(math?.requiredClassPeriods, 4);
   assert.equal(math?.requiredTeacherHours, 5);
-  assert.equal(math?.requiredSlots, 2);
+  assert.equal(math?.requiredSlots, 1);
 
   for (const subjectCode of ["INF", "TV", "JAZ1", "JAZ2"]) {
     const cell = overview.cellByKey.get(coverageCellKey("6.A", subjectCode));

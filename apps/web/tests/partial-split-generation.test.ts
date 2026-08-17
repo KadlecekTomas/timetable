@@ -49,31 +49,32 @@ function teacher(
     firstName: `Učitel ${id}`,
     lastName: "Testovací",
     targetWeeklyLoad: weeklyPeriods,
-    subjectLoads: [
-      {
-        id: `${id}-${subjectCode}`,
-        subjectCode,
-        weeklyPeriods,
-      },
-    ],
+    subjectLoads: [{ id: `${id}-${subjectCode}`, subjectCode, weeklyPeriods }],
     unavailableDays: [],
   };
 }
 
-test("five-hour Czech creates four whole periods plus exactly one parallel split period", () => {
+test("CJ/M partial split keeps one teacher per subject and generates a two-leg swap", () => {
   const staffingPlan: StaffingPlan = {
     version: 1,
     updatedAt: "test",
-    teachers: [teacher("cj-main", "CJ", 5), teacher("cj-split", "CJ", 1)],
+    teachers: [teacher("cj-main", "CJ", 6), teacher("m-main", "M", 5)],
   };
   const teachingPlan = createEmptyTeachingPlan();
   teachingPlan.rows = [
     {
       ...createTeachingPlanRow("6.A", "CJ"),
+      id: "6a-cj",
       weeklyPeriods: 5,
       organization: "WHOLE",
       primaryTeacherId: "cj-main",
-      secondaryTeacherId: "cj-split",
+    },
+    {
+      ...createTeachingPlanRow("6.A", "M"),
+      id: "6a-m",
+      weeklyPeriods: 4,
+      organization: "WHOLE",
+      primaryTeacherId: "m-main",
     },
   ];
 
@@ -82,13 +83,28 @@ test("five-hour Czech creates four whole periods plus exactly one parallel split
     staffingPlan,
     null,
   );
-  const row = enforced.rows[0];
-  assert.equal(row?.organization, "SPLIT");
-  assert.equal(row?.splitWeeklyPeriods, 1);
-  assert.ok(row);
-  if (!row) throw new Error("Czech row must exist.");
-  assert.equal(rowTeacherPeriods(row, "cj-main"), 5);
-  assert.equal(rowTeacherPeriods(row, "cj-split"), 1);
+  const czech = enforced.rows.find((row) => row.subjectCode === "CJ");
+  const math = enforced.rows.find((row) => row.subjectCode === "M");
+  assert.ok(czech);
+  assert.ok(math);
+  assert.equal(czech.organization, "SPLIT");
+  assert.equal(czech.splitWeeklyPeriods, 1);
+  assert.equal(czech.secondaryTeacherId, "cj-main");
+  assert.equal(math.secondaryTeacherId, "m-main");
+  assert.equal(rowTeacherPeriods(czech, "cj-main"), 6);
+  assert.equal(rowTeacherPeriods(math, "m-main"), 5);
+
+  const overview = buildCoverageOverview(enforced, staffingPlan);
+  const czechCell = overview.cellByKey.get(coverageCellKey("6.A", "CJ"));
+  const mathCell = overview.cellByKey.get(coverageCellKey("6.A", "M"));
+  assert.equal(czechCell?.requiredClassPeriods, 5);
+  assert.equal(czechCell?.requiredTeacherHours, 6);
+  assert.equal(czechCell?.requiredSlots, 1);
+  assert.equal(czechCell?.assignedTeacherHours, 6);
+  assert.equal(czechCell?.rows[0]?.teacherId, "cj-main");
+  assert.equal(mathCell?.requiredClassPeriods, 4);
+  assert.equal(mathCell?.requiredTeacherHours, 5);
+  assert.equal(mathCell?.requiredSlots, 1);
 
   const result = buildSchoolProjectForGeneration({
     existingProject: project(),
@@ -96,50 +112,65 @@ test("five-hour Czech creates four whole periods plus exactly one parallel split
     teachingPlan: enforced,
     forceReplaceGeneratedData: false,
   });
-
   assert.deepEqual(result.blockers, []);
-  assert.equal(result.project.assignments.length, 3);
-
-  const whole = result.project.assignments.find(
+  assert.equal(result.project.assignments.length, 6);
+  const whole = result.project.assignments.filter(
     (assignment) => assignment.group === "WHOLE",
   );
-  assert.ok(whole);
-  assert.equal(whole?.weeklyPeriods, 4);
-  assert.equal(whole?.teacherId, "teacher:cj-main");
-  assert.equal(whole?.lessonShape, "SINGLE");
-
-  const split = result.project.assignments.filter(
-    (assignment) => assignment.group !== "WHOLE",
-  );
-  assert.equal(split.length, 2);
   assert.deepEqual(
-    split.map((assignment) => assignment.weeklyPeriods).sort(),
-    [1, 1],
+    whole
+      .map((assignment) => [assignment.subjectId, assignment.weeklyPeriods])
+      .sort(),
+    [
+      ["subject:CJ", 4],
+      ["subject:M", 3],
+    ],
   );
-  assert.equal(split[0]?.parallelKey, split[1]?.parallelKey);
-  assert.ok(split[0]?.parallelKey);
+  const rotation = result.project.assignments.filter(
+    (assignment) => assignment.rotationKey,
+  );
+  assert.equal(rotation.length, 4);
+  assert.equal(
+    new Set(rotation.map((assignment) => assignment.rotationKey)).size,
+    1,
+  );
   assert.deepEqual(
-    new Set(split.map((assignment) => assignment.teacherId)),
-    new Set(["teacher:cj-main", "teacher:cj-split"]),
+    rotation
+      .map((assignment) => [
+        assignment.rotationLeg,
+        assignment.group,
+        assignment.subjectId,
+        assignment.teacherId,
+      ])
+      .sort(),
+    [
+      [1, "GROUP_1", "subject:CJ", "teacher:cj-main"],
+      [1, "GROUP_2", "subject:M", "teacher:m-main"],
+      [2, "GROUP_1", "subject:M", "teacher:m-main"],
+      [2, "GROUP_2", "subject:CJ", "teacher:cj-main"],
+    ],
   );
 });
 
-test("missing second teacher leaves only half of the split period uncovered", () => {
+test("missing CJ teacher is one missing 6-hour role, not a fake second teacher", () => {
   const staffingPlan: StaffingPlan = {
     version: 1,
     updatedAt: "test",
-    teachers: [teacher("cj-main", "CJ", 5)],
+    teachers: [teacher("m-main", "M", 5)],
   };
   const teachingPlan = createEmptyTeachingPlan();
   teachingPlan.rows = [
     {
       ...createTeachingPlanRow("6.A", "CJ"),
       weeklyPeriods: 5,
-      organization: "WHOLE",
-      primaryTeacherId: "cj-main",
+      primaryTeacherId: "",
+    },
+    {
+      ...createTeachingPlanRow("6.A", "M"),
+      weeklyPeriods: 4,
+      primaryTeacherId: "m-main",
     },
   ];
-
   const enforced = applySchoolOperationalRules(
     teachingPlan,
     staffingPlan,
@@ -147,12 +178,12 @@ test("missing second teacher leaves only half of the split period uncovered", ()
   );
   const overview = buildCoverageOverview(enforced, staffingPlan);
   const cell = overview.cellByKey.get(coverageCellKey("6.A", "CJ"));
-
-  assert.ok(cell);
   assert.equal(cell?.requiredClassPeriods, 5);
-  assert.equal(cell?.coveredClassPeriods, 4.5);
   assert.equal(cell?.requiredTeacherHours, 6);
-  assert.equal(cell?.assignedTeacherHours, 5);
-  assert.equal(cell?.missingTeacherHours, 1);
-  assert.equal(overview.summary.missingClassPeriods, 0.5);
+  assert.equal(cell?.requiredSlots, 1);
+  assert.equal(cell?.assignedTeacherHours, 0);
+  assert.equal(cell?.missingTeacherHours, 6);
+  assert.deepEqual(cell?.missingRoles, [
+    "učitel celé třídy + obou dělených skupin",
+  ]);
 });

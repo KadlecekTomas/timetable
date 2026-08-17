@@ -24,6 +24,7 @@ import {
   type TeachingPlan,
   type TeachingPlanRow,
 } from "./teaching-plan";
+import { isSameTeacherPartialSplit } from "./teaching-plan-school-v3";
 import { schoolInputFingerprint } from "./school-input-state";
 
 const UNSCHEDULED_SUBJECT_CODES = new Set([
@@ -68,6 +69,11 @@ function generatedTeacherPeriods(
   row: TeachingPlanRow,
   teacherId: string,
 ): number {
+  if (isSameTeacherPartialSplit(row)) {
+    return row.primaryTeacherId === teacherId
+      ? row.weeklyPeriods + splitWeeklyPeriodsForRow(row)
+      : 0;
+  }
   if (row.organization !== "SPLIT" || row.splitWeeklyPeriods === undefined) {
     return rowTeacherPeriods(row, teacherId);
   }
@@ -249,8 +255,117 @@ export function buildSchoolProjectForGeneration({
     });
   };
 
+  const partialCzechMathByClass = new Map<
+    string,
+    { czech?: TeachingPlanRow; math?: TeachingPlanRow }
+  >();
+  for (const row of teachingPlan.rows) {
+    if (
+      !isSameTeacherPartialSplit(row) ||
+      !["CJ", "M"].includes(row.subjectCode)
+    ) {
+      continue;
+    }
+    const pair = partialCzechMathByClass.get(row.classCode) ?? {};
+    if (row.subjectCode === "CJ") pair.czech = row;
+    if (row.subjectCode === "M") pair.math = row;
+    partialCzechMathByClass.set(row.classCode, pair);
+  }
+  const handledPartialRows = new Set<string>();
+
   for (const row of teachingPlan.rows) {
     if (UNSCHEDULED_SUBJECT_CODES.has(row.subjectCode)) continue;
+    if (
+      isSameTeacherPartialSplit(row) &&
+      ["CJ", "M"].includes(row.subjectCode)
+    ) {
+      if (handledPartialRows.has(row.id)) continue;
+      const pair = partialCzechMathByClass.get(row.classCode);
+      const czech = pair?.czech;
+      const math = pair?.math;
+      if (!czech || !math) {
+        blockers.push(
+          `${row.classCode}: dělená ČJ/M vyžaduje současně řádek češtiny i matematiky.`,
+        );
+        handledPartialRows.add(row.id);
+        continue;
+      }
+      handledPartialRows.add(czech.id);
+      handledPartialRows.add(math.id);
+      const czechSplit = splitWeeklyPeriodsForRow(czech);
+      const mathSplit = splitWeeklyPeriodsForRow(math);
+      if (czechSplit !== mathSplit) {
+        blockers.push(
+          `${row.classCode}: ČJ a M musí mít stejný počet dělených hodin.`,
+        );
+        continue;
+      }
+      for (const source of [czech, math]) {
+        const wholePeriods =
+          source.weeklyPeriods - splitWeeklyPeriodsForRow(source);
+        if (wholePeriods > 0) {
+          push(
+            source,
+            "WHOLE",
+            source.subjectCode,
+            source.primaryTeacherId,
+            "WHOLE",
+            null,
+            null,
+            null,
+            wholePeriods,
+          );
+        }
+      }
+      const rotationKey = `${token(row.classCode)}-CJ-M-PARTIAL`;
+      const leg1 = `${rotationKey}-L1`;
+      const leg2 = `${rotationKey}-L2`;
+      push(
+        czech,
+        "CJ-M-L1-G1",
+        "CJ",
+        czech.primaryTeacherId,
+        "GROUP_1",
+        leg1,
+        rotationKey,
+        1,
+        czechSplit,
+      );
+      push(
+        math,
+        "CJ-M-L1-G2",
+        "M",
+        math.primaryTeacherId,
+        "GROUP_2",
+        leg1,
+        rotationKey,
+        1,
+        mathSplit,
+      );
+      push(
+        math,
+        "CJ-M-L2-G1",
+        "M",
+        math.primaryTeacherId,
+        "GROUP_1",
+        leg2,
+        rotationKey,
+        2,
+        mathSplit,
+      );
+      push(
+        czech,
+        "CJ-M-L2-G2",
+        "CJ",
+        czech.primaryTeacherId,
+        "GROUP_2",
+        leg2,
+        rotationKey,
+        2,
+        czechSplit,
+      );
+      continue;
+    }
     const rowKey = `${token(row.classCode)}-${token(row.id)}`;
     if (row.organization === "WHOLE") {
       push(row, "WHOLE", row.subjectCode, row.primaryTeacherId, "WHOLE", null);
