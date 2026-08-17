@@ -13,7 +13,10 @@ import {
   validateTeachingPlan,
 } from "../lib/local/teaching-plan-school-v3";
 
-const ACTUAL_MATRIX: Record<string, Array<[string, string, string | number]>> = {
+const ACTUAL_MATRIX: Record<
+  string,
+  Array<[string, string, string | number]>
+> = {
   "6.A": [
     ["Čj", "T01", "5+1"],
     ["M", "T02", "4+1"],
@@ -257,12 +260,16 @@ async function workbookBytes(): Promise<Uint8Array> {
     const rows = ACTUAL_MATRIX[classCode] ?? [];
     sheet.getCell(position.row, position.column).value = classCode;
     sheet.getCell(position.row + 1, position.column).value = "Předměty";
-    sheet.getCell(position.row + 1, position.column + 1).value = "Učitel/učitelka";
-    sheet.getCell(position.row + 1, position.column + 2).value = "Časová dotace";
+    sheet.getCell(position.row + 1, position.column + 1).value =
+      "Učitel/učitelka";
+    sheet.getCell(position.row + 1, position.column + 2).value =
+      "Časová dotace";
     rows.forEach(([subject, teacher, periods], index) => {
       sheet.getCell(position.row + 2 + index, position.column).value = subject;
-      sheet.getCell(position.row + 2 + index, position.column + 1).value = teacher;
-      sheet.getCell(position.row + 2 + index, position.column + 2).value = periods;
+      sheet.getCell(position.row + 2 + index, position.column + 1).value =
+        teacher;
+      sheet.getCell(position.row + 2 + index, position.column + 2).value =
+        periods;
     });
   }
 
