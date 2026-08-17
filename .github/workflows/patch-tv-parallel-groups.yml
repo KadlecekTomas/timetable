@@ -1,20 +1,21 @@
 name: Patch TV parallel groups
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches:
+      - agent/current-school-curriculum-splits
 
 permissions:
   contents: write
 
 jobs:
   patch:
-    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'agent/current-school-curriculum-splits'
+    if: github.ref == 'refs/heads/agent/current-school-curriculum-splits'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          ref: agent/current-school-curriculum-splits
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -159,11 +160,12 @@ jobs:
           PY
       - run: npm install
       - run: npm run format
-      - name: Commit patch
+      - name: Commit patch and remove helper
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/patch-tv-parallel-groups.yml
           git add apps/web/lib/local/teaching-plan-school-v3.ts apps/web/app/teaching-plan/page.tsx apps/web/tests/mandatory-school-splits.test.ts
           git commit -m "fix: keep TV classes separate with editable parallel teachers"
-          git push origin HEAD:${{ github.head_ref }}
+          git push origin HEAD:agent/current-school-curriculum-splits
