@@ -1,0 +1,72 @@
+name: Agent run corrected CJM patch
+
+on:
+  push:
+    branches:
+      - agent/fix-cjm-same-teacher-rotation
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/fix-cjm-same-teacher-rotation
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - name: Execute corrected patch script
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          helper = Path('.github/workflows/agent-fix-cjm-import.yml').read_text().splitlines()
+          start = next(i for i, line in enumerate(helper) if line.strip() == "python <<'PY'") + 1
+          end = next(i for i in range(start, len(helper)) if helper[i].strip() == 'PY')
+          script_lines = []
+          for line in helper[start:end]:
+              script_lines.append(line[10:] if line.startswith('          ') else line)
+          script = '\n'.join(script_lines) + '\n'
+          bad = '''    for (const teacher of resolved) {
+              addSubjectHours(
+                teacher,
+                requirement.subject.code,
+                requirement.weeklyPeriods,
+              );
+            }
+          '''
+          good = '''    for (const teacher of resolved) {
+      addSubjectHours(
+        teacher,
+        requirement.subject.code,
+        requirement.weeklyPeriods,
+      );
+    }
+          '''
+          if bad not in script:
+              raise SystemExit('Legacy staffing replacement block was not found in extracted script')
+          script = script.replace(bad, good, 1)
+          exec(compile(script, '<agent-cjm-patch>', 'exec'))
+          PY
+      - name: Format and verify
+        shell: bash
+        run: |
+          npx prettier --write apps/web/lib/import/legacy-school-workbook-parser.ts apps/web/lib/import/legacy-staffing-plan.ts apps/web/lib/local/teaching-plan-school-v3.ts apps/web/lib/domain/coverage-overview.ts apps/web/lib/domain/auto-cover-teaching-plan.ts apps/web/lib/local/school-project-generation.ts apps/web/tests/partial-split-generation.test.ts apps/web/tests/compact-staffing-matrix.test.ts
+          npm run typecheck --workspace @timetable/web
+          npm run test --workspace @timetable/web
+      - name: Commit verified source fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/lib apps/web/tests
+          git commit -m "fix: import compact staffing matrix and keep CJM teacher"
+          git push origin HEAD:agent/fix-cjm-same-teacher-rotation
