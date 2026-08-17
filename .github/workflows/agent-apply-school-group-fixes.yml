@@ -95,6 +95,7 @@ jobs:
         working-directory: apps/solver
         run: |
           pip install ".[dev]"
+          ruff check app tests --fix
           ruff check app tests
           pytest
       - name: Commit tested repair
