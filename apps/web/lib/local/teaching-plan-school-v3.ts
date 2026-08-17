@@ -1,5 +1,8 @@
 import type { StaffingAllocationDraft } from "./staffing-allocation-draft";
-import { SCHOOL_SPLIT_SUBJECT_CODES } from "./school-default-data";
+import {
+  SCHOOL_SINGLE_SPLIT_PERIOD_SUBJECT_CODES,
+  SCHOOL_SPLIT_SUBJECT_CODES,
+} from "./school-default-data";
 import type { SchoolCurriculum } from "./school-curriculum";
 import type { StaffingPlan } from "./staffing-plan-school-v2";
 import { SCHOOL_CLASS_CODES } from "./teaching-plan-school";
@@ -13,8 +16,15 @@ import * as base from "./teaching-plan-school-v2";
 
 export * from "./teaching-plan-school-v2";
 
+declare module "./teaching-plan" {
+  interface TeachingPlanRow {
+    splitWeeklyPeriods?: number;
+  }
+}
+
 const SECOND_FOREIGN_LANGUAGE_CODE = "JAZ2";
 const ELECTIVE_SUBJECT_CODE = "VOL";
+const ELECTIVE_EXCLUDED_GRADES = new Set([6, 7]);
 
 let migratingTeachingPlan = false;
 
@@ -54,13 +64,14 @@ function rowWithClassCodes(
   };
 }
 
-function removeSeventhGradeElectives(plan: TeachingPlan): TeachingPlan {
+function removeUnavailableElectives(plan: TeachingPlan): TeachingPlan {
   return {
     ...plan,
     rows: plan.rows.flatMap((row) => {
       if (row.subjectCode !== ELECTIVE_SUBJECT_CODE) return [row];
       const remainingClasses = rowClassCodes(row).filter(
-        (classCode) => classGradeFromCode(classCode) !== 7,
+        (classCode) =>
+          !ELECTIVE_EXCLUDED_GRADES.has(classGradeFromCode(classCode)),
       );
       return remainingClasses.length > 0
         ? [rowWithClassCodes(row, remainingClasses)]
@@ -74,12 +85,24 @@ export function enforceMandatorySchoolSplits(plan: TeachingPlan): TeachingPlan {
 
   return {
     ...plan,
-    rows: plan.rows.map((row) =>
-      row.organization !== "ROTATION" &&
-      SCHOOL_SPLIT_SUBJECT_CODES.has(row.subjectCode)
-        ? { ...row, organization: "SPLIT" as const }
-        : row,
-    ),
+    rows: plan.rows.map((row) => {
+      if (
+        row.organization === "ROTATION" ||
+        !SCHOOL_SPLIT_SUBJECT_CODES.has(row.subjectCode)
+      ) {
+        return row;
+      }
+
+      return {
+        ...row,
+        organization: "SPLIT" as const,
+        splitWeeklyPeriods: SCHOOL_SINGLE_SPLIT_PERIOD_SUBJECT_CODES.has(
+          row.subjectCode,
+        )
+          ? 1
+          : row.weeklyPeriods,
+      };
+    }),
   };
 }
 
@@ -204,7 +227,7 @@ export function enforceCurrentSchoolTeachingStructure(
 ): TeachingPlan {
   if (!isCurrentSchoolPlan(plan)) return plan;
   return combineSecondForeignLanguageByGrade(
-    enforceMandatorySchoolSplits(removeSeventhGradeElectives(plan)),
+    enforceMandatorySchoolSplits(removeUnavailableElectives(plan)),
   );
 }
 
