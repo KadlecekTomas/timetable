@@ -56,17 +56,46 @@ function token(value: string): string {
     .toUpperCase();
 }
 
-function assignmentShape(row: TeachingPlanRow, additionalClassIds: string[]) {
+function splitWeeklyPeriodsForRow(row: TeachingPlanRow): number {
+  if (row.organization !== "SPLIT") return 0;
+  const configured = row.splitWeeklyPeriods;
+  return Number.isInteger(configured)
+    ? Math.max(1, Math.min(row.weeklyPeriods, Number(configured)))
+    : row.weeklyPeriods;
+}
+
+function generatedTeacherPeriods(
+  row: TeachingPlanRow,
+  teacherId: string,
+): number {
+  if (row.organization !== "SPLIT" || row.splitWeeklyPeriods === undefined) {
+    return rowTeacherPeriods(row, teacherId);
+  }
+  if (row.primaryTeacherId === teacherId) return row.weeklyPeriods;
+  if (row.secondaryTeacherId === teacherId) {
+    return splitWeeklyPeriodsForRow(row);
+  }
+  return 0;
+}
+
+function assignmentShape(
+  row: TeachingPlanRow,
+  additionalClassIds: string[],
+  weeklyPeriods = row.weeklyPeriods,
+) {
+  const isFragment = weeklyPeriods !== row.weeklyPeriods;
   return {
-    weeklyPeriods: row.weeklyPeriods,
-    lessonShape:
-      row.lessonShape === "SEPARATE"
+    weeklyPeriods,
+    lessonShape: isFragment
+      ? ("SINGLE" as const)
+      : row.lessonShape === "SEPARATE"
         ? ("SINGLE" as const)
         : row.lessonShape === "DOUBLE"
           ? ("DOUBLE" as const)
           : ("MIXED" as const),
-    doublePeriodsCount:
-      row.lessonShape === "DOUBLE"
+    doublePeriodsCount: isFragment
+      ? 0
+      : row.lessonShape === "DOUBLE"
         ? row.weeklyPeriods / 2
         : row.lessonShape === "MIXED"
           ? row.doublePeriodsCount
@@ -171,6 +200,7 @@ export function buildSchoolProjectForGeneration({
     parallelKey: string | null,
     rotationKey: string | null = null,
     rotationLeg: number | null = null,
+    weeklyPeriods = row.weeklyPeriods,
   ) => {
     const classId = classIdByCode.get(row.classCode);
     const additionalClassIds = [
@@ -209,7 +239,7 @@ export function buildSchoolProjectForGeneration({
       subjectId,
       teacherId,
       group,
-      ...assignmentShape(row, additionalClassIds),
+      ...assignmentShape(row, additionalClassIds, weeklyPeriods),
       parallelKey,
       rotationKey,
       rotationLeg,
@@ -225,7 +255,32 @@ export function buildSchoolProjectForGeneration({
     if (row.organization === "WHOLE") {
       push(row, "WHOLE", row.subjectCode, row.primaryTeacherId, "WHOLE", null);
     } else if (row.organization === "SPLIT") {
-      push(row, "G1", row.subjectCode, row.primaryTeacherId, "GROUP_1", rowKey);
+      const splitWeeklyPeriods = splitWeeklyPeriodsForRow(row);
+      const wholeWeeklyPeriods = row.weeklyPeriods - splitWeeklyPeriods;
+      if (wholeWeeklyPeriods > 0) {
+        push(
+          row,
+          "WHOLE",
+          row.subjectCode,
+          row.primaryTeacherId,
+          "WHOLE",
+          null,
+          null,
+          null,
+          wholeWeeklyPeriods,
+        );
+      }
+      push(
+        row,
+        "G1",
+        row.subjectCode,
+        row.primaryTeacherId,
+        "GROUP_1",
+        rowKey,
+        null,
+        null,
+        splitWeeklyPeriods,
+      );
       push(
         row,
         "G2",
@@ -233,6 +288,9 @@ export function buildSchoolProjectForGeneration({
         row.secondaryTeacherId,
         "GROUP_2",
         rowKey,
+        null,
+        null,
+        splitWeeklyPeriods,
       );
     } else {
       if (!row.secondarySubjectCode)
@@ -289,7 +347,7 @@ export function buildSchoolProjectForGeneration({
 
   for (const teacher of staffingPlan.teachers) {
     const assigned = teachingPlan.rows.reduce(
-      (total, row) => total + rowTeacherPeriods(row, teacher.id),
+      (total, row) => total + generatedTeacherPeriods(row, teacher.id),
       0,
     );
     const capacity = teachingTargetWeeklyLoad(teacher);
