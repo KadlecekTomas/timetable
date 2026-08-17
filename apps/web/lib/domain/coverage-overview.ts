@@ -23,6 +23,7 @@ export interface CoverageCell {
   subjectCode: string;
   subjectLabel: string;
   requiredClassPeriods: number;
+  coveredClassPeriods: number;
   requiredTeacherHours: number;
   assignedTeacherHours: number;
   requiredSlots: number;
@@ -272,6 +273,7 @@ export function buildCoverageOverview(
             subjectCode: role.subjectCode,
             subjectLabel: subjectLabel(role.subjectCode),
             requiredClassPeriods: 0,
+            coveredClassPeriods: 0,
             requiredTeacherHours: 0,
             assignedTeacherHours: 0,
             requiredSlots: 0,
@@ -289,6 +291,7 @@ export function buildCoverageOverview(
         cell.requiredSlots += 1;
         if (assigned) {
           cell.assignedSlots += 1;
+          cell.coveredClassPeriods += role.classPeriods;
           cell.assignedTeacherHours += role.teacherHours;
           const name = teacher ? teacherName(teacher) : "";
           if (name && !cell.teacherNames.includes(name)) {
@@ -319,6 +322,7 @@ export function buildCoverageOverview(
     .map((cell) => ({
       ...cell,
       requiredClassPeriods: rounded(cell.requiredClassPeriods),
+      coveredClassPeriods: rounded(cell.coveredClassPeriods),
       requiredTeacherHours: rounded(cell.requiredTeacherHours),
       assignedTeacherHours: rounded(cell.assignedTeacherHours),
       missingTeacherHours: rounded(
@@ -366,11 +370,10 @@ export function buildCoverageOverview(
     ),
   );
   const coveredClassPeriods = rounded(
-    finalizedCells.reduce((total, cell) => {
-      const ratio =
-        cell.requiredSlots > 0 ? cell.assignedSlots / cell.requiredSlots : 0;
-      return total + cell.requiredClassPeriods * Math.min(1, ratio);
-    }, 0),
+    finalizedCells.reduce(
+      (total, cell) => total + cell.coveredClassPeriods,
+      0,
+    ),
   );
   const missingClassPeriods = rounded(
     Math.max(0, requiredClassPeriods - coveredClassPeriods),
@@ -411,13 +414,12 @@ export function buildCoverageOverview(
           (total, cell) => total + cell.requiredClassPeriods,
           0,
         );
-        const missing = matching.reduce((total, cell) => {
-          const ratio =
-            cell.requiredSlots > 0
-              ? cell.assignedSlots / cell.requiredSlots
-              : 0;
-          return total + cell.requiredClassPeriods * (1 - Math.min(1, ratio));
-        }, 0);
+        const missing = matching.reduce(
+          (total, cell) =>
+            total +
+            Math.max(0, cell.requiredClassPeriods - cell.coveredClassPeriods),
+          0,
+        );
         return {
           code,
           label: labelFor(code),
