@@ -48,11 +48,17 @@ jobs:
       - run: docker compose build
       - name: Start database-free Docker stack
         run: docker compose up -d --wait --wait-timeout 180
-      - name: Verify web and proxied solver runtime
+      - name: Verify web, security headers and proxied solver runtime
         run: |
           curl --fail --silent --show-error http://127.0.0.1:3000/api/health
           curl --fail --silent --show-error http://127.0.0.1:3000/solver/health
           curl --fail --silent --show-error http://127.0.0.1:8000/health
+
+          headers="$(curl --fail --silent --show-error --head http://127.0.0.1:3000/)"
+          echo "$headers" | grep -qi '^x-content-type-options: nosniff'
+          echo "$headers" | grep -qi '^x-frame-options: DENY'
+          echo "$headers" | grep -qi '^referrer-policy: strict-origin-when-cross-origin'
+          echo "$headers" | grep -qi '^permissions-policy: camera=(), microphone=(), geolocation=()'
       - name: Show container diagnostics
         if: failure()
         run: docker compose ps && docker compose logs --no-color
