@@ -181,11 +181,46 @@ test("entire project survives backup, deletion and restore without a server data
   expect(backup.data.project.teachers).toHaveLength(2);
   expect(backup.data.project.timetableVersions).toHaveLength(1);
 
+  await page.evaluate(() => {
+    for (const key of [
+      "rozvrhar:staffing-plan:v1",
+      "rozvrhar:teaching-plan:v1",
+      "rozvrhar:staffing-allocation-draft:v1",
+      "rozvrhar:school-curriculum:v1",
+      "rozvrhar:teaching-plan-workload-credits:v1",
+      "rozvrhar:teaching-plan-allocation-draft-applied:v1",
+      "rozvrhar:teaching-plan-shared:v1",
+      "rozvrhar:teaching-plan-split-periods:v1",
+    ]) {
+      window.localStorage.setItem(key, "delete-me");
+    }
+    window.sessionStorage.setItem(
+      "rozvrhar:teaching-plan-import-review:v1",
+      "delete-me",
+    );
+  });
   page.on("dialog", (dialog) => void dialog.accept());
   await page.getByRole("button", { name: "Vymazat lokální projekt" }).click();
   await expect(
     page.getByText("Lokální projekt byl vymazán a vytvořen znovu prázdný."),
   ).toBeVisible();
+  const remainingOwnedKeys = await page.evaluate(() => ({
+    local: [
+      "rozvrhar:staffing-plan:v1",
+      "rozvrhar:teaching-plan:v1",
+      "rozvrhar:staffing-allocation-draft:v1",
+      "rozvrhar:school-curriculum:v1",
+      "rozvrhar:teaching-plan-workload-credits:v1",
+      "rozvrhar:teaching-plan-allocation-draft-applied:v1",
+      "rozvrhar:teaching-plan-shared:v1",
+      "rozvrhar:teaching-plan-split-periods:v1",
+    ].filter((key) => window.localStorage.getItem(key) !== null),
+    session:
+      window.sessionStorage.getItem(
+        "rozvrhar:teaching-plan-import-review:v1",
+      ) !== null,
+  }));
+  expect(remainingOwnedKeys).toEqual({ local: [], session: false });
 
   await page.getByRole("link", { name: "Přehled" }).click();
   await expect(

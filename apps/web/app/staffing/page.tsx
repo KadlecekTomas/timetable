@@ -50,6 +50,7 @@ const inputClass =
 
 const unsavedNavigationMessage =
   "Máte neuložené změny u učitelů. Opravdu chcete stránku opustit?";
+const DEFAULT_PERIODS_PER_DAY = [8, 8, 8, 8, 7];
 
 type TeacherFilter = "ALL" | "PROBLEMS" | "UNSAVED";
 
@@ -82,6 +83,7 @@ function teacherFingerprint(teacher: StaffingTeacher): string {
     baseWeeklyLoad: baseWeeklyLoad(teacher),
     subjectLoads: teacher.subjectLoads,
     unavailableDays: teacher.unavailableDays,
+    unavailablePeriods: teacher.unavailablePeriods ?? [],
   });
 }
 
@@ -106,6 +108,9 @@ export default function StaffingPage() {
     teachers: [],
   }));
   const [loaded, setLoaded] = useState(false);
+  const [periodsPerDay, setPeriodsPerDay] = useState<number[]>(
+    DEFAULT_PERIODS_PER_DAY,
+  );
   const [fileName, setFileName] = useState("");
   const [analysis, setAnalysis] = useState<StaffingWorkbookAnalysis | null>(
     null,
@@ -116,7 +121,6 @@ export default function StaffingPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [filter, setFilter] = useState<TeacherFilter>("ALL");
   const allowNavigationRef = useRef(false);
-
   useEffect(() => {
     const stored = loadStaffingPlan();
     setPlan(stored);
@@ -124,6 +128,36 @@ export default function StaffingPage() {
     setLoaded(true);
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const response = await localApiFetch(
+          `/api/school-years/${schoolYearId}`,
+        );
+        if (!response.ok) return;
+        const payload = (await response.json()) as Partial<SchoolYearResponse>;
+        if (
+          active &&
+          Array.isArray(payload.periodsPerDay) &&
+          payload.periodsPerDay.length >= 5
+        ) {
+          setPeriodsPerDay(
+            payload.periodsPerDay.map((value, dayIndex) =>
+              Number.isInteger(value) && Number(value) > 0
+                ? Number(value)
+                : (DEFAULT_PERIODS_PER_DAY[dayIndex] ?? 8),
+            ),
+          );
+        }
+      } catch {
+        // Local-first fallback stays on the school default period counts.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [schoolYearId]);
   const validations = useMemo(
     () =>
       new Map(
@@ -245,7 +279,10 @@ export default function StaffingPage() {
     (total, teacher) => total + teacher.unavailableDays.length,
     0,
   );
-
+  const unavailablePeriods = plan.teachers.reduce(
+    (total, teacher) => total + (teacher.unavailablePeriods?.length ?? 0),
+    0,
+  );
   const visibleTeachers = useMemo(() => {
     const ordered = plan.teachers
       .map((teacher, originalIndex) => ({ teacher, originalIndex }))
@@ -543,27 +580,58 @@ export default function StaffingPage() {
           )
           .map((item) => [item.code, item.id]),
       );
-
       const availabilityTasks = plan.teachers.flatMap((teacher) => {
         const teacherCode = codes.get(teacher.id)!;
         const teacherId = teacherIdByCode.get(teacherCode);
         if (!teacherId) return [];
-        return teacher.unavailableDays.flatMap((dayCode) => {
-          const day = STAFFING_DAYS.find((item) => item.code === dayCode)!;
+        const slots = new Map<
+          string,
+          {
+            teacher: StaffingTeacher;
+            teacherId: string;
+            day: (typeof STAFFING_DAYS)[number];
+            period: number;
+            reason: string;
+          }
+        >();
+
+        for (const dayCode of teacher.unavailableDays) {
+          const day = STAFFING_DAYS.find((item) => item.code === dayCode);
+          if (!day) continue;
           const periods = schoolYear.periodsPerDay[day.dayIndex] ?? 0;
-          return Array.from({ length: periods }, (_, period) => ({
+          for (let period = 0; period < periods; period += 1) {
+            slots.set(`${day.code}:${period}`, {
+              teacher,
+              teacherId,
+              day,
+              period,
+              reason: `${teacher.firstName} ${teacher.lastName} nemůže celý den ${day.label.toLocaleLowerCase("cs-CZ")}.`,
+            });
+          }
+        }
+
+        for (const unavailable of teacher.unavailablePeriods ?? []) {
+          const day = STAFFING_DAYS.find(
+            (item) => item.code === unavailable.day,
+          );
+          if (!day || teacher.unavailableDays.includes(day.code)) continue;
+          const periods = schoolYear.periodsPerDay[day.dayIndex] ?? 0;
+          if (unavailable.period < 0 || unavailable.period >= periods) continue;
+          slots.set(`${day.code}:${unavailable.period}`, {
             teacher,
             teacherId,
             day,
-            period,
-          }));
-        });
-      });
+            period: unavailable.period,
+            reason: `${teacher.firstName} ${teacher.lastName}: pevná nedostupnost ${day.label.toLocaleLowerCase("cs-CZ")} ${unavailable.period + 1}. hodinu (např. výuka na 1. stupni).`,
+          });
+        }
 
+        return [...slots.values()];
+      });
       for (let index = 0; index < availabilityTasks.length; index += 1) {
         const task = availabilityTasks[index]!;
         setSyncProgress(
-          `Ukládám nedostupné dny ${index + 1}/${availabilityTasks.length}…`,
+          `Ukládám nedostupné hodiny ${index + 1}/${availabilityTasks.length}…`,
         );
         const payload = await requestJson<{ schoolYearVersion?: number }>(
           `/api/school-years/${schoolYearId}/availability`,
@@ -578,15 +646,14 @@ export default function StaffingPage() {
               period: task.period,
               kind: "UNAVAILABLE",
               weight: null,
-              reason: `${task.teacher.firstName} ${task.teacher.lastName} nemůže celý den ${task.day.label.toLocaleLowerCase("cs-CZ")}.`,
+              reason: task.reason,
             }),
           },
         );
         version = nextVersion(payload, version);
       }
-
       setMessage(
-        `Hotovo. Uloženo ${plan.teachers.length} učitelů včetně celých nedostupných dnů.`,
+        `Hotovo. Uloženo ${plan.teachers.length} učitelů a ${availabilityTasks.length} tvrdých blokací dostupnosti.`,
       );
     } catch (cause) {
       setError(
@@ -607,7 +674,7 @@ export default function StaffingPage() {
       <PageHeader
         eyebrow="Krok 1"
         title="Učitelé a úvazky"
-        description="Zapište základní úvazek, případný nadúvazek, rozdělení hodin mezi předměty a celé dny, kdy učitel nemůže. Každou kartu uložte samostatně."
+        description="Zapište úvazek, předměty a přesné časy, kdy učitel nemůže — třeba protože učí na 1. stupni. Celé dny i jednotlivé hodiny jsou tvrdé blokace pro solver."
         actions={
           <Button
             type="button"
@@ -753,12 +820,13 @@ export default function StaffingPage() {
         </div>
       ) : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
           ["Učitelé", plan.teachers.length],
           ["Úvazky celkem", `${totalTarget} h`],
           ["Rozděleno do předmětů", `${totalAssigned} h`],
           ["Celé nedostupné dny", unavailableDays],
+          ["Konkrétní blokované hodiny", unavailablePeriods],
         ].map(([label, value]) => (
           <article
             key={label}
@@ -1178,6 +1246,11 @@ export default function StaffingPage() {
                                     ...current.unavailableDays,
                                     day.code as StaffingDayCode,
                                   ],
+                              unavailablePeriods: selected
+                                ? (current.unavailablePeriods ?? [])
+                                : (current.unavailablePeriods ?? []).filter(
+                                    (item) => item.day !== day.code,
+                                  ),
                             }))
                           }
                           className={
@@ -1193,6 +1266,244 @@ export default function StaffingPage() {
                         </button>
                       );
                     })}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold text-text-primary">
+                    Konkrétní hodiny — 1. stupeň / pevný závazek
+                  </h4>
+                  <p className="mt-1 text-sm text-text-secondary">
+                    Nejrychleji zadejte souvislý rozsah „od–do“ pro každý den,
+                    například Pondělí 1.–6. hodina. Jednotlivá modrá pole pod
+                    tím můžete dál ručně zapnout nebo vypnout pro výjimky.
+                    Solver do blokovaných hodin nikdy nic neumístí.
+                  </p>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                    {STAFFING_DAYS.map((day) => {
+                      const wholeDay = teacher.unavailableDays.includes(
+                        day.code,
+                      );
+                      const periods = periodsPerDay[day.dayIndex] ?? 0;
+                      const selectedExactCount = (
+                        teacher.unavailablePeriods ?? []
+                      ).filter((item) => item.day === day.code).length;
+                      return (
+                        <form
+                          key={`range-${day.code}`}
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            if (wholeDay || periods <= 0) return;
+                            const form = new FormData(event.currentTarget);
+                            const rawFrom = numberValue(
+                              String(form.get("from") ?? "1"),
+                            );
+                            const rawTo = numberValue(
+                              String(form.get("to") ?? String(periods)),
+                            );
+                            const from = Math.max(
+                              1,
+                              Math.min(periods, Math.min(rawFrom, rawTo)),
+                            );
+                            const to = Math.max(
+                              1,
+                              Math.min(periods, Math.max(rawFrom, rawTo)),
+                            );
+                            updateTeacher(teacher.id, (current) => {
+                              if (current.unavailableDays.includes(day.code)) {
+                                return current;
+                              }
+                              const nextPeriods = new Map(
+                                (current.unavailablePeriods ?? []).map(
+                                  (item) => [
+                                    `${item.day}:${item.period}`,
+                                    item,
+                                  ],
+                                ),
+                              );
+                              for (
+                                let period = from - 1;
+                                period <= to - 1;
+                                period += 1
+                              ) {
+                                nextPeriods.set(`${day.code}:${period}`, {
+                                  day: day.code as StaffingDayCode,
+                                  period,
+                                });
+                              }
+                              return {
+                                ...current,
+                                unavailablePeriods: [...nextPeriods.values()],
+                              };
+                            });
+                          }}
+                          className="rounded-xl border border-border bg-surface-subtle p-3"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-semibold text-text-primary">
+                              {day.shortLabel}
+                            </span>
+                            <span className="text-xs text-text-muted">
+                              {wholeDay
+                                ? "celý den"
+                                : `${selectedExactCount} blok.`}
+                            </span>
+                          </div>
+                          <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+                            <label className="space-y-1 text-xs font-medium text-text-secondary">
+                              Od
+                              <select
+                                name="from"
+                                aria-label={`${day.shortLabel} blokovat od`}
+                                defaultValue="1"
+                                disabled={wholeDay}
+                                className="h-9 w-full rounded-md border border-border-strong bg-surface px-2 text-sm text-text-primary"
+                              >
+                                {Array.from(
+                                  { length: periods },
+                                  (_, period) => (
+                                    <option key={period} value={period + 1}>
+                                      {period + 1}.
+                                    </option>
+                                  ),
+                                )}
+                              </select>
+                            </label>
+                            <span className="pb-2 text-sm text-text-muted">
+                              –
+                            </span>
+                            <label className="space-y-1 text-xs font-medium text-text-secondary">
+                              Do
+                              <select
+                                name="to"
+                                aria-label={`${day.shortLabel} blokovat do`}
+                                defaultValue={String(Math.min(6, periods))}
+                                disabled={wholeDay}
+                                className="h-9 w-full rounded-md border border-border-strong bg-surface px-2 text-sm text-text-primary"
+                              >
+                                {Array.from(
+                                  { length: periods },
+                                  (_, period) => (
+                                    <option key={period} value={period + 1}>
+                                      {period + 1}.
+                                    </option>
+                                  ),
+                                )}
+                              </select>
+                            </label>
+                          </div>
+                          <div className="mt-2 flex gap-2">
+                            <button
+                              type="submit"
+                              aria-label={`${day.shortLabel} blokovat rozsah`}
+                              disabled={wholeDay || periods <= 0}
+                              className="flex-1 rounded-md bg-primary px-2 py-2 text-xs font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Blokovat rozsah
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`${day.shortLabel} vyčistit blokované hodiny`}
+                              disabled={wholeDay || selectedExactCount === 0}
+                              onClick={() =>
+                                updateTeacher(teacher.id, (current) => ({
+                                  ...current,
+                                  unavailablePeriods: (
+                                    current.unavailablePeriods ?? []
+                                  ).filter((item) => item.day !== day.code),
+                                }))
+                              }
+                              className="rounded-md border border-border-strong bg-surface px-2 py-2 text-xs font-semibold text-text-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Vyčistit
+                            </button>
+                          </div>
+                        </form>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+                    <div className="min-w-[680px] p-3">
+                      {STAFFING_DAYS.map((day) => {
+                        const wholeDay = teacher.unavailableDays.includes(
+                          day.code,
+                        );
+                        const periods = periodsPerDay[day.dayIndex] ?? 0;
+                        return (
+                          <div
+                            key={`periods-${day.code}`}
+                            className="grid grid-cols-[72px_repeat(8,minmax(58px,1fr))] gap-2 border-b border-border py-2 last:border-b-0"
+                          >
+                            <div className="flex items-center text-sm font-semibold text-text-primary">
+                              {day.shortLabel}
+                            </div>
+                            {Array.from({ length: 8 }, (_, period) => {
+                              if (period >= periods) {
+                                return <div key={period} aria-hidden="true" />;
+                              }
+                              const exactSelected = (
+                                teacher.unavailablePeriods ?? []
+                              ).some(
+                                (item) =>
+                                  item.day === day.code &&
+                                  item.period === period,
+                              );
+                              const blocked = wholeDay || exactSelected;
+                              return (
+                                <button
+                                  key={period}
+                                  type="button"
+                                  aria-label={`${day.shortLabel} ${period + 1}. hodina ${blocked ? "blokovaná" : "volná"}`}
+                                  aria-pressed={blocked}
+                                  disabled={wholeDay}
+                                  title={
+                                    wholeDay
+                                      ? `${day.label}: celý den je už blokovaný`
+                                      : `${day.label} ${period + 1}. hodina`
+                                  }
+                                  onClick={() =>
+                                    updateTeacher(teacher.id, (current) => {
+                                      const currentPeriods =
+                                        current.unavailablePeriods ?? [];
+                                      const selectedNow = currentPeriods.some(
+                                        (item) =>
+                                          item.day === day.code &&
+                                          item.period === period,
+                                      );
+                                      return {
+                                        ...current,
+                                        unavailablePeriods: selectedNow
+                                          ? currentPeriods.filter(
+                                              (item) =>
+                                                !(
+                                                  item.day === day.code &&
+                                                  item.period === period
+                                                ),
+                                            )
+                                          : [
+                                              ...currentPeriods,
+                                              {
+                                                day: day.code as StaffingDayCode,
+                                                period,
+                                              },
+                                            ],
+                                      };
+                                    })
+                                  }
+                                  className={
+                                    blocked
+                                      ? "rounded-md bg-primary px-2 py-2 text-xs font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-70"
+                                      : "rounded-md border border-border-strong bg-surface px-2 py-2 text-xs font-semibold text-text-secondary hover:bg-surface-subtle"
+                                  }
+                                >
+                                  {period + 1}. h
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
@@ -1295,9 +1606,10 @@ export default function StaffingPage() {
           Pokročilé možnosti
         </summary>
         <p className="mt-3 text-sm leading-6 text-text-secondary">
-          Jednotlivé zakázané hodiny, preference konkrétních časů, minimum a
-          maximum úvazku nebo technické kódy se řeší později. V základním kroku
-          je záměrně neukazujeme.
+          {" "}
+          Preference doporučených časů, minimum a maximum úvazku nebo technické
+          kódy se řeší později. Tvrdé zakázané hodiny učitele už nastavíte přímo
+          v jeho kartě.
         </p>
         <Button asChild variant="ghost" className="mt-3">
           <Link href={`/data?${context}`}>

@@ -1,6 +1,7 @@
 import {
   getLocalProject,
   replaceLocalProjectAtomically,
+  resetLocalProject,
   type LocalProject,
 } from "@/lib/local/api";
 
@@ -16,6 +17,13 @@ export const BROWSER_PROJECT_LOCAL_STORAGE_KEYS = [
   "rozvrhar:staffing-allocation-draft:v1",
   "rozvrhar:school-curriculum:v1",
   "rozvrhar:teaching-plan-workload-credits:v1",
+  "rozvrhar:teaching-plan-allocation-draft-applied:v1",
+  "rozvrhar:teaching-plan-shared:v1",
+  "rozvrhar:teaching-plan-split-periods:v1",
+] as const;
+
+export const BROWSER_PROJECT_SESSION_STORAGE_KEYS = [
+  "rozvrhar:teaching-plan-import-review:v1",
 ] as const;
 
 export interface BrowserProjectShareData {
@@ -285,6 +293,58 @@ export async function readBrowserProjectShareFile(
   return validateBrowserProjectShareEnvelope(value);
 }
 
+function dispatchBrowserProjectWorkingDataChanged(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event("rozvrhar:staffing-plan-changed"));
+  window.dispatchEvent(new Event("rozvrhar:teaching-plan-changed"));
+}
+
+export async function resetBrowserProject(): Promise<LocalProject> {
+  if (typeof window === "undefined") {
+    throw new Error("Projekt lze vymazat pouze v prohlížeči.");
+  }
+
+  const previousProject = await getLocalProject();
+  const previousLocalStorage = Object.fromEntries(
+    BROWSER_PROJECT_LOCAL_STORAGE_KEYS.map((key) => [
+      key,
+      window.localStorage.getItem(key),
+    ]),
+  );
+  const previousSessionStorage = Object.fromEntries(
+    BROWSER_PROJECT_SESSION_STORAGE_KEYS.map((key) => [
+      key,
+      window.sessionStorage.getItem(key),
+    ]),
+  );
+
+  try {
+    for (const key of BROWSER_PROJECT_LOCAL_STORAGE_KEYS) {
+      window.localStorage.removeItem(key);
+    }
+    for (const key of BROWSER_PROJECT_SESSION_STORAGE_KEYS) {
+      window.sessionStorage.removeItem(key);
+    }
+    const project = await resetLocalProject();
+    dispatchBrowserProjectWorkingDataChanged();
+    return project;
+  } catch (cause) {
+    for (const key of BROWSER_PROJECT_LOCAL_STORAGE_KEYS) {
+      const value = previousLocalStorage[key];
+      if (value === null) window.localStorage.removeItem(key);
+      else window.localStorage.setItem(key, value);
+    }
+    for (const key of BROWSER_PROJECT_SESSION_STORAGE_KEYS) {
+      const value = previousSessionStorage[key];
+      if (value === null) window.sessionStorage.removeItem(key);
+      else window.sessionStorage.setItem(key, value);
+    }
+    await replaceLocalProjectAtomically(previousProject);
+    dispatchBrowserProjectWorkingDataChanged();
+    throw cause;
+  }
+}
+
 export async function applyBrowserProjectShare(
   envelope: BrowserProjectShareEnvelope,
 ): Promise<void> {
@@ -317,6 +377,5 @@ export async function applyBrowserProjectShare(
     throw cause;
   }
 
-  window.dispatchEvent(new Event("rozvrhar:staffing-plan-changed"));
-  window.dispatchEvent(new Event("rozvrhar:teaching-plan-changed"));
+  dispatchBrowserProjectWorkingDataChanged();
 }

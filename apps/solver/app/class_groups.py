@@ -3,6 +3,12 @@ from collections import defaultdict
 
 from app.models import Assignment, ScheduledLesson, TeachingGroup
 
+PARALLEL_GROUP_ORDER = (
+    TeachingGroup.GROUP_1,
+    TeachingGroup.GROUP_2,
+    TeachingGroup.GROUP_3,
+)
+
 
 def assignment_class_ids(assignment: Assignment) -> tuple[str, ...]:
     return tuple(dict.fromkeys([assignment.class_id, *assignment.additional_class_ids]))
@@ -16,9 +22,6 @@ def _parallel_key(assignment: Assignment) -> str:
     if assignment.parallel_key:
         return assignment.parallel_key
 
-    # Local projects created by older web clients do not persist parallel_key yet.
-    # Rotation assignment codes deliberately end in -G1/-G2, so both halves can
-    # still be paired after backup/restore and after passing through IndexedDB.
     normalized_id = assignment.id.lower()
     if "-rot-" in normalized_id or "-rotation-" in normalized_id:
         return f"rotation-id:{re.sub(r'-(g1|g2)$', '', normalized_id)}"
@@ -26,9 +29,7 @@ def _parallel_key(assignment: Assignment) -> str:
     return f"subject:{assignment.subject_id}"
 
 
-def parallel_assignment_pairs(
-    assignments: list[Assignment],
-) -> list[tuple[Assignment, Assignment]]:
+def parallel_assignment_groups(assignments: list[Assignment]) -> list[list[Assignment]]:
     grouped: dict[
         tuple[tuple[str, ...], str],
         dict[TeachingGroup, list[Assignment]],
@@ -43,13 +44,32 @@ def parallel_assignment_pairs(
         )
         grouped[key][assignment.group].append(assignment)
 
-    pairs: list[tuple[Assignment, Assignment]] = []
+    result: list[list[Assignment]] = []
     for groups in grouped.values():
-        left = sorted(groups.get(TeachingGroup.GROUP_1, []), key=lambda item: item.id)
-        right = sorted(groups.get(TeachingGroup.GROUP_2, []), key=lambda item: item.id)
-        if len(left) == 1 and len(right) == 1:
-            pairs.append((left[0], right[0]))
-    return pairs
+        present: list[Assignment] = []
+        raw_count = 0
+        for group in PARALLEL_GROUP_ORDER:
+            items = sorted(groups.get(group, []), key=lambda item: item.id)
+            raw_count += len(items)
+            if len(items) == 1:
+                present.append(items[0])
+        if len(present) >= 2 and len(present) == raw_count:
+            result.append(present)
+    return result
+
+
+def parallel_assignment_pairs(
+    assignments: list[Assignment],
+) -> list[tuple[Assignment, Assignment]]:
+    result: list[tuple[Assignment, Assignment]] = []
+    for group in parallel_assignment_groups(assignments):
+        if (
+            len(group) == 2
+            and group[0].group == TeachingGroup.GROUP_1
+            and group[1].group == TeachingGroup.GROUP_2
+        ):
+            result.append((group[0], group[1]))
+    return result
 
 
 def rotation_assignment_legs(
@@ -74,16 +94,16 @@ def rotation_assignment_legs(
 
 def class_required_weekly_periods(assignments: list[Assignment]) -> dict[str, int]:
     totals: dict[str, int] = defaultdict(int)
-    paired_ids: set[str] = set()
+    grouped_ids: set[str] = set()
 
-    for left, right in parallel_assignment_pairs(assignments):
-        paired_ids.update((left.id, right.id))
-        weekly_periods = max(left.weekly_periods, right.weekly_periods)
-        for class_id in assignment_class_ids(left):
+    for group in parallel_assignment_groups(assignments):
+        grouped_ids.update(item.id for item in group)
+        weekly_periods = max(item.weekly_periods for item in group)
+        for class_id in assignment_class_ids(group[0]):
             totals[class_id] += weekly_periods
 
     for assignment in assignments:
-        if assignment.id in paired_ids:
+        if assignment.id in grouped_ids:
             continue
         for class_id in assignment_class_ids(assignment):
             totals[class_id] += assignment.weekly_periods

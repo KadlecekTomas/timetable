@@ -192,11 +192,14 @@ export function analyzeLegacyStaffingPlan(
   let unassignedClassPeriods = 0;
 
   for (const requirement of parsed.requirements) {
-    const tokens = teacherTokens(requirement.rawTeacher).slice(0, 2);
-    const resolved = tokens.flatMap((token) => {
+    const allTokens = teacherTokens(requirement.rawTeacher);
+    const activeTeacherLimit = requirement.subject.code === "JAZ1" ? 3 : 2;
+    const allResolved = allTokens.flatMap((token) => {
       const teacher = resolveTeacher(token, requirement.row);
       return teacher ? [teacher] : [];
     });
+    const resolved = allResolved.slice(0, activeTeacherLimit);
+    const tokens = allTokens.slice(0, activeTeacherLimit);
 
     const teacherWeeklyPeriods =
       requirement.weeklyPeriods + requirement.teacherExtraPeriods;
@@ -231,13 +234,15 @@ export function analyzeLegacyStaffingPlan(
         ),
       );
     }
-    if (teacherTokens(requirement.rawTeacher).length > 2) {
+    if (allTokens.length > activeTeacherLimit) {
       issues.push(
         issue(
           "WARNING",
           requirement.row,
           "Učitel/učitelka",
-          `${requirement.classCode} · ${requirement.subject.name}: zachováni byli první dva souběžní učitelé; další je potřeba zkontrolovat ručně.`,
+          requirement.subject.code === "TV"
+            ? `${requirement.classCode} · ${requirement.subject.name}: TV zůstává rozdělená jen na dvě žákovské skupiny. První dva učitelé byli nastaveni a další zůstávají v seznamu pro ruční změnu obsazení.`
+            : `${requirement.classCode} · ${requirement.subject.name}: zachováni byli první ${activeTeacherLimit} souběžní učitelé; další je potřeba zkontrolovat ručně.`,
         ),
       );
     }

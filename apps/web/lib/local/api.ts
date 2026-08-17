@@ -97,7 +97,7 @@ export interface LocalAssignment {
   additionalClassIds: string[];
   subjectId: string;
   teacherId: string;
-  group: "WHOLE" | "GROUP_1" | "GROUP_2";
+  group: "WHOLE" | "GROUP_1" | "GROUP_2" | "GROUP_3";
   weeklyPeriods: number;
   lessonShape: "SINGLE" | "DOUBLE" | "MIXED";
   doublePeriodsCount: number;

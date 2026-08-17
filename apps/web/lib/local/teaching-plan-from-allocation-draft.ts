@@ -95,9 +95,12 @@ export function createTeachingPlanFromAllocationDraft(
     const [classCode = "", subjectCode = ""] = key.split("|");
     const group1 = rows.find((row) => row.group === "GROUP_1");
     const group2 = rows.find((row) => row.group === "GROUP_2");
+    const group3 = rows.find((row) => row.group === "GROUP_3");
     const whole = rows.find((row) => row.group === "WHOLE");
     const allTeacherIds = uniqueTeacherIds(rows);
     const explicitGroups = rows.filter((row) => row.group !== "WHOLE").length;
+    const threeGroups =
+      subjectCode === "JAZ1" && (Boolean(group3) || allTeacherIds.length >= 3);
     const split = explicitGroups >= 2 || allTeacherIds.length >= 2;
     const primaryTeacherId = group1
       ? (group1.teacherIds[0] ?? allTeacherIds[0] ?? "")
@@ -106,12 +109,20 @@ export function createTeachingPlanFromAllocationDraft(
       ? (group2.teacherIds[0] ?? "")
       : (allTeacherIds.find((teacherId) => teacherId !== primaryTeacherId) ??
         "");
+    const tertiaryTeacherId = group3
+      ? (group3.teacherIds[0] ?? "")
+      : (allTeacherIds.find(
+          (teacherId) =>
+            teacherId !== primaryTeacherId && teacherId !== secondaryTeacherId,
+        ) ?? "");
 
     const row = school.createTeachingPlanRow(classCode, subjectCode);
     row.weeklyPeriods = weeklyPeriods(rows);
     row.organization = split ? "SPLIT" : "WHOLE";
     row.primaryTeacherId = primaryTeacherId;
     row.secondaryTeacherId = split ? secondaryTeacherId : "";
+    row.tertiaryTeacherId = split && threeGroups ? tertiaryTeacherId : "";
+    row.splitGroupCount = split && threeGroups ? 3 : 2;
     plan.rows.push(row);
   }
 

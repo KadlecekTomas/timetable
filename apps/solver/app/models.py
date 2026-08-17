@@ -8,6 +8,7 @@ class TeachingGroup(StrEnum):
     WHOLE = "WHOLE"
     GROUP_1 = "GROUP_1"
     GROUP_2 = "GROUP_2"
+    GROUP_3 = "GROUP_3"
 
 
 class LessonShape(StrEnum):

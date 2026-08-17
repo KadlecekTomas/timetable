@@ -81,6 +81,9 @@ function generatedTeacherPeriods(
   if (row.secondaryTeacherId === teacherId) {
     return splitWeeklyPeriodsForRow(row);
   }
+  if (row.splitGroupCount === 3 && row.tertiaryTeacherId === teacherId) {
+    return splitWeeklyPeriodsForRow(row);
+  }
   return 0;
 }
 
@@ -407,6 +410,19 @@ export function buildSchoolProjectForGeneration({
         null,
         splitWeeklyPeriods,
       );
+      if (row.splitGroupCount === 3) {
+        push(
+          row,
+          "G3",
+          row.subjectCode,
+          row.tertiaryTeacherId ?? "",
+          "GROUP_3",
+          rowKey,
+          null,
+          null,
+          splitWeeklyPeriods,
+        );
+      }
     } else {
       if (!row.secondarySubjectCode)
         blockers.push(`${row.classCode}: rotace nemá druhý předmět.`);

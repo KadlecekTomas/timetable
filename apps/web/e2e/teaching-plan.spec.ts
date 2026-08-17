@@ -84,7 +84,9 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
     .getByRole("button", { name: "Uložit učitele do projektu" })
     .click();
   await expect(
-    page.getByText("Hotovo. Uloženo 2 učitelů včetně celých nedostupných dnů."),
+    page.getByText(
+      "Hotovo. Uloženo 2 učitelů a 0 tvrdých blokací dostupnosti.",
+    ),
   ).toBeVisible();
 
   await page.evaluate(() => {

@@ -271,16 +271,16 @@ export async function createTeachingPlanWorkbook(
   const plan = workbook.addWorksheet(TEACHING_PLAN_SHEET, {
     views: [{ state: "frozen", ySplit: PLAN_HEADER_ROW }],
   });
-  styleTitle(plan, "A1:J1", "KROK 2B · BĚŽNÁ A DĚLENÁ VÝUKA");
-  plan.mergeCells("A2:J2");
+  styleTitle(plan, "A1:K1", "KROK 2B · BĚŽNÁ A DĚLENÁ VÝUKA");
+  plan.mergeCells("A2:K2");
   plan.getCell("A2").value =
-    "Jeden řádek = jeden předmět v jedné třídě. Zde vyplňujte celou třídu nebo dvě skupiny se stejným předmětem.";
+    "Jeden řádek = jeden předmět v jedné třídě. Standardně použijte celou třídu nebo dvě skupiny; u angličtiny lze vyplnit i třetí souběžnou skupinu.";
   plan.getCell("A2").fill = {
     type: "pattern",
     pattern: "solid",
     fgColor: { argb: COLORS.paleBlue },
   };
-  plan.mergeCells("A3:J3");
+  plan.mergeCells("A3:K3");
   plan.getCell("A3").value =
     "Výměnu ČJ/M nebo jiných dvou předmětů nepište sem — použijte samostatný list Výměny skupin.";
   plan.getCell("A3").fill = {
@@ -288,9 +288,9 @@ export async function createTeachingPlanWorkbook(
     pattern: "solid",
     fgColor: { argb: COLORS.paleOrange },
   };
-  plan.mergeCells("A4:J4");
+  plan.mergeCells("A4:K4");
   plan.getCell("A4").value =
-    "Příklad VV 2 h: Pouze dvojhodiny. Příklad dělené INF: Dvě skupiny + dva různí učitelé.";
+    "Příklad VV 2 h: Pouze dvojhodiny. Dělená INF má dvě skupiny; třetí skupina je určena pouze pro souběžnou angličtinu.";
   plan.getCell("A4").font = { italic: true, color: { argb: COLORS.muted } };
   plan.getRow(PLAN_HEADER_ROW).values = [
     "Třída *",
@@ -301,6 +301,7 @@ export async function createTeachingPlanWorkbook(
     "Organizace *",
     "Učitel / skupina 1 *",
     "Učitel skupiny 2",
+    "Učitel skupiny 3 (jen AJ)",
     "Náhled týdne",
     "Kontrola",
   ];
@@ -312,6 +313,7 @@ export async function createTeachingPlanWorkbook(
     { width: 27 },
     { width: 20 },
     { width: 20 },
+    { width: 30 },
     { width: 30 },
     { width: 30 },
     { width: 34 },
@@ -355,29 +357,35 @@ export async function createTeachingPlanWorkbook(
     `'${DICTIONARY_SHEET}'!$H$2:$H$${teacherLastRow}`,
     PLAN_FIRST_ROW,
   );
+  addListValidation(
+    plan,
+    9,
+    `'${DICTIONARY_SHEET}'!$H$2:$H$${teacherLastRow}`,
+    PLAN_FIRST_ROW,
+  );
   addWholeNumberValidation(plan, 3, PLAN_FIRST_ROW, 1, 20);
   addWholeNumberValidation(plan, 5, PLAN_FIRST_ROW, 1, 10);
 
   for (let row = PLAN_FIRST_ROW; row <= LAST_ROW; row += 1) {
-    plan.getCell(row, 9).value = {
-      formula: `IF(COUNTA(A${row}:H${row})=0,"",IF(D${row}="Samostatné hodiny",C${row}&"× samostatná",IF(D${row}="Pouze dvojhodiny",C${row}/2&"× dvojhodina",E${row}&"× dvojhodina + "&(C${row}-2*E${row})&"× samostatná")))`,
-      result: "",
-    };
     plan.getCell(row, 10).value = {
-      formula: `IF(COUNTA(A${row}:H${row})=0,"",IF(OR(A${row}="",B${row}="",C${row}="",D${row}="",F${row}="",G${row}=""),"DOPLNIT",IF(AND(D${row}="Pouze dvojhodiny",MOD(C${row},2)=1),"LICHÝ POČET",IF(AND(F${row}="Dvě skupiny",OR(H${row}="",G${row}=H${row})),"DOPLNIT 2. UČITELE",IF(AND(D${row}="Kombinace",OR(E${row}="",2*E${row}>=C${row})),"OPRAVIT KOMBINACI","SEDÍ")))))`,
+      formula: `IF(COUNTA(A${row}:I${row})=0,"",IF(D${row}="Samostatné hodiny",C${row}&"× samostatná",IF(D${row}="Pouze dvojhodiny",C${row}/2&"× dvojhodina",E${row}&"× dvojhodina + "&(C${row}-2*E${row})&"× samostatná")))`,
       result: "",
     };
-    plan.getCell(row, 9).fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: COLORS.paleBlue },
+    plan.getCell(row, 11).value = {
+      formula: `IF(COUNTA(A${row}:I${row})=0,"",IF(OR(A${row}="",B${row}="",C${row}="",D${row}="",F${row}="",G${row}=""),"DOPLNIT",IF(AND(D${row}="Pouze dvojhodiny",MOD(C${row},2)=1),"LICHÝ POČET",IF(AND(F${row}="Dvě skupiny",OR(H${row}="",G${row}=H${row})),"DOPLNIT 2. UČITELE",IF(AND(I${row}<>"",OR(B${row}<>"JAZ1",I${row}=G${row},I${row}=H${row})),"OPRAVIT 3. SKUPINU",IF(AND(D${row}="Kombinace",OR(E${row}="",2*E${row}>=C${row})),"OPRAVIT KOMBINACI","SEDÍ"))))))`,
+      result: "",
     };
     plan.getCell(row, 10).fill = {
       type: "pattern",
       pattern: "solid",
+      fgColor: { argb: COLORS.paleBlue },
+    };
+    plan.getCell(row, 11).fill = {
+      type: "pattern",
+      pattern: "solid",
       fgColor: { argb: COLORS.paleGreen },
     };
-    plan.getCell(row, 10).font = { bold: true };
+    plan.getCell(row, 11).font = { bold: true };
   }
 
   const regularRows = existingPlan.rows.filter(
@@ -400,6 +408,12 @@ export async function createTeachingPlanWorkbook(
     plan.getCell(row, 8).value =
       item.organization === "SPLIT"
         ? teacherName(item.secondaryTeacherId, teacherLabels)
+        : null;
+    plan.getCell(row, 9).value =
+      item.organization === "SPLIT" &&
+      item.subjectCode === "JAZ1" &&
+      item.splitGroupCount === 3
+        ? teacherName(item.tertiaryTeacherId ?? "", teacherLabels)
         : null;
   });
 
@@ -752,7 +766,7 @@ export async function analyzeTeachingPlanWorkbook(
 
   const planRows = Math.min(planSheet.actualRowCount, LAST_ROW);
   for (let row = PLAN_FIRST_ROW; row <= planRows; row += 1) {
-    const values = Array.from({ length: 8 }, (_, index) =>
+    const values = Array.from({ length: 9 }, (_, index) =>
       cellText(planSheet.getCell(row, index + 1)),
     );
     if (values.every((value) => value === "")) continue;
@@ -765,6 +779,7 @@ export async function analyzeTeachingPlanWorkbook(
       rawOrganization,
       rawPrimaryTeacher,
       rawSecondaryTeacher,
+      rawTertiaryTeacher,
     ] = values;
     const classCode = normalizeClassCode(rawClass!);
     const subjectCode = rawSubject!.trim().toLocaleUpperCase("cs-CZ");
@@ -773,6 +788,11 @@ export async function analyzeTeachingPlanWorkbook(
     const organization = organizationFromLabel(rawOrganization!);
     const primaryTeacherId = resolveTeacher(rawPrimaryTeacher!);
     const secondaryTeacherId = resolveTeacher(rawSecondaryTeacher!);
+    const tertiaryTeacherId = resolveTeacher(rawTertiaryTeacher!);
+    const threeGroupEnglish =
+      organization === "SPLIT" &&
+      subjectCode === "JAZ1" &&
+      Boolean(rawTertiaryTeacher);
 
     if (!seenClasses.has(classCode)) {
       issue(
@@ -828,6 +848,24 @@ export async function analyzeTeachingPlanWorkbook(
         "U dělené výuky vyberte druhého učitele.",
       );
     }
+    if (rawTertiaryTeacher && !threeGroupEnglish) {
+      issue(
+        issues,
+        TEACHING_PLAN_SHEET,
+        row,
+        "Učitel skupiny 3",
+        "Třetí souběžná skupina je podporována pouze u dělené angličtiny (JAZ1).",
+      );
+    }
+    if (threeGroupEnglish && !tertiaryTeacherId) {
+      issue(
+        issues,
+        TEACHING_PLAN_SHEET,
+        row,
+        "Učitel skupiny 3",
+        "Vyberte třetího učitele angličtiny ze seznamu vytvořeného v Kroku 1.",
+      );
+    }
 
     plan.rows.push({
       id: `teaching-row-${row}`,
@@ -845,6 +883,8 @@ export async function analyzeTeachingPlanWorkbook(
       organization: organization ?? "WHOLE",
       primaryTeacherId,
       secondaryTeacherId: organization === "SPLIT" ? secondaryTeacherId : "",
+      tertiaryTeacherId: threeGroupEnglish ? tertiaryTeacherId : "",
+      splitGroupCount: threeGroupEnglish ? 3 : 2,
     });
   }
 

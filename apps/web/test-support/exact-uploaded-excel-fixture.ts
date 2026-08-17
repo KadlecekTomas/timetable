@@ -144,7 +144,7 @@ export const ACTUAL_MATRIX: Record<
     ["Ov", "T18", 1],
     ["Z", "T07", 1],
     ["Hv", "T08", 1],
-    ["Inf", "T09/T10", 1],
+    ["Inf", "T09", 1],
     ["F", "T26", 2],
     ["Tv", "T18/T23", 5],
     ["Vv", "T20", 1],

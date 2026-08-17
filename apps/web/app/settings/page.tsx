@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   getLocalProject,
-  resetLocalProject,
   subscribeLocalProject,
   updateLocalProjectSettings,
   type LocalProject,
@@ -28,6 +27,7 @@ import {
   browserProjectShareBlob,
   captureBrowserProjectShare,
   readBrowserProjectShareFile,
+  resetBrowserProject,
 } from "@/lib/local/project-share";
 
 const dayNames = ["Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek"];
@@ -175,7 +175,7 @@ export default function SettingsPage() {
     setMessage(null);
     setError(null);
     try {
-      const empty = await resetLocalProject();
+      const empty = await resetBrowserProject();
       setProject(empty);
       setMessage("Lokální projekt byl vymazán a vytvořen znovu prázdný.");
     } catch (cause) {

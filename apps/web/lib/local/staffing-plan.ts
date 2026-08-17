@@ -13,6 +13,12 @@ export const STAFFING_DAYS = [
 
 export type StaffingDayCode = (typeof STAFFING_DAYS)[number]["code"];
 
+export interface StaffingUnavailablePeriod {
+  day: StaffingDayCode;
+  /** Zero-based lesson period within the school day. */
+  period: number;
+}
+
 export const STAFFING_SUBJECTS = [
   { code: "CJ", label: "Český jazyk" },
   { code: "M", label: "Matematika" },
@@ -53,6 +59,8 @@ export interface StaffingTeacher {
   baseWeeklyLoad?: number;
   subjectLoads: StaffingSubjectLoad[];
   unavailableDays: StaffingDayCode[];
+  /** Exact hard-unavailable periods, e.g. because the teacher teaches on primary school. */
+  unavailablePeriods?: StaffingUnavailablePeriod[];
 }
 
 export interface StaffingPlan {
@@ -89,6 +97,7 @@ export function createEmptyStaffingTeacher(): StaffingTeacher {
     baseWeeklyLoad: 22,
     subjectLoads: [createEmptySubjectLoad()],
     unavailableDays: [],
+    unavailablePeriods: [],
   };
 }
 
@@ -264,6 +273,44 @@ function normalizePlan(value: unknown): StaffingPlan {
         ? teacher.unavailableDays.filter((day): day is StaffingDayCode =>
             STAFFING_DAYS.some((option) => option.code === day),
           )
+        : [],
+      unavailablePeriods: Array.isArray(teacher.unavailablePeriods)
+        ? [
+            ...new Map(
+              teacher.unavailablePeriods.flatMap((item) => {
+                if (!item || typeof item !== "object") return [];
+                const candidate = item as Partial<StaffingUnavailablePeriod>;
+                if (
+                  !STAFFING_DAYS.some(
+                    (option) => option.code === candidate.day,
+                  ) ||
+                  !Number.isInteger(candidate.period) ||
+                  Number(candidate.period) < 0 ||
+                  Number(candidate.period) > 19
+                ) {
+                  return [];
+                }
+                const normalized = {
+                  day: candidate.day as StaffingDayCode,
+                  period: Number(candidate.period),
+                };
+                return [
+                  [
+                    `${normalized.day}:${normalized.period}`,
+                    normalized,
+                  ] as const,
+                ];
+              }),
+            ).values(),
+          ].sort((left, right) => {
+            const leftDay = STAFFING_DAYS.findIndex(
+              (item) => item.code === left.day,
+            );
+            const rightDay = STAFFING_DAYS.findIndex(
+              (item) => item.code === right.day,
+            );
+            return leftDay - rightDay || left.period - right.period;
+          })
         : [],
     })),
   };

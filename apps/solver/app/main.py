@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from app.class_groups import (
     assignment_class_ids,
     class_required_weekly_periods,
-    parallel_assignment_pairs,
+    parallel_assignment_groups,
 )
 from app.models import (
     Assignment,
@@ -432,6 +432,7 @@ def solve(payload: SolveRequest) -> SolveResponse:
     class_whole_slots: dict[tuple[str, int, int], list[cp_model.IntVar]] = defaultdict(list)
     class_group_1_slots: dict[tuple[str, int, int], list[cp_model.IntVar]] = defaultdict(list)
     class_group_2_slots: dict[tuple[str, int, int], list[cp_model.IntVar]] = defaultdict(list)
+    class_group_3_slots: dict[tuple[str, int, int], list[cp_model.IntVar]] = defaultdict(list)
     class_all_slots: dict[tuple[str, int, int], list[cp_model.IntVar]] = defaultdict(list)
     objective_terms: list[cp_model.LinearExpr] = []
 
@@ -472,8 +473,10 @@ def solve(payload: SolveRequest) -> SolveResponse:
                         class_whole_slots[(class_id, candidate.day, period)].append(variable)
                     elif block.assignment.group == TeachingGroup.GROUP_1:
                         class_group_1_slots[(class_id, candidate.day, period)].append(variable)
-                    else:
+                    elif block.assignment.group == TeachingGroup.GROUP_2:
                         class_group_2_slots[(class_id, candidate.day, period)].append(variable)
+                    else:
+                        class_group_3_slots[(class_id, candidate.day, period)].append(variable)
                 if candidate.room_id:
                     room_slots[(candidate.room_id, candidate.day, period)].append(variable)
 
@@ -485,13 +488,20 @@ def solve(payload: SolveRequest) -> SolveResponse:
     for slot_variables in room_slots.values():
         model.add(sum(slot_variables) <= 1)
 
-    class_slot_keys = set(class_whole_slots) | set(class_group_1_slots) | set(class_group_2_slots)
+    class_slot_keys = (
+        set(class_whole_slots)
+        | set(class_group_1_slots)
+        | set(class_group_2_slots)
+        | set(class_group_3_slots)
+    )
     for key in class_slot_keys:
         whole = class_whole_slots.get(key, [])
-        group_1 = class_group_1_slots.get(key, [])
-        group_2 = class_group_2_slots.get(key, [])
-        model.add(sum([*whole, *group_1]) <= 1)
-        model.add(sum([*whole, *group_2]) <= 1)
+        for group_slots in (
+            class_group_1_slots.get(key, []),
+            class_group_2_slots.get(key, []),
+            class_group_3_slots.get(key, []),
+        ):
+            model.add(sum([*whole, *group_slots]) <= 1)
 
     required_periods_by_class = class_required_weekly_periods(payload.assignments)
     if len(payload.periods_per_day) >= 5:
@@ -513,40 +523,49 @@ def solve(payload: SolveRequest) -> SolveResponse:
     for block in blocks:
         blocks_by_assignment[block.assignment.id].append(block)
 
-    for left, right in parallel_assignment_pairs(payload.assignments):
-        left_blocks = sorted(
-            blocks_by_assignment[left.id],
-            key=lambda item: item.index,
-        )
-        right_blocks = sorted(
-            blocks_by_assignment[right.id],
-            key=lambda item: item.index,
-        )
-        if [item.duration for item in left_blocks] != [item.duration for item in right_blocks]:
+    for parallel_group in parallel_assignment_groups(payload.assignments):
+        grouped_blocks = [
+            sorted(blocks_by_assignment[assignment.id], key=lambda item: item.index)
+            for assignment in parallel_group
+        ]
+        expected_shape = [item.duration for item in grouped_blocks[0]]
+        if any(
+            [item.duration for item in blocks] != expected_shape
+            for blocks in grouped_blocks[1:]
+        ):
             raise HTTPException(
                 status_code=422,
                 detail={
                     "code": "PARALLEL_GROUP_SHAPE_MISMATCH",
-                    "message": ("Dvě poloviny stejné výuky musí mít stejné rozložení hodin."),
-                    "causes": [{"entityIds": [left.id, right.id]}],
+                    "message": ("Paralelní skupiny stejné výuky musí mít stejné rozložení hodin."),
+                    "causes": [
+                        {"entityIds": [assignment.id for assignment in parallel_group]}
+                    ],
                 },
             )
-        for left_block, right_block in zip(
-            left_blocks,
-            right_blocks,
-            strict=True,
-        ):
-            positions = {(candidate.day, candidate.period) for candidate, _variable in variables[left_block.id]} | {
-                (candidate.day, candidate.period) for candidate, _variable in variables[right_block.id]
+        for block_index in range(len(expected_shape)):
+            blocks_at_index = [blocks[block_index] for blocks in grouped_blocks]
+            positions = {
+                (candidate.day, candidate.period)
+                for block in blocks_at_index
+                for candidate, _variable in variables[block.id]
             }
+            reference = blocks_at_index[0]
             for day, period in positions:
-                left_at_position = [
-                    variable for candidate, variable in variables[left_block.id] if candidate.day == day and candidate.period == period
+                reference_at_position = [
+                    variable
+                    for candidate, variable in variables[reference.id]
+                    if candidate.day == day and candidate.period == period
                 ]
-                right_at_position = [
-                    variable for candidate, variable in variables[right_block.id] if candidate.day == day and candidate.period == period
-                ]
-                model.add(sum(left_at_position) == sum(right_at_position))
+                for candidate_block in blocks_at_index[1:]:
+                    candidate_at_position = [
+                        variable
+                        for candidate, variable in variables[candidate_block.id]
+                        if candidate.day == day and candidate.period == period
+                    ]
+                    model.add(
+                        sum(reference_at_position) == sum(candidate_at_position)
+                    )
 
     rotation_diagnostics = add_rotation_constraints(
         model=model,

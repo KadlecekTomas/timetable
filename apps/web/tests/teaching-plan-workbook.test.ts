@@ -42,6 +42,32 @@ function staffingPlan(): StaffingPlan {
         unavailableDays: [],
         subjectLoads: [{ id: "vas-inf", subjectCode: "INF", weeklyPeriods: 1 }],
       },
+      {
+        id: "teacher-aj-one",
+        firstName: "A.",
+        lastName: "English",
+        targetWeeklyLoad: 3,
+        unavailableDays: [],
+        subjectLoads: [{ id: "aj-one", subjectCode: "JAZ1", weeklyPeriods: 3 }],
+      },
+      {
+        id: "teacher-aj-two",
+        firstName: "B.",
+        lastName: "English",
+        targetWeeklyLoad: 3,
+        unavailableDays: [],
+        subjectLoads: [{ id: "aj-two", subjectCode: "JAZ1", weeklyPeriods: 3 }],
+      },
+      {
+        id: "teacher-aj-three",
+        firstName: "C.",
+        lastName: "English",
+        targetWeeklyLoad: 3,
+        unavailableDays: [],
+        subjectLoads: [
+          { id: "aj-three", subjectCode: "JAZ1", weeklyPeriods: 3 },
+        ],
+      },
     ],
   };
 }
@@ -161,5 +187,57 @@ test("workbook rejects a split lesson with the same teacher twice", async () => 
   assert.equal(analysis.valid, false);
   assert.ok(
     analysis.issues.some((issue) => issue.message.includes("jiného učitele")),
+  );
+});
+
+test("workbook roundtrips three simultaneous English groups", async () => {
+  const source = validPlan();
+  const english = {
+    ...createTeachingPlanRow("8.A", "JAZ1"),
+    id: "row-aj-three-groups",
+    weeklyPeriods: 3,
+    organization: "SPLIT" as const,
+    primaryTeacherId: "teacher-aj-one",
+    secondaryTeacherId: "teacher-aj-two",
+    tertiaryTeacherId: "teacher-aj-three",
+    splitGroupCount: 3 as const,
+  };
+  source.rows.push(english);
+
+  const analysis = await analyzeTeachingPlanWorkbook(
+    await createTeachingPlanWorkbook(staffingPlan(), source),
+    staffingPlan(),
+  );
+
+  assert.equal(analysis.valid, true);
+  const imported = analysis.plan.rows.find(
+    (row) => row.id === "teaching-row-8",
+  );
+  assert.equal(imported?.subjectCode, "JAZ1");
+  assert.equal(imported?.splitGroupCount, 3);
+  assert.equal(imported?.primaryTeacherId, "teacher-aj-one");
+  assert.equal(imported?.secondaryTeacherId, "teacher-aj-two");
+  assert.equal(imported?.tertiaryTeacherId, "teacher-aj-three");
+});
+
+test("workbook rejects a third group outside English", async () => {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(
+    (await createTeachingPlanWorkbook(staffingPlan(), validPlan())) as never,
+  );
+  const worksheet = workbook.getWorksheet(TEACHING_PLAN_SHEET);
+  assert.ok(worksheet);
+  worksheet.getCell("I7").value = "CEN · C. English";
+
+  const analysis = await analyzeTeachingPlanWorkbook(
+    new Uint8Array(await workbook.xlsx.writeBuffer()),
+    staffingPlan(),
+  );
+
+  assert.equal(analysis.valid, false);
+  assert.ok(
+    analysis.issues.some((issue) =>
+      issue.message.includes("pouze u dělené angličtiny"),
+    ),
   );
 });

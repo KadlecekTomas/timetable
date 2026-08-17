@@ -31,7 +31,7 @@ Nevymýšlej nové chování tam, kde specifikace mlčí. Zvol nejmenší bezpe�
 - Import je atomický: při chybě nevznikne částečný zápis.
 - Ruční přesun používá stejnou validační logiku jako automatické generování.
 - Skóre nesmí zakrýt nevalidní rozvrh; při tvrdém konfliktu není rozvrh validní.
-- Dělená výuka má v MVP právě dvě skupiny.
+- Dělená výuka má standardně dvě skupiny; angličtina může mít explicitně tři paralelní skupiny. TV zůstává vždy přesně ve dvou žákovských skupinách.
 
 ## Implementační pravidla
 

@@ -126,7 +126,11 @@ function safeCode(value: string): string {
 function workloadByTeacher(plan: TeachingPlan): Map<string, number> {
   const result = new Map<string, number>();
   const teacherIds = new Set(
-    plan.rows.flatMap((row) => [row.primaryTeacherId, row.secondaryTeacherId]),
+    plan.rows.flatMap((row) => [
+      row.primaryTeacherId,
+      row.secondaryTeacherId,
+      row.tertiaryTeacherId ?? "",
+    ]),
   );
   for (const teacherId of teacherIds) {
     if (!teacherId) continue;
@@ -1524,6 +1528,14 @@ function TeachingRowCard({
                         organization.value === "WHOLE"
                           ? ""
                           : current.secondaryTeacherId,
+                      tertiaryTeacherId:
+                        organization.value === "SPLIT"
+                          ? current.tertiaryTeacherId
+                          : "",
+                      splitGroupCount:
+                        organization.value === "SPLIT"
+                          ? (current.splitGroupCount ?? 2)
+                          : 2,
                       secondarySubjectCode:
                         organization.value === "ROTATION"
                           ? current.secondarySubjectCode
@@ -1550,6 +1562,34 @@ function TeachingRowCard({
               );
             })}
           </div>
+
+          {row.organization === "SPLIT" &&
+          row.subjectCode === "JAZ1" &&
+          !sameTeacherPartial ? (
+            <div className="mt-4 max-w-sm">
+              <label className="text-sm font-medium text-text-primary">
+                Počet souběžných skupin angličtiny
+                <select
+                  value={row.splitGroupCount === 3 ? "3" : "2"}
+                  onChange={(event) =>
+                    update((current) => ({
+                      ...current,
+                      splitGroupCount: event.target.value === "3" ? 3 : 2,
+                      tertiaryTeacherId:
+                        event.target.value === "3"
+                          ? current.tertiaryTeacherId
+                          : "",
+                    }))
+                  }
+                  className={`${inputClass} mt-1.5`}
+                  aria-label={`Počet skupin ${index + 1}`}
+                >
+                  <option value="2">2 skupiny</option>
+                  <option value="3">3 skupiny</option>
+                </select>
+              </label>
+            </div>
+          ) : null}
 
           {row.organization === "SPLIT" ? (
             <div className="mt-3 rounded-xl border border-success-border bg-success-subtle p-4 text-sm text-success-strong">
@@ -1671,7 +1711,9 @@ function TeachingRowCard({
             className={
               row.organization === "WHOLE" || sameTeacherPartial
                 ? "mt-3 max-w-xl"
-                : "mt-3 grid gap-4 md:grid-cols-2"
+                : row.organization === "SPLIT" && row.splitGroupCount === 3
+                  ? "mt-3 grid gap-4 md:grid-cols-3"
+                  : "mt-3 grid gap-4 md:grid-cols-2"
             }
           >
             <TeacherSelect
@@ -1725,6 +1767,23 @@ function TeachingRowCard({
                 ariaLabel={`Učitel 2 předmětu ${index + 1}`}
               />
             ) : null}
+            {row.organization === "SPLIT" &&
+            row.splitGroupCount === 3 &&
+            !sameTeacherPartial ? (
+              <TeacherSelect
+                label="Skupina 3"
+                value={row.tertiaryTeacherId ?? ""}
+                teachers={sortedTeachers(row.subjectCode)}
+                subjectCode={row.subjectCode}
+                onChange={(value) =>
+                  update((current) => ({
+                    ...current,
+                    tertiaryTeacherId: value,
+                  }))
+                }
+                ariaLabel={`Učitel 3 předmětu ${index + 1}`}
+              />
+            ) : null}
           </div>
         </div>
 
@@ -1754,7 +1813,7 @@ function TeachingRowCard({
               Hotovo —{" "}
               {row.organization === "ROTATION"
                 ? `${row.subjectCode} a ${row.secondarySubjectCode} se povinně prohodí · ${rotationPlacementLabel(row.rotationPlacement)}`
-                : `${humanBlockSummary(row)} · ${sameTeacherPartial ? "1 hodina půlená, stejný učitel pro obě skupiny" : row.organization === "SPLIT" ? "dvě souběžné skupiny" : "celá třída"}`}
+                : `${humanBlockSummary(row)} · ${sameTeacherPartial ? "1 hodina půlená, stejný učitel pro obě skupiny" : row.organization === "SPLIT" ? (row.splitGroupCount === 3 ? "tři souběžné skupiny" : "dvě souběžné skupiny") : "celá třída"}`}
               .
             </p>
           </div>

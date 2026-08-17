@@ -24,10 +24,10 @@ async function compactWorkbook(): Promise<Uint8Array> {
   sheet.getCell("C7").value = "Pilat";
   sheet.getCell("D7").value = "4+1";
   sheet.getCell("B8").value = "Aj";
-  sheet.getCell("C8").value = "Syrůčková/Rus";
+  sheet.getCell("C8").value = "Syrůčková/Rus/Testová";
   sheet.getCell("D8").value = 4;
   sheet.getCell("B9").value = "Tv";
-  sheet.getCell("C9").value = "Mašek/Šárová";
+  sheet.getCell("C9").value = "Mašek/Šárová/Náhradní";
   sheet.getCell("D9").value = 2;
 
   sheet.getCell("F6").value = "Čj";
@@ -73,6 +73,7 @@ test("compact school matrix imports X+1 as teacher hours and normalizes names", 
   assert.equal(hours(analysis, "Dostálová", "M"), 5);
   assert.equal(hours(analysis, "Syrůčková", "JAZ1"), 4);
   assert.equal(hours(analysis, "Rus", "JAZ1"), 4);
+  assert.equal(hours(analysis, "Testová", "JAZ1"), 4);
   assert.equal(hours(analysis, "Mašek", "TV"), 2);
   assert.equal(hours(analysis, "Šárová", "TV"), 2);
   const spankova = analysis.plan.teachers.filter((teacher) =>
@@ -95,4 +96,17 @@ test("compact school matrix imports X+1 as teacher hours and normalizes names", 
   );
   assert.equal(czech?.weeklyPeriods, 5);
   assert.equal(czech?.teacherIds.length, 1);
+  const english = analysis.allocationDraft?.rows.find(
+    (row) => row.classCode === "6.A" && row.subjectCode === "JAZ1",
+  );
+  assert.equal(english?.teacherIds.length, 3);
+  const pe = analysis.allocationDraft?.rows.find(
+    (row) => row.classCode === "6.A" && row.subjectCode === "TV",
+  );
+  assert.equal(pe?.teacherIds.length, 2);
+  assert.ok(
+    analysis.issues.some((item) =>
+      item.message.includes("TV zůstává rozdělená jen na dvě žákovské skupiny"),
+    ),
+  );
 });

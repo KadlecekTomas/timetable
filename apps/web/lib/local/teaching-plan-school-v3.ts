@@ -43,6 +43,7 @@ function isCurrentSchoolPlan(plan: TeachingPlan): boolean {
 export function isSameTeacherPartialSplit(row: TeachingPlanRow): boolean {
   if (
     row.organization !== "SPLIT" ||
+    (row.splitGroupCount ?? 2) !== 2 ||
     !SCHOOL_SINGLE_SPLIT_PERIOD_SUBJECT_CODES.has(row.subjectCode) ||
     !Number.isInteger(row.splitWeeklyPeriods)
   ) {
@@ -161,9 +162,27 @@ export function enforceMandatorySchoolSplits(plan: TeachingPlan): TeachingPlan {
         return row;
       }
 
+      if (
+        normalizeClassCode(row.classCode) === "8.B" &&
+        row.subjectCode === "INF"
+      ) {
+        return {
+          ...row,
+          organization: "WHOLE" as const,
+          splitWeeklyPeriods: undefined,
+          secondaryTeacherId: "",
+          tertiaryTeacherId: "",
+          splitGroupCount: 2,
+        };
+      }
+
       const singleSplit = SCHOOL_SINGLE_SPLIT_PERIOD_SUBJECT_CODES.has(
         row.subjectCode,
       );
+      const splitGroupCount =
+        !singleSplit && row.subjectCode === "JAZ1" && row.splitGroupCount === 3
+          ? 3
+          : 2;
       return {
         ...row,
         organization: "SPLIT" as const,
@@ -171,6 +190,8 @@ export function enforceMandatorySchoolSplits(plan: TeachingPlan): TeachingPlan {
         secondaryTeacherId: singleSplit
           ? row.primaryTeacherId
           : row.secondaryTeacherId,
+        tertiaryTeacherId: splitGroupCount === 3 ? row.tertiaryTeacherId : "",
+        splitGroupCount,
         additionalClassCodes:
           row.subjectCode === "TV" ? [] : row.additionalClassCodes,
         sharedGroupLabel: row.subjectCode === "TV" ? "" : row.sharedGroupLabel,

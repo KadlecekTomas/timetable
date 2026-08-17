@@ -8,7 +8,7 @@ export const DAY_CODES = [
   "SUN",
 ] as const;
 
-export type TeachingGroup = "WHOLE" | "GROUP_1" | "GROUP_2";
+export type TeachingGroup = "WHOLE" | "GROUP_1" | "GROUP_2" | "GROUP_3";
 export type LessonShape = "SINGLE" | "DOUBLE" | "MIXED";
 export type ClassProfile = "REGULAR" | "SPORTS" | "CUSTOM";
 export type RotationPlacement = "ADJACENT" | "SAME_DAY" | "FLEXIBLE";
