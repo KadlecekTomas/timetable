@@ -1,0 +1,39 @@
+name: Apply solver timeout and timetable layout patch
+
+on:
+  push:
+    branches:
+      - agent/fix-vercel-solver-timeout-and-timetable-layout
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/fix-vercel-solver-timeout-and-timetable-layout
+          fetch-depth: 0
+
+      - name: Apply patch
+        run: python scripts/tmp_solver_timeout_layout_patch.py
+
+      - name: Format touched web files
+        run: |
+          npm ci
+          npx prettier --write apps/web/app/generate/page.tsx apps/web/app/timetable/page.tsx apps/web/e2e/subject-rotation-and-sports.spec.ts
+
+      - name: Remove temporary patch helpers
+        run: |
+          rm scripts/tmp_solver_timeout_layout_patch.py
+          rm .github/workflows/tmp-apply-solver-timeout-layout.yml
+
+      - name: Commit result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: avoid solver timeout and improve timetable groups"
+          git push origin HEAD:agent/fix-vercel-solver-timeout-and-timetable-layout
