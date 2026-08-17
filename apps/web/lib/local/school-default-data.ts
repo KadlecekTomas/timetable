@@ -12,6 +12,8 @@ export const SCHOOL_SPLIT_SUBJECT_CODES = new Set([
   "JAZ2",
 ]);
 
+export const SCHOOL_SINGLE_SPLIT_PERIOD_SUBJECT_CODES = new Set(["CJ", "M"]);
+
 const REGULAR_SUBJECTS: SchoolCurriculumSubject[] = [
   subject("CJ", "Český jazyk", 5, 4, 4, 4),
   subject("JAZ1", "Anglický jazyk", 4, 3, 3, 4),
@@ -20,7 +22,7 @@ const REGULAR_SUBJECTS: SchoolCurriculumSubject[] = [
   subject("INF", "Informatika", 1, 1, 1, 1),
   subject("DEJ", "Dějepis", 2, 2, 2, 2),
   subject("OV", "Občanská výchova", 1, 1, 1, 1),
-  subject("FY", "Fyzika", 2, 2, 1, 2),
+  subject("FY", "Fyzika", 2, 2, 2, 2),
   subject("CH", "Chemie", 0, 0, 2, 2),
   subject("PRI", "Přírodopis", 2, 2, 2, 1),
   subject("ZEM", "Zeměpis", 2, 2, 1, 2),
@@ -29,7 +31,7 @@ const REGULAR_SUBJECTS: SchoolCurriculumSubject[] = [
   subject("TV", "Tělesná výchova", 2, 2, 2, 2),
   subject("VZ", "Výchova ke zdraví", 0, 1, 1, 0),
   subject("PC", "Pracovní činnosti", 1, 1, 1, 0),
-  subject("VOL", "Povinně volitelné předměty", 1, 0, 1, 1),
+  subject("VOL", "Povinně volitelné předměty", 0, 0, 1, 1),
 ];
 
 const SPORTS_SUBJECTS: SchoolCurriculumSubject[] = [
@@ -40,7 +42,7 @@ const SPORTS_SUBJECTS: SchoolCurriculumSubject[] = [
   subject("INF", "Informatika", 1, 1, 1, 1),
   subject("DEJ", "Dějepis", 2, 2, 2, 2),
   subject("OV", "Občanská výchova", 1, 1, 1, 1),
-  subject("FY", "Fyzika", 2, 2, 1, 1),
+  subject("FY", "Fyzika", 2, 2, 2, 2),
   subject("CH", "Chemie", 0, 0, 2, 2),
   subject("PRI", "Přírodopis", 2, 2, 1, 1),
   subject("ZEM", "Zeměpis", 2, 2, 1, 1),
@@ -77,10 +79,20 @@ export function enforceCurrentSchoolCurriculumRules(
 ): SchoolCurriculum {
   const enforced = structuredClone(curriculum);
   for (const profile of [enforced.profiles.REGULAR, enforced.profiles.SPORTS]) {
+    const physics = profile.subjects.find(
+      (subject) => subject.subjectCode === "FY",
+    );
+    if (physics) {
+      for (const grade of ["6", "7", "8", "9"]) {
+        physics.weeklyPeriodsByGrade[grade] = 2;
+      }
+    }
+
     const elective = profile.subjects.find(
       (subject) => subject.subjectCode === "VOL",
     );
     if (elective) {
+      elective.weeklyPeriodsByGrade["6"] = 0;
       elective.weeklyPeriodsByGrade["7"] = 0;
     }
   }
