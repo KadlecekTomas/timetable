@@ -3,7 +3,8 @@ from app.models import SolveRequest
 
 
 # Regression: the hosting runtime kills requests at 300 seconds, so the solver
-# must finish early enough to serialize and persist its best result.
+# must finish early enough to serialize and persist its best result. Keep this
+# check in the production release gate.
 def test_maximum_solver_request_leaves_response_headroom(monkeypatch) -> None:
     monkeypatch.setattr("app.main.time.monotonic", lambda: 12.0)
     payload = SolveRequest(assignments=[], time_limit_seconds=300)
