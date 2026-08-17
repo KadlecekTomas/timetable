@@ -73,7 +73,7 @@ jobs:
 
           export function isAuthoritativeAllocationDraft(
             draft: StaffingAllocationDraft | null,
-          ): boolean {
+          ): draft is StaffingAllocationDraft {
             if (!draft?.rows.length) return false;
             const classCodes = new Set(draft.rows.map((row) => row.classCode));
             return AUTHORITATIVE_SCHOOL_CLASS_CODES.every((code) => classCodes.has(code));
