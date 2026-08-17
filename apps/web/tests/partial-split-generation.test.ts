@@ -8,6 +8,7 @@ import {
   applySchoolOperationalRules,
   createEmptyTeachingPlan,
   createTeachingPlanRow,
+  rowTeacherPeriods,
 } from "../lib/local/teaching-plan-school-v3";
 
 function project(): LocalProject {
@@ -76,6 +77,10 @@ test("five-hour Czech creates four whole periods plus exactly one parallel split
   const row = enforced.rows[0];
   assert.equal(row?.organization, "SPLIT");
   assert.equal(row?.splitWeeklyPeriods, 1);
+  assert.ok(row);
+  if (!row) throw new Error("Czech row must exist.");
+  assert.equal(rowTeacherPeriods(row, "cj-main"), 5);
+  assert.equal(rowTeacherPeriods(row, "cj-split"), 1);
 
   const result = buildSchoolProjectForGeneration({
     existingProject: project(),
