@@ -1,0 +1,169 @@
+name: Patch TV parallel groups
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'agent/current-school-curriculum-splits'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply TV parallel-groups rules and editor labels
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          v3 = Path("apps/web/lib/local/teaching-plan-school-v3.ts")
+          text = v3.read_text()
+          old = '''      return {
+        ...row,
+        organization: "SPLIT" as const,
+        splitWeeklyPeriods: SCHOOL_SINGLE_SPLIT_PERIOD_SUBJECT_CODES.has(
+          row.subjectCode,
+        )
+          ? 1
+          : row.weeklyPeriods,
+      };
+'''
+          new = '''      return {
+        ...row,
+        organization: "SPLIT" as const,
+        splitWeeklyPeriods: SCHOOL_SINGLE_SPLIT_PERIOD_SUBJECT_CODES.has(
+          row.subjectCode,
+        )
+          ? 1
+          : row.weeklyPeriods,
+        additionalClassCodes:
+          row.subjectCode === "TV" ? [] : row.additionalClassCodes,
+        sharedGroupLabel:
+          row.subjectCode === "TV" ? "" : row.sharedGroupLabel,
+      };
+'''
+          if old not in text:
+              raise SystemExit("mandatory split return block not found")
+          v3.write_text(text.replace(old, new))
+
+          page = Path("apps/web/app/teaching-plan/page.tsx")
+          text = page.read_text()
+          old = '''          {row.organization === "SPLIT" ? (
+            <div className="mt-3 rounded-xl border border-success-border bg-success-subtle p-4 text-sm text-success-strong">
+              <strong>Obě skupiny budou vždy ve stejnou dobu.</strong> Solver
+              zabrání kolizi obou učitelů.
+            </div>
+          ) : null}
+'''
+          new = '''          {row.organization === "SPLIT" ? (
+            <div className="mt-3 rounded-xl border border-success-border bg-success-subtle p-4 text-sm text-success-strong">
+              {row.subjectCode === "TV" ? (
+                <>
+                  <strong>Kluci a holky mají tělocvik vždy ve stejnou dobu.</strong>{" "}
+                  Každá třída zůstává samostatně a potřebuje dva tělocvikáře.
+                  Učitele můžete níže kdykoliv ručně změnit.
+                </>
+              ) : (
+                <>
+                  <strong>Obě skupiny budou vždy ve stejnou dobu.</strong>{" "}
+                  Solver zabrání kolizi obou učitelů.
+                </>
+              )}
+            </div>
+          ) : null}
+'''
+          if old not in text:
+              raise SystemExit("split info block not found")
+          text = text.replace(old, new)
+
+          old = '''                  : row.organization === "SPLIT"
+                    ? "Skupina 1"
+                    : "Celá třída"
+'''
+          new = '''                  : row.organization === "SPLIT"
+                    ? row.subjectCode === "TV"
+                      ? "Kluci – učitel"
+                      : "Skupina 1"
+                    : "Celá třída"
+'''
+          if old not in text:
+              raise SystemExit("primary teacher label block not found")
+          text = text.replace(old, new)
+
+          old = '''                  row.organization === "ROTATION"
+                    ? `Učitel předmětu ${row.secondarySubjectCode || "2"}`
+                    : "Skupina 2"
+'''
+          new = '''                  row.organization === "ROTATION"
+                    ? `Učitel předmětu ${row.secondarySubjectCode || "2"}`
+                    : row.subjectCode === "TV"
+                      ? "Holky – učitel"
+                      : "Skupina 2"
+'''
+          if old not in text:
+              raise SystemExit("secondary teacher label block not found")
+          page.write_text(text.replace(old, new))
+
+          test = Path("apps/web/tests/mandatory-school-splits.test.ts")
+          text = test.read_text()
+          old = '''  ];
+
+  const enforced = applySchoolOperationalRules(plan, staffingPlan, null);
+
+  for (const subjectCode of mandatorySubjects) {
+'''
+          new = '''  ];
+
+  const tvBefore = plan.rows.find((row) => row.subjectCode === "TV");
+  if (!tvBefore) throw new Error("TV row must exist.");
+  tvBefore.additionalClassCodes = ["6.B"];
+  tvBefore.sharedGroupLabel = "legacy-shared-tv";
+
+  const enforced = applySchoolOperationalRules(plan, staffingPlan, null);
+
+  for (const subjectCode of mandatorySubjects) {
+'''
+          if old not in text:
+              raise SystemExit("test setup insertion point not found")
+          text = text.replace(old, new, 1)
+
+          old = '''  assert.equal(
+    enforced.rows.find((item) => item.subjectCode === "DEJ")?.organization,
+    "WHOLE",
+  );
+
+  const overview = buildCoverageOverview(enforced, staffingPlan);
+'''
+          new = '''  assert.equal(
+    enforced.rows.find((item) => item.subjectCode === "DEJ")?.organization,
+    "WHOLE",
+  );
+  const tv = enforced.rows.find((item) => item.subjectCode === "TV");
+  assert.deepEqual(tv?.additionalClassCodes, []);
+  assert.equal(tv?.sharedGroupLabel, "");
+  assert.equal(tv?.splitWeeklyPeriods, tv?.weeklyPeriods);
+
+  const overview = buildCoverageOverview(enforced, staffingPlan);
+'''
+          if old not in text:
+              raise SystemExit("TV assertions insertion point not found")
+          test.write_text(text.replace(old, new, 1))
+          PY
+      - run: npm install
+      - run: npm run format
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/lib/local/teaching-plan-school-v3.ts apps/web/app/teaching-plan/page.tsx apps/web/tests/mandatory-school-splits.test.ts
+          git commit -m "fix: keep TV classes separate with editable parallel teachers"
+          git push origin HEAD:${{ github.head_ref }}
