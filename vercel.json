@@ -1,5 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "agent/fix-staffing-save-button-layout": false,
+      "agent/fix-vercel-solver-timeout-and-timetable-layout": false
+    }
+  },
   "services": {
     "web": {
       "root": "apps/web",
