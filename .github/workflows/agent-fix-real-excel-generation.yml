@@ -54,7 +54,98 @@ jobs:
           bridge = Path('apps/web/lib/local/teaching-plan-from-allocation-draft.ts')
           text = bridge.read_text()
           text = text.replace('.join("\n");', '.join("\\n");')
+          authority = '''const AUTHORITATIVE_SCHOOL_CLASS_CODES = [
+            "6.A",
+            "6.B",
+            "6.C",
+            "6.D",
+            "7.A",
+            "7.B",
+            "7.C",
+            "8.A",
+            "8.B",
+            "8.C",
+            "9.A",
+            "9.B",
+            "9.C",
+          ] as const;
+
+          export function isAuthoritativeAllocationDraft(
+            draft: StaffingAllocationDraft | null,
+          ): boolean {
+            if (!draft?.rows.length) return false;
+            const classCodes = new Set(draft.rows.map((row) => row.classCode));
+            return AUTHORITATIVE_SCHOOL_CLASS_CODES.every((code) => classCodes.has(code));
+          }
+
+          '''
+          anchor = 'function sortedClassCodes(draft: StaffingAllocationDraft): string[] {'
+          if authority not in text:
+              if anchor not in text:
+                  raise SystemExit('bridge authority anchor missing')
+              text = text.replace(anchor, authority + anchor, 1)
           bridge.write_text(text)
+
+          v2 = Path('apps/web/lib/local/teaching-plan-school-v2.ts')
+          text = v2.read_text()
+          old_import = '''import {
+            allocationDraftFingerprint,
+            createTeachingPlanFromAllocationDraft,
+          } from "./teaching-plan-from-allocation-draft";'''
+          new_import = '''import {
+            allocationDraftFingerprint,
+            createTeachingPlanFromAllocationDraft,
+            isAuthoritativeAllocationDraft,
+          } from "./teaching-plan-from-allocation-draft";'''
+          if old_import not in text:
+              raise SystemExit('v2 bridge import not found')
+          text = text.replace(old_import, new_import, 1)
+          text = text.replace(
+              '  if (allocationDraft?.rows.length) {',
+              '  if (isAuthoritativeAllocationDraft(allocationDraft)) {',
+              1,
+          )
+          old_fingerprint = '  const draftFingerprint = allocationDraftFingerprint(allocationDraft);'
+          new_fingerprint = '''  const authoritativeDraft = isAuthoritativeAllocationDraft(allocationDraft);
+            const draftFingerprint = authoritativeDraft
+              ? allocationDraftFingerprint(allocationDraft)
+              : "";'''
+          if old_fingerprint not in text:
+              raise SystemExit('v2 draft fingerprint not found')
+          text = text.replace(old_fingerprint, new_fingerprint, 1)
+          old_validation = '''  const curriculum =
+            isCurrentSchoolPlan(plan) && !allocationDraft?.rows.length
+              ? enforceCurrentSchoolCurriculumRules(
+                  loadSchoolCurriculum() ?? createDefaultSchoolCurriculum(),
+                )
+              : null;
+          return [
+            ...school
+              .validateTeachingPlan(plan, staffingPlan)
+              .filter((message) => !isObsoleteEqualProfileMessage(message)),'''
+          new_validation = '''  const authoritativeDraft = isAuthoritativeAllocationDraft(allocationDraft);
+            const curriculum =
+              isCurrentSchoolPlan(plan) && !authoritativeDraft
+                ? enforceCurrentSchoolCurriculumRules(
+                    loadSchoolCurriculum() ?? createDefaultSchoolCurriculum(),
+                  )
+                : null;
+            return [
+              ...school.validateTeachingPlan(plan, staffingPlan).filter((message) => {
+                if (isObsoleteEqualProfileMessage(message)) return false;
+                if (
+                  authoritativeDraft &&
+                  message.includes("referenční třídy") &&
+                  message.includes("nemají stejnou hodinovou dotaci")
+                ) {
+                  return false;
+                }
+                return true;
+              }),'''
+          if old_validation not in text:
+              raise SystemExit('v2 authoritative validation block not found')
+          text = text.replace(old_validation, new_validation, 1)
+          v2.write_text(text)
 
           path = Path('apps/web/lib/local/teaching-plan-school-v3.ts')
           text = path.read_text()
