@@ -23,7 +23,19 @@ jobs:
           cache: npm
       - run: npm install
       - name: Apply source patch
-        run: python .github/scripts/cjm_patch.py
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p = Path('.github/scripts/cjm_patch.py')
+          text = p.read_text()
+          text = text.replace(
+              'updated, count = re.subn(pattern, replacement, text, count=1, flags=flags)',
+              'updated, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=flags)',
+          )
+          p.write_text(text)
+          PY
+          python .github/scripts/cjm_patch.py
       - name: Format and verify
         shell: bash
         run: |
