@@ -4,6 +4,11 @@ import type {
 } from "./staffing-allocation-draft";
 import { loadStaffingAllocationDraft } from "./staffing-allocation-draft";
 import {
+  allocationDraftFingerprint,
+  createTeachingPlanFromAllocationDraft,
+  isAuthoritativeAllocationDraft,
+} from "./teaching-plan-from-allocation-draft";
+import {
   createDefaultSchoolCurriculum,
   enforceCurrentSchoolCurriculumRules,
 } from "./school-default-data";
@@ -35,6 +40,8 @@ declare module "./teaching-plan" {
 
 const WORKLOAD_CREDITS_STORAGE_KEY =
   "rozvrhar:teaching-plan-workload-credits:v1";
+const ALLOCATION_DRAFT_APPLIED_STORAGE_KEY =
+  "rozvrhar:teaching-plan-allocation-draft-applied:v1";
 
 const CURRENT_SCHOOL_CLASS_CODES = [
   "6.A",
@@ -310,6 +317,13 @@ export function createDefaultSchoolTeachingPlan(
   allocationDraft: StaffingAllocationDraft | null,
 ): TeachingPlan {
   const enforcedCurriculum = enforceCurrentSchoolCurriculumRules(curriculum);
+  if (isAuthoritativeAllocationDraft(allocationDraft)) {
+    return applySchoolOperationalRules(
+      createTeachingPlanFromAllocationDraft(allocationDraft),
+      staffingPlan,
+      allocationDraft,
+    );
+  }
   const plan = school.createEmptyTeachingPlan();
   plan.rows = [];
 
@@ -346,8 +360,20 @@ export function loadTeachingPlan(): TeachingPlan {
     ),
   );
   const loaded = applyStoredWorkloadCredits(school.loadTeachingPlan());
-  const plan =
-    loaded.rows.length > 0 || storedPlanExists
+  const authoritativeDraft = isAuthoritativeAllocationDraft(allocationDraft);
+  const draftFingerprint = authoritativeDraft
+    ? allocationDraftFingerprint(allocationDraft)
+    : "";
+  const appliedDraftFingerprint =
+    typeof window !== "undefined"
+      ? (window.localStorage.getItem(ALLOCATION_DRAFT_APPLIED_STORAGE_KEY) ??
+        "")
+      : "";
+  const applyNewDraft =
+    Boolean(draftFingerprint) && draftFingerprint !== appliedDraftFingerprint;
+  const plan = applyNewDraft
+    ? createDefaultSchoolTeachingPlan(curriculum, staffingPlan, allocationDraft)
+    : loaded.rows.length > 0 || storedPlanExists
       ? applySchoolOperationalRules(loaded, staffingPlan, allocationDraft)
       : createDefaultSchoolTeachingPlan(
           curriculum,
@@ -355,7 +381,16 @@ export function loadTeachingPlan(): TeachingPlan {
           allocationDraft,
         );
 
-  if (typeof window !== "undefined" && !storedPlanExists) {
+  if (typeof window !== "undefined" && (applyNewDraft || !storedPlanExists)) {
+    // saveTeachingPlan dispatches TEACHING_PLAN_CHANGE_EVENT synchronously.
+    // Mark this draft as applied first so event listeners cannot re-enter
+    // loadTeachingPlan and recursively save the same imported workbook.
+    if (draftFingerprint) {
+      window.localStorage.setItem(
+        ALLOCATION_DRAFT_APPLIED_STORAGE_KEY,
+        draftFingerprint,
+      );
+    }
     return saveTeachingPlan(plan);
   }
   return plan;
@@ -390,16 +425,27 @@ export function rowTeacherPeriods(
 export function validateTeachingPlan(
   plan: TeachingPlan,
   staffingPlan: StaffingPlan,
+  allocationDraft: StaffingAllocationDraft | null = loadStaffingAllocationDraft(),
 ): string[] {
-  const curriculum = isCurrentSchoolPlan(plan)
-    ? enforceCurrentSchoolCurriculumRules(
-        loadSchoolCurriculum() ?? createDefaultSchoolCurriculum(),
-      )
-    : null;
+  const authoritativeDraft = isAuthoritativeAllocationDraft(allocationDraft);
+  const curriculum =
+    isCurrentSchoolPlan(plan) && !authoritativeDraft
+      ? enforceCurrentSchoolCurriculumRules(
+          loadSchoolCurriculum() ?? createDefaultSchoolCurriculum(),
+        )
+      : null;
   return [
-    ...school
-      .validateTeachingPlan(plan, staffingPlan)
-      .filter((message) => !isObsoleteEqualProfileMessage(message)),
+    ...school.validateTeachingPlan(plan, staffingPlan).filter((message) => {
+      if (isObsoleteEqualProfileMessage(message)) return false;
+      if (
+        authoritativeDraft &&
+        message.includes("referenční třídy") &&
+        message.includes("nemají stejnou hodinovou dotaci")
+      ) {
+        return false;
+      }
+      return true;
+    }),
     ...(curriculum
       ? validatePlanAgainstSchoolCurriculum(plan, curriculum)
       : []),

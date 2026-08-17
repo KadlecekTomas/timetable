@@ -7,6 +7,7 @@ export interface StaffingAllocationDraftRow {
   classCode: string;
   subjectCode: string;
   weeklyPeriods: number;
+  teacherExtraPeriods?: number;
   group: StaffingAllocationGroup;
   teacherIds: string[];
   sourceSheet: string;
@@ -38,6 +39,9 @@ function normalize(value: unknown): StaffingAllocationDraft | null {
       typeof item.subjectCode !== "string" ||
       !Number.isInteger(item.weeklyPeriods) ||
       Number(item.weeklyPeriods) <= 0 ||
+      (item.teacherExtraPeriods !== undefined &&
+        (!Number.isInteger(item.teacherExtraPeriods) ||
+          Number(item.teacherExtraPeriods) < 0)) ||
       !["WHOLE", "GROUP_1", "GROUP_2"].includes(String(item.group)) ||
       !Array.isArray(item.teacherIds) ||
       typeof item.sourceSheet !== "string" ||
@@ -50,6 +54,9 @@ function normalize(value: unknown): StaffingAllocationDraft | null {
         classCode: item.classCode,
         subjectCode: item.subjectCode,
         weeklyPeriods: Number(item.weeklyPeriods),
+        teacherExtraPeriods: Number.isInteger(item.teacherExtraPeriods)
+          ? Number(item.teacherExtraPeriods)
+          : 0,
         group: item.group as StaffingAllocationGroup,
         teacherIds: item.teacherIds.filter(
           (teacherId): teacherId is string => typeof teacherId === "string",

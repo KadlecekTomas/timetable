@@ -386,12 +386,17 @@ export function rowTeacherPeriods(
 export function validateTeachingPlan(
   plan: TeachingPlan,
   staffingPlan: StaffingPlan,
+  allocationDraft: StaffingAllocationDraft | null | undefined = undefined,
 ): string[] {
   const enforced = enforceCurrentSchoolTeachingStructure(plan);
   const sameTeacherPrefixes = enforced.rows
     .filter(isSameTeacherPartialSplit)
     .map((row) => `${row.classCode} ${row.subjectCode}:`);
-  return base.validateTeachingPlan(enforced, staffingPlan).filter((message) => {
+  const baseMessages =
+    allocationDraft === undefined
+      ? base.validateTeachingPlan(enforced, staffingPlan)
+      : base.validateTeachingPlan(enforced, staffingPlan, allocationDraft);
+  return baseMessages.filter((message) => {
     const sameTeacherRow = sameTeacherPrefixes.some((prefix) =>
       message.startsWith(prefix),
     );
