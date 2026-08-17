@@ -4,6 +4,12 @@ import type {
   TeachingGroup,
 } from "./contracts";
 
+const PARALLEL_GROUP_ORDER: Array<Exclude<TeachingGroup, "WHOLE">> = [
+  "GROUP_1",
+  "GROUP_2",
+  "GROUP_3",
+];
+
 export function assignmentClassIds(assignment: SnapshotAssignment): string[] {
   return [
     ...new Set([
@@ -29,9 +35,9 @@ function parallelKey(assignment: SnapshotAssignment): string {
   return `subject:${assignment.subject_id}`;
 }
 
-export function parallelAssignmentPairs(
+export function parallelAssignmentGroups(
   assignments: SnapshotAssignment[],
-): Array<[SnapshotAssignment, SnapshotAssignment]> {
+): SnapshotAssignment[][] {
   const grouped = new Map<
     string,
     Partial<Record<Exclude<TeachingGroup, "WHOLE">, SnapshotAssignment[]>>
@@ -46,19 +52,31 @@ export function parallelAssignmentPairs(
     grouped.set(key, groups);
   }
 
-  const pairs: Array<[SnapshotAssignment, SnapshotAssignment]> = [];
-  for (const groups of grouped.values()) {
-    const left = [...(groups.GROUP_1 ?? [])].sort((a, b) =>
-      a.id.localeCompare(b.id),
+  return [...grouped.values()].flatMap((groups) => {
+    const present = PARALLEL_GROUP_ORDER.flatMap((group) => {
+      const items = [...(groups[group] ?? [])].sort((a, b) =>
+        a.id.localeCompare(b.id),
+      );
+      return items.length === 1 ? [items[0]!] : [];
+    });
+    const rawCount = PARALLEL_GROUP_ORDER.reduce(
+      (total, group) => total + (groups[group]?.length ?? 0),
+      0,
     );
-    const right = [...(groups.GROUP_2 ?? [])].sort((a, b) =>
-      a.id.localeCompare(b.id),
-    );
-    if (left.length === 1 && right.length === 1) {
-      pairs.push([left[0]!, right[0]!]);
-    }
-  }
-  return pairs;
+    return present.length >= 2 && present.length === rawCount ? [present] : [];
+  });
+}
+
+export function parallelAssignmentPairs(
+  assignments: SnapshotAssignment[],
+): Array<[SnapshotAssignment, SnapshotAssignment]> {
+  return parallelAssignmentGroups(assignments).flatMap((group) =>
+    group.length === 2 &&
+    group[0]?.group === "GROUP_1" &&
+    group[1]?.group === "GROUP_2"
+      ? [[group[0], group[1]] as [SnapshotAssignment, SnapshotAssignment]]
+      : [],
+  );
 }
 
 export function rotationAssignmentLegs(
@@ -113,19 +131,18 @@ export function classRequiredWeeklyPeriods(
   assignments: SnapshotAssignment[],
 ): Map<string, number> {
   const totals = new Map<string, number>();
-  const pairedIds = new Set<string>();
+  const groupedIds = new Set<string>();
 
-  for (const [left, right] of parallelAssignmentPairs(assignments)) {
-    pairedIds.add(left.id);
-    pairedIds.add(right.id);
-    const weeklyPeriods = Math.max(left.weekly_periods, right.weekly_periods);
-    for (const classId of assignmentClassIds(left)) {
+  for (const group of parallelAssignmentGroups(assignments)) {
+    group.forEach((assignment) => groupedIds.add(assignment.id));
+    const weeklyPeriods = Math.max(...group.map((item) => item.weekly_periods));
+    for (const classId of assignmentClassIds(group[0]!)) {
       totals.set(classId, (totals.get(classId) ?? 0) + weeklyPeriods);
     }
   }
 
   for (const assignment of assignments) {
-    if (pairedIds.has(assignment.id)) continue;
+    if (groupedIds.has(assignment.id)) continue;
     for (const classId of assignmentClassIds(assignment)) {
       totals.set(
         classId,

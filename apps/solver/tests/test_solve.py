@@ -300,3 +300,50 @@ def test_full_school_time_limit_uses_parallel_search() -> None:
 
     assert _search_workers(quick) == 1
     assert _search_workers(full_school) == 8
+
+
+def test_three_split_groups_run_in_the_same_parallel_slot() -> None:
+    response = client.post(
+        "/solve",
+        json={
+            "periods_per_day": [2],
+            "assignments": [
+                {
+                    "id": "english-6a-g1",
+                    "teacher_id": "teacher-1",
+                    "class_id": "6a",
+                    "subject_id": "english",
+                    "group": "GROUP_1",
+                    "weekly_periods": 1,
+                    "parallel_key": "english-6a",
+                },
+                {
+                    "id": "english-6a-g2",
+                    "teacher_id": "teacher-2",
+                    "class_id": "6a",
+                    "subject_id": "english",
+                    "group": "GROUP_2",
+                    "weekly_periods": 1,
+                    "parallel_key": "english-6a",
+                },
+                {
+                    "id": "english-6a-g3",
+                    "teacher_id": "teacher-3",
+                    "class_id": "6a",
+                    "subject_id": "english",
+                    "group": "GROUP_3",
+                    "weekly_periods": 1,
+                    "parallel_key": "english-6a",
+                },
+            ],
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    lessons = response.json()["lessons"]
+    assert {lesson["group"] for lesson in lessons} == {
+        "GROUP_1",
+        "GROUP_2",
+        "GROUP_3",
+    }
+    assert len({(lesson["day"], lesson["period"]) for lesson in lessons}) == 1

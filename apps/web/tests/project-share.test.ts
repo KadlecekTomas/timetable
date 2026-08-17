@@ -3,6 +3,8 @@ import test from "node:test";
 
 import type { LocalProject } from "../lib/local/api";
 import {
+  BROWSER_PROJECT_LOCAL_STORAGE_KEYS,
+  BROWSER_PROJECT_SESSION_STORAGE_KEYS,
   createBrowserProjectShareEnvelope,
   decodeBrowserProjectShare,
   encodeBrowserProjectShare,
@@ -146,4 +148,23 @@ test("browser project share rejects unsupported format", async () => {
     }),
     /Formát sdíleného projektu není podporovaný/,
   );
+});
+
+test("browser project owns every persisted working-data key needed for full deletion", () => {
+  assert.deepEqual(
+    new Set(BROWSER_PROJECT_LOCAL_STORAGE_KEYS),
+    new Set([
+      "rozvrhar:staffing-plan:v1",
+      "rozvrhar:teaching-plan:v1",
+      "rozvrhar:staffing-allocation-draft:v1",
+      "rozvrhar:school-curriculum:v1",
+      "rozvrhar:teaching-plan-workload-credits:v1",
+      "rozvrhar:teaching-plan-allocation-draft-applied:v1",
+      "rozvrhar:teaching-plan-shared:v1",
+      "rozvrhar:teaching-plan-split-periods:v1",
+    ]),
+  );
+  assert.deepEqual(BROWSER_PROJECT_SESSION_STORAGE_KEYS, [
+    "rozvrhar:teaching-plan-import-review:v1",
+  ]);
 });

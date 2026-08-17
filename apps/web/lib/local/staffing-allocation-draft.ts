@@ -1,7 +1,11 @@
 export const STAFFING_ALLOCATION_DRAFT_STORAGE_KEY =
   "rozvrhar:staffing-allocation-draft:v1";
 
-export type StaffingAllocationGroup = "WHOLE" | "GROUP_1" | "GROUP_2";
+export type StaffingAllocationGroup =
+  | "WHOLE"
+  | "GROUP_1"
+  | "GROUP_2"
+  | "GROUP_3";
 
 export interface StaffingAllocationDraftRow {
   classCode: string;
@@ -42,7 +46,9 @@ function normalize(value: unknown): StaffingAllocationDraft | null {
       (item.teacherExtraPeriods !== undefined &&
         (!Number.isInteger(item.teacherExtraPeriods) ||
           Number(item.teacherExtraPeriods) < 0)) ||
-      !["WHOLE", "GROUP_1", "GROUP_2"].includes(String(item.group)) ||
+      !["WHOLE", "GROUP_1", "GROUP_2", "GROUP_3"].includes(
+        String(item.group),
+      ) ||
       !Array.isArray(item.teacherIds) ||
       typeof item.sourceSheet !== "string" ||
       !Number.isInteger(item.sourceRow)

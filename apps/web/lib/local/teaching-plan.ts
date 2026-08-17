@@ -130,6 +130,8 @@ export interface TeachingPlanRow {
   rotationPlacement?: TeachingRotationPlacement;
   primaryTeacherId: string;
   secondaryTeacherId: string;
+  tertiaryTeacherId?: string;
+  splitGroupCount?: 2 | 3;
 }
 
 export interface TeachingPlan {
@@ -205,6 +207,8 @@ export function createTeachingPlanRow(
     rotationPlacement: "SAME_DAY",
     primaryTeacherId: "",
     secondaryTeacherId: "",
+    tertiaryTeacherId: "",
+    splitGroupCount: 2,
   };
 }
 
@@ -264,6 +268,13 @@ export function rowTeacherPeriods(
   }
   if (row.primaryTeacherId === teacherId) return row.weeklyPeriods;
   if (row.organization === "SPLIT" && row.secondaryTeacherId === teacherId) {
+    return row.weeklyPeriods;
+  }
+  if (
+    row.organization === "SPLIT" &&
+    row.splitGroupCount === 3 &&
+    row.tertiaryTeacherId === teacherId
+  ) {
     return row.weeklyPeriods;
   }
   return 0;
@@ -368,6 +379,19 @@ export function validateTeachingPlanRow(
           ? "Dva různé předměty musí mít dva různé učitele."
           : "Každá skupina musí mít jiného učitele.",
       );
+    }
+    if (row.organization === "SPLIT" && row.splitGroupCount === 3) {
+      if (!row.tertiaryTeacherId || !teacherIds.has(row.tertiaryTeacherId)) {
+        messages.push("Vyberte učitele třetí skupiny.");
+      }
+      if (
+        row.tertiaryTeacherId &&
+        [row.primaryTeacherId, row.secondaryTeacherId].includes(
+          row.tertiaryTeacherId,
+        )
+      ) {
+        messages.push("Každá ze tří skupin musí mít jiného učitele.");
+      }
     }
   }
 
@@ -493,6 +517,11 @@ function normalizeTeachingPlan(value: unknown): TeachingPlan {
             typeof item.secondaryTeacherId === "string"
               ? item.secondaryTeacherId
               : "",
+          tertiaryTeacherId:
+            typeof item.tertiaryTeacherId === "string"
+              ? item.tertiaryTeacherId
+              : "",
+          splitGroupCount: item.splitGroupCount === 3 ? 3 : 2,
         }))
       : [],
   };

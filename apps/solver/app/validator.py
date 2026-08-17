@@ -3,7 +3,7 @@ from collections import defaultdict
 from app.class_groups import (
     class_required_weekly_periods,
     lesson_class_ids,
-    parallel_assignment_pairs,
+    parallel_assignment_groups,
 )
 from app.models import (
     AvailabilityEntityType,
@@ -308,26 +308,32 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
     lessons_by_assignment: dict[str, list[ScheduledLesson]] = defaultdict(list)
     for lesson in lessons:
         lessons_by_assignment[lesson.assignment_id].append(lesson)
-    for left, right in parallel_assignment_pairs(payload.assignments):
-        left_lessons = sorted(lessons_by_assignment[left.id], key=lambda item: item.block_id)
-        right_lessons = sorted(lessons_by_assignment[right.id], key=lambda item: item.block_id)
-        if len(left_lessons) != len(right_lessons):
+    for parallel_group in parallel_assignment_groups(payload.assignments):
+        grouped_lessons = [
+            sorted(lessons_by_assignment[item.id], key=lambda lesson: lesson.block_id)
+            for item in parallel_group
+        ]
+        expected_length = len(grouped_lessons[0])
+        if any(len(items) != expected_length for items in grouped_lessons[1:]):
             continue
-        for left_lesson, right_lesson in zip(left_lessons, right_lessons, strict=True):
-            if (
-                left_lesson.day != right_lesson.day
-                or left_lesson.period != right_lesson.period
-                or left_lesson.duration != right_lesson.duration
-            ):
-                issues.append(
-                    ValidationIssue(
-                        code="PARALLEL_GROUP_DESYNCHRONIZED",
-                        message="Obě poloviny dělené výuky musí probíhat současně.",
-                        entity_ids=[left_lesson.block_id, right_lesson.block_id],
-                        day=left_lesson.day,
-                        period=left_lesson.period,
+        for index in range(expected_length):
+            reference = grouped_lessons[0][index]
+            for candidate_group in grouped_lessons[1:]:
+                candidate = candidate_group[index]
+                if (
+                    reference.day != candidate.day
+                    or reference.period != candidate.period
+                    or reference.duration != candidate.duration
+                ):
+                    issues.append(
+                        ValidationIssue(
+                            code="PARALLEL_GROUP_DESYNCHRONIZED",
+                            message="Všechny paralelní skupiny dělené výuky musí probíhat současně.",
+                            entity_ids=[reference.block_id, candidate.block_id],
+                            day=reference.day,
+                            period=reference.period,
+                        )
                     )
-                )
 
     issues.extend(validate_rotation_schedule(payload, lessons_by_assignment))
 

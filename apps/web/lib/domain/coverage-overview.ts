@@ -181,6 +181,8 @@ function rolesForRow(row: TeachingPlanRow): CoverageRole[] {
         },
       ];
     }
+    const groupCount = row.splitGroupCount === 3 ? 3 : 2;
+    const groupClassPeriods = splitPeriods / groupCount;
     return [
       {
         subjectCode: row.subjectCode,
@@ -190,7 +192,7 @@ function rolesForRow(row: TeachingPlanRow): CoverageRole[] {
             : "učitel 1. skupiny",
         teacherId: row.primaryTeacherId,
         teacherHours: periods,
-        classPeriods: wholePeriods + splitPeriods / 2,
+        classPeriods: wholePeriods + groupClassPeriods,
       },
       {
         subjectCode: row.subjectCode,
@@ -200,8 +202,19 @@ function rolesForRow(row: TeachingPlanRow): CoverageRole[] {
             : "učitel 2. skupiny",
         teacherId: row.secondaryTeacherId,
         teacherHours: splitPeriods,
-        classPeriods: splitPeriods / 2,
+        classPeriods: groupClassPeriods,
       },
+      ...(groupCount === 3
+        ? [
+            {
+              subjectCode: row.subjectCode,
+              roleLabel: "učitel 3. skupiny",
+              teacherId: row.tertiaryTeacherId ?? "",
+              teacherHours: splitPeriods,
+              classPeriods: groupClassPeriods,
+            },
+          ]
+        : []),
     ];
   }
 

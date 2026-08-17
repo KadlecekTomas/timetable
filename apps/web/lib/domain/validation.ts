@@ -10,7 +10,7 @@ import {
 import {
   classRequiredWeeklyPeriods,
   lessonClassIds,
-  parallelAssignmentPairs,
+  parallelAssignmentGroups,
 } from "./class-groups";
 import {
   crossesLunchBreak,
@@ -340,31 +340,34 @@ export function validateSchedule(
       lesson,
     ]);
   }
-  for (const [left, right] of parallelAssignmentPairs(snapshot.assignments)) {
-    const leftLessons = [...(lessonsByAssignment.get(left.id) ?? [])].sort(
-      (a, b) => a.block_id.localeCompare(b.block_id),
+  for (const group of parallelAssignmentGroups(snapshot.assignments)) {
+    const lessonGroups = group.map((assignment) =>
+      [...(lessonsByAssignment.get(assignment.id) ?? [])].sort((a, b) =>
+        a.block_id.localeCompare(b.block_id),
+      ),
     );
-    const rightLessons = [...(lessonsByAssignment.get(right.id) ?? [])].sort(
-      (a, b) => a.block_id.localeCompare(b.block_id),
-    );
-    if (leftLessons.length !== rightLessons.length) continue;
-    leftLessons.forEach((leftLesson, index) => {
-      const rightLesson = rightLessons[index]!;
-      if (
-        leftLesson.day !== rightLesson.day ||
-        leftLesson.period !== rightLesson.period ||
-        leftLesson.duration !== rightLesson.duration
-      ) {
-        pushIssue(
-          issues,
-          "PARALLEL_GROUP_DESYNCHRONIZED",
-          "Obě poloviny dělené výuky musí probíhat současně.",
-          [leftLesson.block_id, rightLesson.block_id],
-          leftLesson.day,
-          leftLesson.period,
-        );
+    const expectedLength = lessonGroups[0]?.length ?? 0;
+    if (lessonGroups.some((items) => items.length !== expectedLength)) continue;
+    for (let index = 0; index < expectedLength; index += 1) {
+      const reference = lessonGroups[0]![index]!;
+      for (const candidateGroup of lessonGroups.slice(1)) {
+        const candidate = candidateGroup[index]!;
+        if (
+          reference.day !== candidate.day ||
+          reference.period !== candidate.period ||
+          reference.duration !== candidate.duration
+        ) {
+          pushIssue(
+            issues,
+            "PARALLEL_GROUP_DESYNCHRONIZED",
+            "Všechny paralelní skupiny dělené výuky musí probíhat současně.",
+            [reference.block_id, candidate.block_id],
+            reference.day,
+            reference.period,
+          );
+        }
       }
-    });
+    }
   }
 
   issues.push(...validateRotationSchedule(snapshot, lessonsByAssignment));
