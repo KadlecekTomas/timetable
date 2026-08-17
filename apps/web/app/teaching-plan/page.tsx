@@ -29,6 +29,7 @@ import {
   type TeachingPlanWorkbookAnalysis,
 } from "@/lib/import/teaching-plan-workbook";
 import { LOCAL_SCHOOL_YEAR_ID, localApiFetch } from "@/lib/local/api";
+import { buildSchoolProjectForGeneration } from "@/lib/local/school-project-generation";
 import {
   createPendingTeachingPlanImport,
   savePendingTeachingPlanImport,
@@ -50,6 +51,7 @@ import {
   createTeachingPlanClass,
   createTeachingPlanRow,
   humanBlockSummary,
+  isSameTeacherPartialSplit,
   lessonBlockDurations,
   loadTeachingPlan,
   normalizeClassCode,
@@ -573,113 +575,78 @@ export default function TeachingPlanPage() {
         ]),
       );
 
-      const assignments = plan.rows.flatMap((row) => {
-        const common = {
-          classId: classIdByCode.get(row.classCode),
-          weeklyPeriods: row.weeklyPeriods,
-          lessonShape:
-            row.lessonShape === "SEPARATE"
-              ? "SINGLE"
-              : row.lessonShape === "DOUBLE"
-                ? "DOUBLE"
-                : "MIXED",
-          doublePeriodsCount:
-            row.lessonShape === "DOUBLE"
-              ? row.weeklyPeriods / 2
-              : row.lessonShape === "MIXED"
-                ? row.doublePeriodsCount
-                : 0,
+      const generated = buildSchoolProjectForGeneration({
+        existingProject: {
+          schemaVersion: 1,
+          id: LOCAL_SCHOOL_YEAR_ID,
+          schoolName: "",
+          label: "",
+          status: "ACTIVE",
+          periodsPerDay: [8, 8, 8, 8, 7],
+          version: 1,
+          updatedAt: new Date(0).toISOString(),
+          teachers: [],
+          classes: [],
+          subjects: [],
+          roomTypes: [],
+          rooms: [],
+          assignments: [],
+          availability: [],
+          fixedLessons: [],
+          importBatches: [],
+          generationRuns: [],
+          timetableVersions: [],
+        },
+        staffingPlan,
+        teachingPlan: plan,
+        forceReplaceGeneratedData: false,
+      });
+      if (generated.blockers.length > 0) {
+        throw new Error(generated.blockers[0]);
+      }
+
+      const generatedClassCode = new Map(
+        generated.project.classes.map((schoolClass) => [
+          schoolClass.id,
+          schoolClass.code,
+        ]),
+      );
+      const generatedSubjectCode = new Map(
+        generated.project.subjects.map((subject) => [subject.id, subject.code]),
+      );
+      const staffingTeacherId = new Map(
+        staffingPlan.teachers.map((teacher) => [
+          `teacher:${teacher.id}`,
+          teacher.id,
+        ]),
+      );
+
+      const assignments = generated.project.assignments.map((assignment) => {
+        const classCode = generatedClassCode.get(assignment.classId) ?? "";
+        const subjectCode =
+          generatedSubjectCode.get(assignment.subjectId) ?? "";
+        const planTeacherId = staffingTeacherId.get(assignment.teacherId) ?? "";
+        const teacherCode = teacherCodes.get(planTeacherId) ?? "";
+        return {
+          assignmentCode: assignment.assignmentCode,
+          classId: classIdByCode.get(classCode),
+          subjectId: subjectIdByCode.get(subjectCode),
+          teacherId: projectTeacherByCode.get(teacherCode),
+          group: assignment.group,
+          weeklyPeriods: assignment.weeklyPeriods,
+          lessonShape: assignment.lessonShape,
+          doublePeriodsCount: assignment.doublePeriodsCount,
+          parallelKey: assignment.parallelKey,
+          rotationKey: assignment.rotationKey,
+          rotationLeg: assignment.rotationLeg,
+          rotationPlacement: assignment.rotationPlacement,
+          additionalClassIds: assignment.additionalClassIds
+            .map((generatedId) => {
+              const additionalCode = generatedClassCode.get(generatedId) ?? "";
+              return classIdByCode.get(additionalCode) ?? "";
+            })
+            .filter(Boolean),
         };
-        const primaryCode = teacherCodes.get(row.primaryTeacherId)!;
-        const primaryTeacherId = projectTeacherByCode.get(primaryCode);
-        const rowToken = safeCode(row.id).slice(-24);
-
-        if (row.organization === "WHOLE") {
-          return [
-            {
-              ...common,
-              assignmentCode: `${safeCode(row.classCode)}-${row.subjectCode}-WHOLE`,
-              subjectId: subjectIdByCode.get(row.subjectCode),
-              teacherId: primaryTeacherId,
-              group: "WHOLE",
-            },
-          ];
-        }
-
-        const secondaryCode = teacherCodes.get(row.secondaryTeacherId)!;
-        const secondaryTeacherId = projectTeacherByCode.get(secondaryCode);
-        if (row.organization === "SPLIT") {
-          const parallelKey = `${safeCode(row.classCode)}-${row.subjectCode}-${rowToken}`;
-          return [
-            {
-              ...common,
-              assignmentCode: `${parallelKey}-G1`,
-              subjectId: subjectIdByCode.get(row.subjectCode),
-              teacherId: primaryTeacherId,
-              group: "GROUP_1",
-              parallelKey,
-            },
-            {
-              ...common,
-              assignmentCode: `${parallelKey}-G2`,
-              subjectId: subjectIdByCode.get(row.subjectCode),
-              teacherId: secondaryTeacherId,
-              group: "GROUP_2",
-              parallelKey,
-            },
-          ];
-        }
-
-        const rotationKey = `${safeCode(row.classCode)}-ROT-${rowToken}`;
-        const leg1 = `${rotationKey}-L1`;
-        const leg2 = `${rotationKey}-L2`;
-        const rotationPlacement = row.rotationPlacement ?? "SAME_DAY";
-        return [
-          {
-            ...common,
-            assignmentCode: `${leg1}-G1`,
-            subjectId: subjectIdByCode.get(row.subjectCode),
-            teacherId: primaryTeacherId,
-            group: "GROUP_1",
-            parallelKey: leg1,
-            rotationKey,
-            rotationLeg: 1,
-            rotationPlacement,
-          },
-          {
-            ...common,
-            assignmentCode: `${leg1}-G2`,
-            subjectId: subjectIdByCode.get(row.secondarySubjectCode ?? ""),
-            teacherId: secondaryTeacherId,
-            group: "GROUP_2",
-            parallelKey: leg1,
-            rotationKey,
-            rotationLeg: 1,
-            rotationPlacement,
-          },
-          {
-            ...common,
-            assignmentCode: `${leg2}-G1`,
-            subjectId: subjectIdByCode.get(row.secondarySubjectCode ?? ""),
-            teacherId: secondaryTeacherId,
-            group: "GROUP_1",
-            parallelKey: leg2,
-            rotationKey,
-            rotationLeg: 2,
-            rotationPlacement,
-          },
-          {
-            ...common,
-            assignmentCode: `${leg2}-G2`,
-            subjectId: subjectIdByCode.get(row.subjectCode),
-            teacherId: primaryTeacherId,
-            group: "GROUP_2",
-            parallelKey: leg2,
-            rotationKey,
-            rotationLeg: 2,
-            rotationPlacement,
-          },
-        ];
       });
 
       for (let index = 0; index < assignments.length; index += 1) {
@@ -1286,6 +1253,7 @@ function TeachingRowCard({
   remove: () => void;
 }) {
   const validation = validateTeachingPlanRow(row, plan, staffingPlan);
+  const sameTeacherPartial = isSameTeacherPartialSplit(row);
   const sortedTeachers = (subjectCode: string) =>
     [...staffingPlan.teachers].sort((left, right) => {
       const leftMatch = teacherMatchesSubject(left, subjectCode) ? 0 : 1;
@@ -1585,8 +1553,19 @@ function TeachingRowCard({
 
           {row.organization === "SPLIT" ? (
             <div className="mt-3 rounded-xl border border-success-border bg-success-subtle p-4 text-sm text-success-strong">
-              <strong>Obě skupiny budou vždy ve stejnou dobu.</strong> Solver
-              zabrání kolizi obou učitelů.
+              {sameTeacherPartial ? (
+                <>
+                  <strong>
+                    Jedna hodina je půlená a obě skupiny učí stejný učitel.
+                  </strong>{" "}
+                  ČJ a M se v této hodině vystřídají ve dvou ramenech.
+                </>
+              ) : (
+                <>
+                  <strong>Obě skupiny budou vždy ve stejnou dobu.</strong>{" "}
+                  Solver zabrání kolizi obou učitelů.
+                </>
+              )}
             </div>
           ) : null}
 
@@ -1690,7 +1669,7 @@ function TeachingRowCard({
           </p>
           <div
             className={
-              row.organization === "WHOLE"
+              row.organization === "WHOLE" || sameTeacherPartial
                 ? "mt-3 max-w-xl"
                 : "mt-3 grid gap-4 md:grid-cols-2"
             }
@@ -1699,19 +1678,27 @@ function TeachingRowCard({
               label={
                 row.organization === "ROTATION"
                   ? `Učitel předmětu ${row.subjectCode || "1"}`
-                  : row.organization === "SPLIT"
-                    ? "Skupina 1"
-                    : "Celá třída"
+                  : sameTeacherPartial
+                    ? "Stejný učitel celé třídy i obou skupin"
+                    : row.organization === "SPLIT"
+                      ? "Skupina 1"
+                      : "Celá třída"
               }
               value={row.primaryTeacherId}
               teachers={sortedTeachers(row.subjectCode)}
               subjectCode={row.subjectCode}
               onChange={(value) =>
-                update((current) => ({ ...current, primaryTeacherId: value }))
+                update((current) => ({
+                  ...current,
+                  primaryTeacherId: value,
+                  secondaryTeacherId: isSameTeacherPartialSplit(current)
+                    ? value
+                    : current.secondaryTeacherId,
+                }))
               }
               ariaLabel={`Učitel 1 předmětu ${index + 1}`}
             />
-            {row.organization !== "WHOLE" ? (
+            {row.organization !== "WHOLE" && !sameTeacherPartial ? (
               <TeacherSelect
                 label={
                   row.organization === "ROTATION"
@@ -1767,7 +1754,7 @@ function TeachingRowCard({
               Hotovo —{" "}
               {row.organization === "ROTATION"
                 ? `${row.subjectCode} a ${row.secondarySubjectCode} se povinně prohodí · ${rotationPlacementLabel(row.rotationPlacement)}`
-                : `${humanBlockSummary(row)} · ${row.organization === "SPLIT" ? "dvě souběžné skupiny" : "celá třída"}`}
+                : `${humanBlockSummary(row)} · ${sameTeacherPartial ? "1 hodina půlená, stejný učitel pro obě skupiny" : row.organization === "SPLIT" ? "dvě souběžné skupiny" : "celá třída"}`}
               .
             </p>
           </div>
