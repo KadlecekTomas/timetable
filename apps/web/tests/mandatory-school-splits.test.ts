@@ -37,6 +37,11 @@ test("current school plan splits exactly one Czech and math period and keeps oth
     },
   ];
 
+  const tvBefore = plan.rows.find((row) => row.subjectCode === "TV");
+  if (!tvBefore) throw new Error("TV row must exist.");
+  tvBefore.additionalClassCodes = ["6.B"];
+  tvBefore.sharedGroupLabel = "legacy-shared-tv";
+
   const enforced = applySchoolOperationalRules(plan, staffingPlan, null);
 
   for (const subjectCode of mandatorySubjects) {
@@ -54,6 +59,10 @@ test("current school plan splits exactly one Czech and math period and keeps oth
     enforced.rows.find((item) => item.subjectCode === "DEJ")?.organization,
     "WHOLE",
   );
+  const tv = enforced.rows.find((item) => item.subjectCode === "TV");
+  assert.deepEqual(tv?.additionalClassCodes, []);
+  assert.equal(tv?.sharedGroupLabel, "");
+  assert.equal(tv?.splitWeeklyPeriods, tv?.weeklyPeriods);
 
   const overview = buildCoverageOverview(enforced, staffingPlan);
   const czech = overview.cellByKey.get(coverageCellKey("6.A", "CJ"));
