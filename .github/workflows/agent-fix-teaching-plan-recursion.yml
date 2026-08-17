@@ -1,0 +1,74 @@
+name: Agent fix teaching-plan import recursion
+
+on:
+  push:
+    branches:
+      - agent/fix-real-excel-generation
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/fix-real-excel-generation
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - name: Guard fingerprint before synchronous save event
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/web/lib/local/teaching-plan-school-v2.ts')
+          text = path.read_text()
+          old = '''  if (typeof window !== "undefined" && (applyNewDraft || !storedPlanExists)) {
+            const saved = saveTeachingPlan(plan);
+            if (draftFingerprint) {
+              window.localStorage.setItem(
+                ALLOCATION_DRAFT_APPLIED_STORAGE_KEY,
+                draftFingerprint,
+              );
+            }
+            return saved;
+          }
+          '''
+          new = '''  if (typeof window !== "undefined" && (applyNewDraft || !storedPlanExists)) {
+            // saveTeachingPlan dispatches TEACHING_PLAN_CHANGE_EVENT synchronously.
+            // Mark this draft as applied first so event listeners cannot re-enter
+            // loadTeachingPlan and recursively save the same imported workbook.
+            if (draftFingerprint) {
+              window.localStorage.setItem(
+                ALLOCATION_DRAFT_APPLIED_STORAGE_KEY,
+                draftFingerprint,
+              );
+            }
+            return saveTeachingPlan(plan);
+          }
+          '''
+          if old not in text:
+              raise SystemExit('Expected loadTeachingPlan save block not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          npx prettier --write apps/web/lib/local/teaching-plan-school-v2.ts
+      - name: Verify unit gate
+        shell: bash
+        run: |
+          npm run typecheck --workspace @timetable/web
+          npm run test --workspace @timetable/web
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/lib/local/teaching-plan-school-v2.ts
+          git commit -m "fix: prevent recursive teaching-plan import save"
+          git push origin HEAD:agent/fix-real-excel-generation
