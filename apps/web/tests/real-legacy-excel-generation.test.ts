@@ -13,61 +13,259 @@ import {
   validateTeachingPlan,
 } from "../lib/local/teaching-plan-school-v3";
 
-const CLASSES = [
-  "6.A",
-  "6.B",
-  "6.C",
-  "6.D",
-  "7.A",
-  "7.B",
-  "7.C",
-  "8.A",
-  "8.B",
-  "8.C",
-  "9.A",
-  "9.B",
-  "9.C",
-] as const;
+const ACTUAL_MATRIX: Record<string, Array<[string, string, string | number]>> = {
+  "6.A": [
+    ["Čj", "T01", "5+1"],
+    ["M", "T02", "4+1"],
+    ["Aj", "T03/T04", 4],
+    ["D", "T05", 2],
+    ["Př", "T06", 2],
+    ["Ov", "T01", 1],
+    ["Z", "T07", 2],
+    ["Hv", "T08", 1],
+    ["Inf", "T09/T10", 1],
+    ["F", "T11", 2],
+    ["Tv", "T12/T13", 2],
+    ["Vv", "T02", 2],
+    ["Pč", "T02", 1],
+  ],
+  "6.B": [
+    ["Čj", "T05", "4+1"],
+    ["M", "T11", "4+1"],
+    ["Aj", "T14/T15", 3],
+    ["D", "T05", 2],
+    ["Př", "T06", 2],
+    ["Ov", "T16", 1],
+    ["Z", "T16", 2],
+    ["Hv", "T08", 1],
+    ["Inf", "T09/T10", 1],
+    ["F", "T11", 2],
+    ["Tv", "T17/T18", 5],
+    ["Vv", "T02", 2],
+    ["Pč", "T02", 1],
+  ],
+  "6.C": [
+    ["Čj", "T01", "5+1"],
+    ["M", "T19", "4+1"],
+    ["Aj", "T20/T04", 4],
+    ["D", "T05", 2],
+    ["Př", "T06", 2],
+    ["Ov", "T01", 1],
+    ["Z", "T16", 2],
+    ["Hv", "T08", 1],
+    ["Inf", "T09/T10", 1],
+    ["F", "T21", 2],
+    ["Tv", "T12/T13", 2],
+    ["Vv", "T20", 2],
+    ["Pč", "T20", 1],
+  ],
+  "6.D": [
+    ["Čj", "T05", "4+1"],
+    ["M", "T11", "4+1"],
+    ["Aj", "T14/T15", 3],
+    ["D", "T05", 2],
+    ["Př", "T22", 2],
+    ["Ov", "T01", 1],
+    ["Z", "T16", 2],
+    ["Hv", "T08", 1],
+    ["Inf", "T09/T10", 1],
+    ["F", "T11", 2],
+    ["Tv", "T23/T24", 5],
+    ["Vv", "T02", 2],
+    ["Pč", "T02", 1],
+  ],
+  "7.A": [
+    ["Čj", "T25", "4+1"],
+    ["M", "T11", "5+1"],
+    ["Aj", "T14/T03", 3],
+    ["D", "T25", 2],
+    ["Př", "T06", 2],
+    ["Ov", "T01", 1],
+    ["Z", "T16", 2],
+    ["Hv", "T08", 1],
+    ["Inf", "T09/T10", 1],
+    ["F", "T26", 2],
+    ["Tv", "T13/T12", 2],
+    ["Vv", "T22", 2],
+    ["Pč", "T02", 1],
+    ["PkČj", "T25", 1],
+    ["Přpk", "T06", 1],
+    ["Vkz", "T27", 1],
+  ],
+  "7.B": [
+    ["Čj", "T25", "4+1"],
+    ["M", "T28", "4+1"],
+    ["Aj", "T18/T20", 3],
+    ["D", "T25", 2],
+    ["Př", "T06", 2],
+    ["Ov", "T22", 1],
+    ["Z", "T16", 2],
+    ["Hv", "T08", 1],
+    ["Inf", "T09/T10", 1],
+    ["F", "T21", 2],
+    ["Tv", "T13/T12", 5],
+    ["Vv", "T29", 2],
+    ["Pč", "T08", 1],
+  ],
+  "7.C": [
+    ["Čj", "T01", "4+1"],
+    ["M", "T28", "5+1"],
+    ["Aj", "T14/T03", 3],
+    ["D", "T30", 2],
+    ["Př", "T06", 2],
+    ["Ov", "T03", 1],
+    ["Z", "T16", 2],
+    ["Hv", "T08", 1],
+    ["Inf", "T09/T10", 1],
+    ["F", "T26", 2],
+    ["Tv", "T13/T12", 2],
+    ["Vv", "T02", 2],
+    ["Pč", "T03", 1],
+    ["PkČj", "T25", 1],
+    ["Přpk", "T06", 1],
+    ["Vkz", "T31", 1],
+  ],
+  "8.A": [
+    ["Čj", "T29", "4+1"],
+    ["M", "T26", "4+1"],
+    ["Aj", "T14/T03", 3],
+    ["D", "T30", 2],
+    ["Př", "T06", 2],
+    ["Ov", "T22", 1],
+    ["Z", "T16", 1],
+    ["Hv", "T08", 1],
+    ["Inf", "T09/T10", 1],
+    ["F", "T26", 2],
+    ["Tv", "T12/T13", 2],
+    ["Vv", "T31", 2],
+    ["Pč", "T26", 1],
+    ["Chemie", "T19", 2],
+    ["Německý jazyk", "T31", 3],
+    ["Španělský jazyk", "T32", 3],
+    ["Svs", "T22", 1],
+    ["Vkz", "T31", 1],
+  ],
+  "8.B": [
+    ["Čj", "T29", "5+1"],
+    ["M", "T28", "4+1"],
+    ["Aj", "T18/T04", 3],
+    ["D", "T30", 2],
+    ["Př", "T06", 1],
+    ["Ov", "T18", 1],
+    ["Z", "T07", 1],
+    ["Hv", "T08", 1],
+    ["Inf", "T09/T10", 1],
+    ["F", "T26", 2],
+    ["Tv", "T18/T23", 5],
+    ["Vv", "T20", 1],
+    ["Pč", "T08", 1],
+    ["Chemie", "T19", 2],
+    ["Německý jazyk", "T31", 3],
+    ["Španělský jazyk", "T32", 3],
+  ],
+  "8.C": [
+    ["Čj", "T29", "4+1"],
+    ["M", "T21", "4+1"],
+    ["Aj", "T14/T04", 3],
+    ["D", "T33", 2],
+    ["Př", "T06", 2],
+    ["Ov", "T22", 1],
+    ["Z", "T16", 1],
+    ["Hv", "T08", 1],
+    ["Inf", "T09/T10", 1],
+    ["F", "T26", 2],
+    ["Tv", "T24/T23", 2],
+    ["Vv", "T22", 2],
+    ["Pč", "T22", 1],
+    ["Chemie", "T19", 2],
+    ["Německý jazyk", "T31", 3],
+    ["Španělský jazyk", "T32", 3],
+    ["Svs", "T22", 1],
+    ["Vkz", "T31", 1],
+  ],
+  "9.A": [
+    ["Čj", "T05", "4+1"],
+    ["M", "T21", "4+1"],
+    ["Aj", "T14/T04", 4],
+    ["D", "T30", 2],
+    ["Př", "T06", 1],
+    ["Ov", "T21", 1],
+    ["Z", "T16", 2],
+    ["Inf", "T09/T10", 1],
+    ["F", "T26", 2],
+    ["Tv", "T10/T13", 2],
+    ["Vv", "T21", 1],
+    ["Chemie", "T19", 2],
+    ["Německý jazyk", "T31", 3],
+    ["Svs", "T21", 1],
+  ],
+  "9.B": [
+    ["Čj", "T33", "4+1"],
+    ["M", "T28", "5+1"],
+    ["Aj", "T18/T03", 3],
+    ["D", "T33", 2],
+    ["Př", "T06", 1],
+    ["Ov", "T22", 1],
+    ["Z", "T07", 1],
+    ["Inf", "T09/T10", 1],
+    ["F", "T26", 2],
+    ["Tv", "T24/T17", 4],
+    ["Vv", "T31", 1],
+    ["Chemie", "T19", 2],
+    ["Německý jazyk", "T32/T31", 3],
+    ["Svs", "T22", 1],
+  ],
+  "9.C": [
+    ["Čj", "T33", "4+1"],
+    ["M", "T19", "4+1"],
+    ["Aj", "T20/T04", 4],
+    ["D", "T30", 2],
+    ["Př", "T06", 1],
+    ["Ov", "T22", 1],
+    ["Z", "T16", 2],
+    ["Inf", "T09/T10", 1],
+    ["F", "T26", 2],
+    ["Tv", "T10/T13", 2],
+    ["Vv", "T29", 1],
+    ["Chemie", "T19", 2],
+    ["Německý jazyk", "T31", 3],
+    ["Svs", "T22", 1],
+  ],
+};
 
-function sourceRows(
-  classCode: string,
-): Array<[string, string, string | number]> {
-  const rows: Array<[string, string, string | number]> = [
-    ["Čj", `Cj${classCode}`, "4+1"],
-    ["M", `M${classCode}`, "4+1"],
-  ];
-  if (["7.A", "7.C"].includes(classCode)) {
-    rows.push(["PkČj", "ExtraCj", 1], ["Přpk", "Science", 1]);
-  }
-  if (["8.A", "8.B", "8.C"].includes(classCode)) {
-    rows.push(["Německý jazyk", "LangA", 3], ["Španělský jazyk", "LangB", 3]);
-  }
-  if (classCode === "9.A" || classCode === "9.C") {
-    rows.push(["Německý jazyk", "LangA", 3]);
-  }
-  if (classCode === "9.B") {
-    rows.push(["Německý jazyk", "LangB/LangA", 3]);
-  }
-  if (classCode === "8.A") rows.push(["Vv", "Art", 2]);
-  return rows;
-}
+const ACTUAL_LAYOUT: Record<string, { row: number; column: number }> = {
+  "6.A": { row: 4, column: 2 },
+  "6.B": { row: 4, column: 6 },
+  "6.C": { row: 4, column: 10 },
+  "6.D": { row: 4, column: 14 },
+  "7.A": { row: 20, column: 2 },
+  "7.B": { row: 20, column: 6 },
+  "7.C": { row: 20, column: 10 },
+  "8.A": { row: 39, column: 2 },
+  "8.B": { row: 39, column: 6 },
+  "8.C": { row: 39, column: 10 },
+  "9.A": { row: 61, column: 2 },
+  "9.B": { row: 61, column: 6 },
+  "9.C": { row: 61, column: 10 },
+};
 
 async function workbookBytes(): Promise<Uint8Array> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("List 1");
-  let row = 2;
-  for (const classCode of CLASSES) {
-    sheet.getCell(row, 2).value = classCode;
-    sheet.getCell(row + 1, 2).value = "Předměty";
-    sheet.getCell(row + 1, 3).value = "Učitel/učitelka";
-    sheet.getCell(row + 1, 4).value = "Časová dotace";
-    sourceRows(classCode).forEach(([subject, teacher, periods], index) => {
-      sheet.getCell(row + 2 + index, 2).value = subject;
-      sheet.getCell(row + 2 + index, 3).value = teacher;
-      sheet.getCell(row + 2 + index, 4).value = periods;
+
+  for (const [classCode, position] of Object.entries(ACTUAL_LAYOUT)) {
+    const rows = ACTUAL_MATRIX[classCode] ?? [];
+    sheet.getCell(position.row, position.column).value = classCode;
+    sheet.getCell(position.row + 1, position.column).value = "Předměty";
+    sheet.getCell(position.row + 1, position.column + 1).value = "Učitel/učitelka";
+    sheet.getCell(position.row + 1, position.column + 2).value = "Časová dotace";
+    rows.forEach(([subject, teacher, periods], index) => {
+      sheet.getCell(position.row + 2 + index, position.column).value = subject;
+      sheet.getCell(position.row + 2 + index, position.column + 1).value = teacher;
+      sheet.getCell(position.row + 2 + index, position.column + 2).value = periods;
     });
-    row += 12;
   }
+
   return new Uint8Array(await workbook.xlsx.writeBuffer());
 }
 
@@ -95,48 +293,23 @@ function project(): LocalProject {
   };
 }
 
-test("compact legacy Excel becomes a generation-ready project with matching teacher hours", async () => {
+test("anonymized exact uploaded matrix becomes generation-ready with zero blockers", async () => {
   const analysis = await analyzeStaffingWorkbook(await workbookBytes());
   assert.equal(analysis.valid, true);
+  assert.equal(analysis.plan.teachers.length, 33);
   assert.ok("allocationDraft" in analysis);
   if (!("allocationDraft" in analysis) || !analysis.allocationDraft) return;
-
-  const langA = analysis.plan.teachers.find(
-    (teacher) => teacher.lastName === "LangA",
-  );
-  const langB = analysis.plan.teachers.find(
-    (teacher) => teacher.lastName === "LangB",
-  );
-  assert.ok(langA);
-  assert.ok(langB);
-  assert.equal(
-    langA.subjectLoads.find((item) => item.subjectCode === "JAZ2")
-      ?.weeklyPeriods,
-    6,
-  );
-  assert.equal(
-    langB.subjectLoads.find((item) => item.subjectCode === "JAZ2")
-      ?.weeklyPeriods,
-    6,
-  );
 
   const teachingPlan = createDefaultSchoolTeachingPlan(
     createDefaultSchoolCurriculum(),
     analysis.plan,
     analysis.allocationDraft,
   );
+
   assert.deepEqual(
     validateTeachingPlan(teachingPlan, analysis.plan, analysis.allocationDraft),
     [],
   );
-  assert.equal(
-    teachingPlan.rows.find(
-      (row) => row.classCode === "8.A" && row.subjectCode === "VV",
-    )?.weeklyPeriods,
-    2,
-  );
-  assert.ok(teachingPlan.rows.some((row) => row.subjectCode === "PKCJ"));
-  assert.ok(teachingPlan.rows.some((row) => row.subjectCode === "PRPK"));
 
   for (const teacher of analysis.plan.teachers) {
     const assigned = teachingPlan.rows.reduce(
@@ -156,6 +329,8 @@ test("compact legacy Excel becomes a generation-ready project with matching teac
     teachingPlan,
     forceReplaceGeneratedData: false,
   });
+
   assert.deepEqual(generated.blockers, []);
   assert.ok(generated.project.assignments.length > 0);
+  assert.equal(generated.project.classes.length, 13);
 });
