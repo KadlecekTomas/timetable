@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { AppShell } from "@/components/app-shell";
 
 import "./globals.css";
+import "./staffing-layout.css";
 
 export const metadata: Metadata = {
   title: "Rozvrhář",

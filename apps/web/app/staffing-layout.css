@@ -1,0 +1,58 @@
+article[data-testid^="teacher-card-"] button[aria-label^="Uložit "] {
+  min-width: 7rem;
+  justify-content: center;
+}
+
+@media (min-width: 1024px) {
+  article[data-testid^="teacher-card-"] > div:first-child {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 25rem;
+    align-items: center;
+  }
+
+  article[data-testid^="teacher-card-"] > div:first-child > div:first-child {
+    min-width: 0;
+  }
+
+  article[data-testid^="teacher-card-"]
+    > div:first-child
+    > div:first-child
+    > div:first-child {
+    flex: none;
+  }
+
+  article[data-testid^="teacher-card-"]
+    > div:first-child
+    > div:first-child
+    > div:last-child {
+    min-width: 0;
+  }
+
+  article[data-testid^="teacher-card-"] > div:first-child h3 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  article[data-testid^="teacher-card-"] > div:first-child > div:last-child {
+    display: grid;
+    grid-template-columns: max-content max-content 7rem 2.5rem;
+    width: 25rem;
+    align-items: center;
+    justify-content: end;
+  }
+
+  article[data-testid^="teacher-card-"] button[aria-label^="Uložit "] {
+    width: 7rem;
+  }
+
+  article[data-testid^="teacher-card-"] button[aria-label^="Odstranit "] {
+    display: flex;
+    width: 2.5rem;
+    height: 2.5rem;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+}
