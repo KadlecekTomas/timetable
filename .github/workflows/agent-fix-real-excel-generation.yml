@@ -28,36 +28,18 @@ jobs:
           python <<'PY'
           from pathlib import Path
 
-          helper = Path('.github/scripts/fix_real_excel_generation.py')
-          source = helper.read_text()
-          old = '''def replace(path: str, old: str, new: str) -> None:
-              p = Path(path)
-              text = p.read_text()
-              if new in text:
-                  return
-              if old not in text:
-                  raise SystemExit(f"Missing expected block in {path}: {old[:180]!r}")
-              p.write_text(text.replace(old, new, 1))
-          '''
-          new = '''def replace(path: str, old: str, new: str) -> None:
-              p = Path(path)
-              text = p.read_text()
-              if new in text:
-                  return
-              if old in text:
-                  p.write_text(text.replace(old, new, 1))
-                  return
-              parts = re.split(r"(\\s+)", old)
-              pattern = "".join(r"\\s+" if part.isspace() else re.escape(part) for part in parts if part)
-              updated, count = re.subn(pattern, lambda _m: new, text, count=1, flags=re.S)
-              if count != 1:
-                  raise SystemExit(f"Missing expected block in {path}: {old[:180]!r}")
-              p.write_text(updated)
-          '''
-          if old not in source:
-              raise SystemExit('replace helper definition not found')
-          exec(compile(source.replace(old, new, 1), '<real-excel-patch>', 'exec'))
+          target = Path('apps/web/lib/import/legacy-staffing-plan.ts')
+          text = target.read_text()
+          compact = '      addSubjectHours(teacher, requirement.subject.code, teacherWeeklyPeriods);'
+          expanded = '''      addSubjectHours(
+                teacher,
+                requirement.subject.code,
+                teacherWeeklyPeriods,
+              );'''
+          if compact in text:
+              target.write_text(text.replace(compact, expanded, 1))
           PY
+          python .github/scripts/fix_real_excel_generation.py
           python <<'PY'
           from pathlib import Path
 
