@@ -1,4 +1,4 @@
-name: Agent wire exact Excel solver e2e
+name: Agent wire exact Excel solver fixture
 
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm install
-      - name: Extract exact workbook fixture and wire CI
+      - name: Extract exact workbook fixture
         shell: bash
         run: |
           python <<'PY'
@@ -64,28 +64,18 @@ jobs:
               'await exactUploadedWorkbookBytes()',
           )
           test_path.write_text(source)
-
-          ci = Path('.github/workflows/ci.yml')
-          ci_text = ci.read_text()
-          needle = 'e2e/actual-2027-workbook.spec.ts e2e/dashboard-workflow.spec.ts'
-          replacement = 'e2e/actual-2027-workbook.spec.ts e2e/exact-uploaded-excel-generation.spec.ts e2e/dashboard-workflow.spec.ts'
-          if replacement not in ci_text:
-              if needle not in ci_text:
-                  raise SystemExit('CI browser workflow list anchor not found')
-              ci_text = ci_text.replace(needle, replacement, 1)
-          ci.write_text(ci_text)
           PY
-          npx prettier --write apps/web/test-support/exact-uploaded-excel-fixture.ts apps/web/tests/real-legacy-excel-generation.test.ts apps/web/e2e/exact-uploaded-excel-generation.spec.ts .github/workflows/ci.yml
+          npx prettier --write apps/web/test-support/exact-uploaded-excel-fixture.ts apps/web/tests/real-legacy-excel-generation.test.ts apps/web/e2e/exact-uploaded-excel-generation.spec.ts
       - name: Verify compile and unit tests
         shell: bash
         run: |
           npm run typecheck --workspace @timetable/web
           npm run test --workspace @timetable/web
-      - name: Commit exact solver e2e wiring
+      - name: Commit exact solver fixture
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/workflows/ci.yml apps/web/test-support apps/web/tests/real-legacy-excel-generation.test.ts apps/web/e2e/exact-uploaded-excel-generation.spec.ts
-          git commit -m "test: wire exact uploaded Excel solver scenario"
+          git add apps/web/test-support apps/web/tests/real-legacy-excel-generation.test.ts apps/web/e2e/exact-uploaded-excel-generation.spec.ts
+          git commit -m "test: share exact uploaded Excel fixture with solver e2e"
           git push origin HEAD:agent/fix-real-excel-generation
