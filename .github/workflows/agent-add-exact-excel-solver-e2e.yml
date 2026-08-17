@@ -1,0 +1,137 @@
+name: Agent add exact Excel solver e2e
+
+on:
+  push:
+    branches:
+      - agent/fix-real-excel-generation
+
+permissions:
+  contents: write
+
+jobs:
+  add-test:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/fix-real-excel-generation
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - name: Extract exact workbook fixture and add Playwright solver test
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          test_path = Path('apps/web/tests/real-legacy-excel-generation.test.ts')
+          source = test_path.read_text()
+          start = source.index('const ACTUAL_MATRIX:')
+          end = source.index('function project(): LocalProject')
+          fixture_block = source[start:end]
+          fixture_block = fixture_block.replace(
+              'const ACTUAL_MATRIX:',
+              'export const ACTUAL_MATRIX:',
+              1,
+          ).replace(
+              'const ACTUAL_LAYOUT:',
+              'export const ACTUAL_LAYOUT:',
+              1,
+          ).replace(
+              'async function workbookBytes(): Promise<Uint8Array> {',
+              'export async function exactUploadedWorkbookBytes(): Promise<Uint8Array> {',
+              1,
+          )
+          helper = 'import ExcelJS from "exceljs";\n\n' + fixture_block
+          helper_path = Path('apps/web/test-support/exact-uploaded-excel-fixture.ts')
+          helper_path.parent.mkdir(parents=True, exist_ok=True)
+          helper_path.write_text(helper)
+
+          source = source.replace('import ExcelJS from "exceljs";\n\n', '', 1)
+          start = source.index('const ACTUAL_MATRIX:')
+          end = source.index('function project(): LocalProject')
+          source = (
+              source[:start]
+              + 'import { exactUploadedWorkbookBytes } from "../test-support/exact-uploaded-excel-fixture";\n\n'
+              + source[end:]
+          )
+          source = source.replace('await workbookBytes()', 'await exactUploadedWorkbookBytes()')
+          test_path.write_text(source)
+
+          e2e = r'''import { expect, test } from "@playwright/test";
+
+import { exactUploadedWorkbookBytes } from "../test-support/exact-uploaded-excel-fixture";
+
+test("exact anonymized uploaded Excel imports through UI and produces a solver timetable", async ({
+  page,
+}) => {
+  test.setTimeout(360_000);
+  const pageErrors: string[] = [];
+  const serverErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("response", (response) => {
+    if (response.status() >= 500) {
+      serverErrors.push(`${response.status()} ${response.url()}`);
+    }
+  });
+
+  const bytes = await exactUploadedWorkbookBytes();
+  await page.goto("/coverage?schoolYearId=local-school-year");
+  await page.getByLabel("Nahrát Excel s učiteli a úvazky").setInputFiles({
+    name: "uploaded-staffing-anonymized.xlsx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: Buffer.from(bytes),
+  });
+
+  await expect(page.getByText("Excel byl načten.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Všechny hodiny mají potřebné učitele")).toBeVisible();
+  expect(pageErrors).toEqual([]);
+
+  await page.goto("/generate?schoolYearId=local-school-year");
+  await page.getByRole("button", { name: "Připravit a zkontrolovat data" }).click();
+  await expect(page.getByRole("heading", { name: "Zadání je připravené" })).toBeVisible();
+  await expect(page.getByText(/Připraveno: 33 učitelů, 13 tříd,/)).toBeVisible();
+
+  await page.getByLabel("Časový limit výpočtu").selectOption("180");
+  await page.getByRole("button", { name: "Vytvořit nový návrh" }).click();
+
+  const success = page.getByText(/^(Proveditelný návrh|Optimální návrh)$/);
+  const failure = page.getByText(/^(Řešení nebylo nalezeno|Výpočet selhal)$/);
+  await expect(success.or(failure)).toBeVisible({ timeout: 240_000 });
+  await expect(success).toBeVisible();
+
+  await page.getByRole("link", { name: "Otevřít návrh" }).click();
+  await expect(page.getByRole("heading", { name: "Kvalita návrhu" })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+  expect(serverErrors).toEqual([]);
+});
+'''
+          Path('apps/web/e2e/exact-uploaded-excel-generation.spec.ts').write_text(e2e)
+
+          ci = Path('.github/workflows/ci.yml')
+          ci_text = ci.read_text()
+          needle = 'e2e/actual-2027-workbook.spec.ts e2e/dashboard-workflow.spec.ts'
+          replacement = 'e2e/actual-2027-workbook.spec.ts e2e/exact-uploaded-excel-generation.spec.ts e2e/dashboard-workflow.spec.ts'
+          if needle not in ci_text:
+              raise SystemExit('CI browser workflow list anchor not found')
+          ci.write_text(ci_text.replace(needle, replacement, 1))
+          PY
+          npx prettier --write apps/web/test-support/exact-uploaded-excel-fixture.ts apps/web/tests/real-legacy-excel-generation.test.ts apps/web/e2e/exact-uploaded-excel-generation.spec.ts .github/workflows/ci.yml
+      - name: Verify compile and unit tests
+        shell: bash
+        run: |
+          npm run typecheck --workspace @timetable/web
+          npm run test --workspace @timetable/web
+      - name: Commit exact solver e2e
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/ci.yml apps/web/test-support apps/web/tests/real-legacy-excel-generation.test.ts apps/web/e2e/exact-uploaded-excel-generation.spec.ts
+          git commit -m "test: generate timetable from exact uploaded Excel fixture"
+          git push origin HEAD:agent/fix-real-excel-generation
