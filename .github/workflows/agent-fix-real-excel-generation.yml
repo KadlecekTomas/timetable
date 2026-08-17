@@ -51,6 +51,11 @@ jobs:
           python <<'PY'
           from pathlib import Path
 
+          bridge = Path('apps/web/lib/local/teaching-plan-from-allocation-draft.ts')
+          text = bridge.read_text()
+          text = text.replace('.join("\n");', '.join("\\n");')
+          bridge.write_text(text)
+
           path = Path('apps/web/lib/local/teaching-plan-school-v3.ts')
           text = path.read_text()
           old = '''export function validateTeachingPlan(
