@@ -8,7 +8,11 @@ import {
   type StaffingSubjectLoad,
   type StaffingTeacher,
 } from "@/lib/local/staffing-plan";
-import type { TeachingPlan, TeachingPlanRow } from "@/lib/local/teaching-plan";
+import {
+  isSameTeacherPartialSplit,
+  type TeachingPlan,
+  type TeachingPlanRow,
+} from "@/lib/local/teaching-plan";
 
 type TeacherField = "primaryTeacherId" | "secondaryTeacherId";
 
@@ -89,8 +93,17 @@ function slotSubject(row: TeachingPlanRow, field: TeacherField): string {
   return row.subjectCode;
 }
 
-function slotHours(row: TeachingPlanRow): number {
+function splitPeriods(row: TeachingPlanRow): number {
+  return Number.isInteger(row.splitWeeklyPeriods)
+    ? Math.max(0, Math.min(row.weeklyPeriods, Number(row.splitWeeklyPeriods)))
+    : row.weeklyPeriods;
+}
+
+function slotHours(row: TeachingPlanRow, field: TeacherField): number {
   const periods = positiveHours(row.weeklyPeriods);
+  if (isSameTeacherPartialSplit(row)) {
+    return field === "primaryTeacherId" ? periods + splitPeriods(row) : 0;
+  }
   return row.organization === "ROTATION" ? periods * 2 : periods;
 }
 
@@ -190,7 +203,8 @@ export function autoCoverTeachingPlan(
   const slots: MissingTeacherSlot[] = [];
 
   rows.forEach((row, rowIndex) => {
-    const hours = slotHours(row);
+    const primaryHours = slotHours(row, "primaryTeacherId");
+    const sameTeacherPartial = isSameTeacherPartialSplit(row);
     const primaryValid =
       Boolean(row.primaryTeacherId) &&
       validTeacherIds.has(row.primaryTeacherId);
@@ -198,6 +212,8 @@ export function autoCoverTeachingPlan(
 
     if (row.organization === "WHOLE") {
       row.secondaryTeacherId = "";
+    } else if (sameTeacherPartial) {
+      row.secondaryTeacherId = row.primaryTeacherId;
     } else {
       const secondaryValid =
         Boolean(row.secondaryTeacherId) &&
@@ -207,8 +223,8 @@ export function autoCoverTeachingPlan(
     }
 
     if (row.primaryTeacherId) {
-      addScheduled(row.primaryTeacherId, row.subjectCode, hours);
-    } else if (row.subjectCode && hours > 0) {
+      addScheduled(row.primaryTeacherId, row.subjectCode, primaryHours);
+    } else if (row.subjectCode && primaryHours > 0) {
       slots.push({
         rowIndex,
         rowId: row.id,
@@ -216,15 +232,16 @@ export function autoCoverTeachingPlan(
         subjectCode: row.subjectCode,
         field: "primaryTeacherId",
         roleLabel: roleLabel(row, "primaryTeacherId"),
-        teacherHours: hours,
+        teacherHours: primaryHours,
       });
     }
 
-    if (row.organization !== "WHOLE") {
+    if (row.organization !== "WHOLE" && !sameTeacherPartial) {
       const secondarySubject = slotSubject(row, "secondaryTeacherId");
+      const secondaryHours = slotHours(row, "secondaryTeacherId");
       if (row.secondaryTeacherId) {
-        addScheduled(row.secondaryTeacherId, secondarySubject, hours);
-      } else if (secondarySubject && hours > 0) {
+        addScheduled(row.secondaryTeacherId, secondarySubject, secondaryHours);
+      } else if (secondarySubject && secondaryHours > 0) {
         slots.push({
           rowIndex,
           rowId: row.id,
@@ -232,7 +249,7 @@ export function autoCoverTeachingPlan(
           subjectCode: secondarySubject,
           field: "secondaryTeacherId",
           roleLabel: roleLabel(row, "secondaryTeacherId"),
-          teacherHours: hours,
+          teacherHours: secondaryHours,
         });
       }
     }
@@ -348,6 +365,9 @@ export function autoCoverTeachingPlan(
     }
 
     row[slot.field] = selected.teacher.id;
+    if (slot.field === "primaryTeacherId" && isSameTeacherPartialSplit(row)) {
+      row.secondaryTeacherId = selected.teacher.id;
+    }
     addScheduled(selected.teacher.id, slot.subjectCode, slot.teacherHours);
     assignments.push({
       rowId: slot.rowId,

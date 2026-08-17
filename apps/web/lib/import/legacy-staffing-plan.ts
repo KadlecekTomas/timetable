@@ -194,12 +194,10 @@ export function analyzeLegacyStaffingPlan(
       return teacher ? [teacher] : [];
     });
 
+    const teacherWeeklyPeriods =
+      requirement.weeklyPeriods + requirement.teacherExtraPeriods;
     for (const teacher of resolved) {
-      addSubjectHours(
-        teacher,
-        requirement.subject.code,
-        requirement.weeklyPeriods,
-      );
+      addSubjectHours(teacher, requirement.subject.code, teacherWeeklyPeriods);
     }
 
     if (tokens.length === 0) {

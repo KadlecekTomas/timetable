@@ -40,6 +40,27 @@ function isCurrentSchoolPlan(plan: TeachingPlan): boolean {
   );
 }
 
+export function isSameTeacherPartialSplit(row: TeachingPlanRow): boolean {
+  if (
+    row.organization !== "SPLIT" ||
+    !SCHOOL_SINGLE_SPLIT_PERIOD_SUBJECT_CODES.has(row.subjectCode) ||
+    !Number.isInteger(row.splitWeeklyPeriods)
+  ) {
+    return false;
+  }
+  const splitPeriods = Math.max(
+    0,
+    Math.min(row.weeklyPeriods, Number(row.splitWeeklyPeriods)),
+  );
+  return splitPeriods > 0 && splitPeriods < row.weeklyPeriods;
+}
+
+function splitPeriodsForRow(row: TeachingPlanRow): number {
+  return Number.isInteger(row.splitWeeklyPeriods)
+    ? Math.max(0, Math.min(row.weeklyPeriods, Number(row.splitWeeklyPeriods)))
+    : row.weeklyPeriods;
+}
+
 function readStoredSplitPeriods(): Record<string, number> {
   if (typeof window === "undefined") return {};
   try {
@@ -140,14 +161,16 @@ export function enforceMandatorySchoolSplits(plan: TeachingPlan): TeachingPlan {
         return row;
       }
 
+      const singleSplit = SCHOOL_SINGLE_SPLIT_PERIOD_SUBJECT_CODES.has(
+        row.subjectCode,
+      );
       return {
         ...row,
         organization: "SPLIT" as const,
-        splitWeeklyPeriods: SCHOOL_SINGLE_SPLIT_PERIOD_SUBJECT_CODES.has(
-          row.subjectCode,
-        )
-          ? 1
-          : row.weeklyPeriods,
+        splitWeeklyPeriods: singleSplit ? 1 : row.weeklyPeriods,
+        secondaryTeacherId: singleSplit
+          ? row.primaryTeacherId
+          : row.secondaryTeacherId,
         additionalClassCodes:
           row.subjectCode === "TV" ? [] : row.additionalClassCodes,
         sharedGroupLabel: row.subjectCode === "TV" ? "" : row.sharedGroupLabel,
@@ -339,6 +362,13 @@ export function rowTeacherPeriods(
 ): number {
   const periods = base.rowTeacherPeriods(row, teacherId);
   if (
+    isSameTeacherPartialSplit(row) &&
+    row.primaryTeacherId === teacherId &&
+    row.secondaryTeacherId === teacherId
+  ) {
+    return periods + splitPeriodsForRow(row);
+  }
+  if (
     row.organization === "SPLIT" &&
     Number.isInteger(row.splitWeeklyPeriods) &&
     row.secondaryTeacherId === teacherId &&
@@ -357,8 +387,18 @@ export function validateTeachingPlan(
   plan: TeachingPlan,
   staffingPlan: StaffingPlan,
 ): string[] {
-  return base.validateTeachingPlan(
-    enforceCurrentSchoolTeachingStructure(plan),
-    staffingPlan,
-  );
+  const enforced = enforceCurrentSchoolTeachingStructure(plan);
+  const sameTeacherPrefixes = enforced.rows
+    .filter(isSameTeacherPartialSplit)
+    .map((row) => `${row.classCode} ${row.subjectCode}:`);
+  return base.validateTeachingPlan(enforced, staffingPlan).filter((message) => {
+    const sameTeacherRow = sameTeacherPrefixes.some((prefix) =>
+      message.startsWith(prefix),
+    );
+    if (!sameTeacherRow) return true;
+    return !(
+      message.includes("Vyberte učitele druhé skupiny.") ||
+      message.includes("Každá skupina musí mít jiného učitele.")
+    );
+  });
 }

@@ -23,6 +23,7 @@ export interface Requirement {
   subject: SubjectDescriptor;
   rawTeacher: string;
   weeklyPeriods: number;
+  teacherExtraPeriods: number;
   row: number;
   teacherColumn: number;
 }
@@ -159,10 +160,23 @@ function normalizeClassCode(value: string): string | null {
   return match ? `${Number(match[1])}.${match[2]}` : null;
 }
 
-function integerValue(value: string): number | null {
-  if (!value) return null;
-  const parsed = Number(value.replace(",", "."));
-  return Number.isInteger(parsed) ? parsed : null;
+function teachingHoursValue(
+  value: string,
+): { weeklyPeriods: number; teacherExtraPeriods: number } | null {
+  const normalized = value.trim().replace(/\s+/g, "");
+  const match = normalized.match(/^(\d+)(?:\+(\d+))?$/);
+  if (!match) return null;
+  const weeklyPeriods = Number(match[1]);
+  const teacherExtraPeriods = Number(match[2] ?? 0);
+  if (
+    !Number.isInteger(weeklyPeriods) ||
+    weeklyPeriods <= 0 ||
+    !Number.isInteger(teacherExtraPeriods) ||
+    teacherExtraPeriods < 0
+  ) {
+    return null;
+  }
+  return { weeklyPeriods, teacherExtraPeriods };
 }
 
 function subjectDescriptor(rawSubject: string): SubjectDescriptor {
@@ -229,18 +243,27 @@ function mergeTeacherSeed(
 function findClassBlocks(worksheet: Worksheet): ClassBlock[] {
   const blocks: ClassBlock[] = [];
   for (let row = 1; row <= worksheet.rowCount; row += 1) {
-    const slots = CLASS_COLUMNS.flatMap((column) => {
+    const slots: ClassSlot[] = [];
+    for (
+      let column = 1;
+      column <= Math.max(1, worksheet.columnCount - 2);
+      column += 1
+    ) {
       const code = normalizeClassCode(cellText(worksheet.getCell(row, column)));
-      return code
-        ? [
-            {
-              code,
-              column,
-              homeroomTeacher: cellText(worksheet.getCell(row, column + 1)),
-            },
-          ]
-        : [];
-    });
+      if (!code) continue;
+      const headerRow = findSubjectHeaderRow(
+        worksheet,
+        row,
+        Math.min(worksheet.rowCount, row + 6),
+        column,
+      );
+      if (!headerRow) continue;
+      slots.push({
+        code,
+        column,
+        homeroomTeacher: cellText(worksheet.getCell(row, column + 1)),
+      });
+    }
     if (slots.length > 0) blocks.push({ row, slots });
   }
   return blocks;
@@ -305,8 +328,8 @@ function parseRequirements(
         if (!rawSubject && !rawTeacher && !rawHours) continue;
         if (!rawSubject && asciiKey(rawTeacher) === "tu") continue;
         if (!rawSubject && !rawHours) continue;
-        const weeklyPeriods = integerValue(rawHours);
-        if (!rawSubject || weeklyPeriods == null || weeklyPeriods <= 0) {
+        const parsedHours = teachingHoursValue(rawHours);
+        if (!rawSubject || !parsedHours) {
           issues.push(
             issue(
               "ERROR",
@@ -325,7 +348,8 @@ function parseRequirements(
           classCode: slot.code,
           subject: subjectDescriptor(rawSubject),
           rawTeacher,
-          weeklyPeriods,
+          weeklyPeriods: parsedHours.weeklyPeriods,
+          teacherExtraPeriods: parsedHours.teacherExtraPeriods,
           row,
           teacherColumn: slot.column + 1,
         });
@@ -338,17 +362,22 @@ function parseRequirements(
 export function parseLegacySchoolWorkbook(
   workbook: ExcelJS.Workbook,
 ): ParsedLegacySchoolWorkbook | null {
-  const staffingSheet = workbook.worksheets.find((worksheet) =>
+  const preferredSheet = workbook.worksheets.find((worksheet) =>
     worksheet.name.toLocaleLowerCase("cs-CZ").startsWith("úvazky"),
   );
-  const individualsSheet = workbook.worksheets.find(
-    (worksheet) => asciiKey(worksheet.name) === LEGACY_INDIVIDUALS_SHEET,
-  );
-  if (!staffingSheet || !individualsSheet) return null;
+  const candidates = [
+    ...(preferredSheet ? [preferredSheet] : []),
+    ...workbook.worksheets.filter((worksheet) => worksheet !== preferredSheet),
+  ];
+  const matched = candidates
+    .map((worksheet) => ({ worksheet, blocks: findClassBlocks(worksheet) }))
+    .find((item) => item.blocks.length > 0);
+  if (!matched) return null;
+  const staffingSheet = matched.worksheet;
+  const blocks = matched.blocks;
+  void LEGACY_INDIVIDUALS_SHEET;
 
   const issues: ImportIssueDraft[] = [];
-  const blocks = findClassBlocks(staffingSheet);
-  if (blocks.length === 0) return null;
 
   const aliases = new Map<string, TeacherSeed>();
   for (let row = 1; row < blocks[0]!.row; row += 1) {
