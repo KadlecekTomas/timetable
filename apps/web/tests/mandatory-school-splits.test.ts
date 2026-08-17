@@ -14,13 +14,20 @@ import {
 
 const mandatorySubjects = ["CJ", "M", "INF", "TV", "JAZ1", "JAZ2"];
 
-test("current school plan always requires two groups for mandatory split subjects", () => {
+test("current school plan splits exactly one Czech and math period and keeps other mandatory splits", () => {
   const staffingPlan = createEmptyStaffingPlan();
   const plan = createEmptyTeachingPlan();
   plan.rows = [
     ...mandatorySubjects.map((subjectCode) => ({
       ...createTeachingPlanRow("6.A", subjectCode),
-      weeklyPeriods: subjectCode === "INF" ? 1 : 2,
+      weeklyPeriods:
+        subjectCode === "CJ"
+          ? 5
+          : subjectCode === "M"
+            ? 4
+            : subjectCode === "INF"
+              ? 1
+              : 2,
       organization: "WHOLE" as const,
     })),
     {
@@ -37,6 +44,11 @@ test("current school plan always requires two groups for mandatory split subject
       (item) => item.classCode === "6.A" && item.subjectCode === subjectCode,
     );
     assert.equal(row?.organization, "SPLIT", subjectCode);
+    assert.equal(
+      row?.splitWeeklyPeriods,
+      ["CJ", "M"].includes(subjectCode) ? 1 : row?.weeklyPeriods,
+      subjectCode,
+    );
   }
   assert.equal(
     enforced.rows.find((item) => item.subjectCode === "DEJ")?.organization,
@@ -44,7 +56,17 @@ test("current school plan always requires two groups for mandatory split subject
   );
 
   const overview = buildCoverageOverview(enforced, staffingPlan);
-  for (const subjectCode of mandatorySubjects) {
+  const czech = overview.cellByKey.get(coverageCellKey("6.A", "CJ"));
+  assert.equal(czech?.requiredClassPeriods, 5);
+  assert.equal(czech?.requiredTeacherHours, 6);
+  assert.equal(czech?.requiredSlots, 2);
+
+  const math = overview.cellByKey.get(coverageCellKey("6.A", "M"));
+  assert.equal(math?.requiredClassPeriods, 4);
+  assert.equal(math?.requiredTeacherHours, 5);
+  assert.equal(math?.requiredSlots, 2);
+
+  for (const subjectCode of ["INF", "TV", "JAZ1", "JAZ2"]) {
     const cell = overview.cellByKey.get(coverageCellKey("6.A", subjectCode));
     assert.equal(cell?.requiredSlots, 2, subjectCode);
     assert.equal(cell?.assignedSlots, 0, subjectCode);
@@ -71,7 +93,7 @@ test("rotations remain rotations even when they contain split subject codes", ()
   assert.equal(enforced.rows[0]?.organization, "ROTATION");
 });
 
-test("second foreign language is shared by grade and grade-seven electives disappear", () => {
+test("second foreign language is shared by grade and grade-six/seven electives disappear", () => {
   const staffingPlan = createEmptyStaffingPlan();
   staffingPlan.teachers = [
     {
@@ -105,7 +127,7 @@ test("second foreign language is shared by grade and grade-seven electives disap
   ];
   const plan = createEmptyTeachingPlan();
   plan.rows = [
-    ...["7.A", "7.B", "7.C"].map((classCode) => ({
+    ...["6.A", "6.B", "7.A", "7.B", "7.C"].map((classCode) => ({
       ...createTeachingPlanRow(classCode, "VOL"),
       weeklyPeriods: 2,
       primaryTeacherId: "teacher-language-one",
@@ -125,7 +147,7 @@ test("second foreign language is shared by grade and grade-seven electives disap
       (row) =>
         row.subjectCode === "VOL" &&
         [row.classCode, ...(row.additionalClassCodes ?? [])].some((classCode) =>
-          classCode.startsWith("7."),
+          classCode.startsWith("6.") || classCode.startsWith("7."),
         ),
     ),
     false,
