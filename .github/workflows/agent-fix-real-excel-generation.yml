@@ -75,8 +75,13 @@ jobs:
             draft: StaffingAllocationDraft | null,
           ): draft is StaffingAllocationDraft {
             if (!draft?.rows.length) return false;
-            const classCodes = new Set(draft.rows.map((row) => row.classCode));
-            return AUTHORITATIVE_SCHOOL_CLASS_CODES.every((code) => classCodes.has(code));
+            return AUTHORITATIVE_SCHOOL_CLASS_CODES.every((classCode) => {
+              const rows = draft.rows.filter((row) => row.classCode === classCode);
+              return (
+                rows.some((row) => row.subjectCode === "CJ") &&
+                rows.some((row) => row.subjectCode === "M")
+              );
+            });
           }
 
           '''
