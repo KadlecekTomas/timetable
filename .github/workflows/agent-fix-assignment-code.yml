@@ -1,0 +1,62 @@
+name: Agent fix generated assignment codes
+
+on:
+  push:
+    branches:
+      - agent/fix-cjm-same-teacher-rotation
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/fix-cjm-same-teacher-rotation
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - name: Keep subject in generated assignmentCode
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/web/lib/local/school-project-generation.ts')
+          text = path.read_text()
+          old = 'assignmentCode: `${token(row.classCode)}-${token(row.id)}-${suffix}`,'
+          new = 'assignmentCode: `${token(row.classCode)}-${token(subjectCode)}-${token(row.id)}-${suffix}`,'
+          if old not in text:
+              raise SystemExit('Expected assignmentCode block not found')
+          path.write_text(text.replace(old, new, 1))
+
+          test = Path('apps/web/tests/partial-split-generation.test.ts')
+          text = test.read_text()
+          needle = '  assert.equal(result.project.assignments.length, 6);\n'
+          assertion = '''  assert.equal(result.project.assignments.length, 6);\n  assert.ok(\n    result.project.assignments.every((assignment) =>\n      assignment.assignmentCode.includes(\n        assignment.subjectId.replace("subject:", ""),\n      ),\n    ),\n  );\n'''
+          if assertion not in text:
+              if needle not in text:
+                  raise SystemExit('Expected partial split assertion anchor not found')
+              text = text.replace(needle, assertion, 1)
+              test.write_text(text)
+          PY
+          npx prettier --write apps/web/lib/local/school-project-generation.ts apps/web/tests/partial-split-generation.test.ts
+      - name: Verify focused web tests
+        shell: bash
+        run: |
+          npm run typecheck --workspace @timetable/web
+          npm run test --workspace @timetable/web
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/lib/local/school-project-generation.ts apps/web/tests/partial-split-generation.test.ts
+          git commit -m "fix: keep subject code in generated assignments"
+          git push origin HEAD:agent/fix-cjm-same-teacher-rotation
