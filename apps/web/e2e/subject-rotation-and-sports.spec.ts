@@ -297,7 +297,17 @@ test("sports B class keeps A allocation and Czech-Math groups swap atomically", 
   await expect(
     page.getByRole("heading", { name: "Kvalita návrhu" }),
   ).toBeVisible();
-  await page.getByLabel("Třída").selectOption("class-6b");
+  const classSelect = page.getByLabel("Třída");
+  const class6BValue = await classSelect
+    .locator("option")
+    .evaluateAll((options) => {
+      const match = options.find((option) =>
+        option.textContent?.trim().startsWith("6.B"),
+      );
+      return match?.getAttribute("value") ?? null;
+    });
+  expect(class6BValue).not.toBeNull();
+  await classSelect.selectOption(class6BValue!);
   const parallelCell = page.locator('[data-layout="parallel"]').first();
   await expect(parallelCell).toBeVisible();
   const parallelCards = parallelCell.locator("button");
