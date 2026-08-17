@@ -50,6 +50,7 @@ jobs:
           python .github/scripts/fix_real_excel_generation.py
           python <<'PY'
           from pathlib import Path
+          import re
 
           bridge = Path('apps/web/lib/local/teaching-plan-from-allocation-draft.ts')
           text = bridge.read_text()
@@ -100,6 +101,8 @@ jobs:
           if old_import not in text:
               raise SystemExit('v2 bridge import not found')
           text = text.replace(old_import, new_import, 1)
+          if '  if (allocationDraft?.rows.length) {' not in text:
+              raise SystemExit('v2 direct-plan condition not found')
           text = text.replace(
               '  if (allocationDraft?.rows.length) {',
               '  if (isAuthoritativeAllocationDraft(allocationDraft)) {',
@@ -113,17 +116,13 @@ jobs:
           if old_fingerprint not in text:
               raise SystemExit('v2 draft fingerprint not found')
           text = text.replace(old_fingerprint, new_fingerprint, 1)
-          old_validation = '''  const curriculum =
-            isCurrentSchoolPlan(plan) && !allocationDraft?.rows.length
-              ? enforceCurrentSchoolCurriculumRules(
-                  loadSchoolCurriculum() ?? createDefaultSchoolCurriculum(),
-                )
-              : null;
-          return [
-            ...school
-              .validateTeachingPlan(plan, staffingPlan)
-              .filter((message) => !isObsoleteEqualProfileMessage(message)),'''
-          new_validation = '''  const authoritativeDraft = isAuthoritativeAllocationDraft(allocationDraft);
+
+          desired_validation = '''export function validateTeachingPlan(
+            plan: TeachingPlan,
+            staffingPlan: StaffingPlan,
+            allocationDraft: StaffingAllocationDraft | null = loadStaffingAllocationDraft(),
+          ): string[] {
+            const authoritativeDraft = isAuthoritativeAllocationDraft(allocationDraft);
             const curriculum =
               isCurrentSchoolPlan(plan) && !authoritativeDraft
                 ? enforceCurrentSchoolCurriculumRules(
@@ -141,25 +140,24 @@ jobs:
                   return false;
                 }
                 return true;
-              }),'''
-          if old_validation not in text:
-              raise SystemExit('v2 authoritative validation block not found')
-          text = text.replace(old_validation, new_validation, 1)
+              }),
+              ...(curriculum
+                ? validatePlanAgainstSchoolCurriculum(plan, curriculum)
+                : []),
+            ];
+          }'''
+          pattern = re.compile(
+              r'export function validateTeachingPlan\(\s*plan: TeachingPlan,\s*staffingPlan: StaffingPlan,.*?\n\}',
+              re.S,
+          )
+          text, count = pattern.subn(lambda _m: desired_validation, text, count=1)
+          if count != 1:
+              raise SystemExit('v2 validateTeachingPlan function not replaced')
           v2.write_text(text)
 
-          path = Path('apps/web/lib/local/teaching-plan-school-v3.ts')
-          text = path.read_text()
-          old = '''export function validateTeachingPlan(
-            plan: TeachingPlan,
-            staffingPlan: StaffingPlan,
-          ): string[] {
-            const enforced = enforceCurrentSchoolTeachingStructure(plan);
-            const sameTeacherPrefixes = enforced.rows
-              .filter(isSameTeacherPartialSplit)
-              .map((row) => `${row.classCode} ${row.subjectCode}:`);
-            return base.validateTeachingPlan(enforced, staffingPlan).filter((message) => {
-          '''
-          new = '''export function validateTeachingPlan(
+          v3 = Path('apps/web/lib/local/teaching-plan-school-v3.ts')
+          text = v3.read_text()
+          desired_v3 = '''export function validateTeachingPlan(
             plan: TeachingPlan,
             staffingPlan: StaffingPlan,
             allocationDraft: StaffingAllocationDraft | null | undefined = undefined,
@@ -173,10 +171,24 @@ jobs:
                 ? base.validateTeachingPlan(enforced, staffingPlan)
                 : base.validateTeachingPlan(enforced, staffingPlan, allocationDraft);
             return baseMessages.filter((message) => {
-          '''
-          if old not in text:
-              raise SystemExit('v3 validateTeachingPlan block not found')
-          path.write_text(text.replace(old, new, 1))
+              const sameTeacherRow = sameTeacherPrefixes.some((prefix) =>
+                message.startsWith(prefix),
+              );
+              if (!sameTeacherRow) return true;
+              return !(
+                message.includes("Vyberte učitele druhé skupiny.") ||
+                message.includes("Každá skupina musí mít jiného učitele.")
+              );
+            });
+          }'''
+          pattern = re.compile(
+              r'export function validateTeachingPlan\(\s*plan: TeachingPlan,\s*staffingPlan: StaffingPlan,?[^)]*\): string\[\] \{.*?\n\}',
+              re.S,
+          )
+          text, count = pattern.subn(lambda _m: desired_v3, text, count=1)
+          if count != 1:
+              raise SystemExit('v3 validateTeachingPlan function not replaced')
+          v3.write_text(text)
           PY
       - name: Format and verify
         shell: bash
