@@ -1,22 +1,20 @@
-name: Agent school group repair
+name: Agent school group browser gate
 
 on:
   push:
     branches:
       - agent/fix-project-delete-and-school-groups
 
-permissions:
-  contents: write
-
 jobs:
-  apply-and-test:
-    if: github.actor != 'github-actions[bot]'
+  browser-gate:
     runs-on: ubuntu-latest
+    env:
+      SOLVER_URL: http://127.0.0.1:8000
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/fix-project-delete-and-school-groups
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -24,86 +22,38 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Apply focused repair
-        shell: bash
-        run: |
-          python scripts/agent_fix_school_groups.py
-          python <<'PY'
-          from pathlib import Path
-
-          path = Path('apps/web/lib/local/project-share.ts')
-          text = path.read_text()
-          recursive = '''function dispatchBrowserProjectWorkingDataChanged(): void {
-            if (typeof window === "undefined") return;
-            dispatchBrowserProjectWorkingDataChanged();
-          }
-          '''.replace('          ', '')
-          correct = '''function dispatchBrowserProjectWorkingDataChanged(): void {
-            if (typeof window === "undefined") return;
-            window.dispatchEvent(new Event("rozvrhar:staffing-plan-changed"));
-            window.dispatchEvent(new Event("rozvrhar:teaching-plan-changed"));
-          }
-          '''.replace('          ', '')
-          if recursive not in text:
-              raise SystemExit('Expected temporary recursive dispatcher was not produced')
-          text = text.replace(recursive, correct, 1)
-          old_tail = '''  window.dispatchEvent(new Event("rozvrhar:staffing-plan-changed"));
-            window.dispatchEvent(new Event("rozvrhar:teaching-plan-changed"));
-          }
-          '''.replace('          ', '')
-          pos = text.rfind(old_tail)
-          if pos < 0:
-              raise SystemExit('Could not locate applyBrowserProjectShare dispatch tail')
-          text = text[:pos] + '''  dispatchBrowserProjectWorkingDataChanged();
-          }
-          '''.replace('          ', '') + text[pos + len(old_tail):]
-          path.write_text(text)
-          PY
-      - name: Install web dependencies
-        run: npm install
-      - name: Format changed sources
-        run: |
-          npx prettier --write \
-            .github/workflows/agent-apply-school-group-fixes.yml \
-            AGENTS.md \
-            apps/web/app/settings/page.tsx \
-            apps/web/app/teaching-plan/page.tsx \
-            apps/web/e2e/local-first.spec.ts \
-            apps/web/lib/domain/class-groups.ts \
-            apps/web/lib/domain/contracts.ts \
-            apps/web/lib/domain/coverage-overview.ts \
-            apps/web/lib/domain/validation.ts \
-            apps/web/lib/import/legacy-staffing-plan.ts \
-            apps/web/lib/local/api.ts \
-            apps/web/lib/local/project-share.ts \
-            apps/web/lib/local/school-project-generation.ts \
-            apps/web/lib/local/staffing-allocation-draft.ts \
-            apps/web/lib/local/teaching-plan-from-allocation-draft.ts \
-            apps/web/lib/local/teaching-plan-school-v3.ts \
-            apps/web/lib/local/teaching-plan.ts \
-            apps/web/test-support/exact-uploaded-excel-fixture.ts \
-            apps/web/tests/compact-staffing-matrix.test.ts \
-            apps/web/tests/project-share.test.ts \
-            apps/web/tests/three-group-school-rules.test.ts
-      - name: Web checks
-        run: |
-          npm run format:check
-          npm run lint --workspace @timetable/web
-          npm run typecheck --workspace @timetable/web
-          npm run test --workspace @timetable/web
-      - name: Solver checks
+      - run: npm install
+      - run: pip install "."
         working-directory: apps/solver
-        run: |
-          pip install ".[dev]"
-          ruff check app tests --fix
-          ruff check app tests
-          pytest
-      - name: Commit tested repair
+      - run: npx playwright install --with-deps chromium
+      - name: Build web
+        run: npm run build --workspace @timetable/web
+      - name: Start solver and web
         shell: bash
         run: |
-          rm scripts/agent_fix_school_groups.py
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add AGENTS.md apps/web apps/solver scripts/agent_fix_school_groups.py
-          git commit -m "fix: clear projects and support school group rules"
-          git push origin HEAD:agent/fix-project-delete-and-school-groups
+          nohup bash -c 'cd apps/solver && uvicorn app.main:app --host 127.0.0.1 --port 8000' > /tmp/solver.log 2>&1 &
+          nohup npm run start --workspace @timetable/web > /tmp/web.log 2>&1 &
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null && \
+               curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null && \
+               curl --fail --silent http://127.0.0.1:3000/solver/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/solver.log || true
+          cat /tmp/web.log || true
+          exit 1
+      - name: Verify deletion, rotations and exact uploaded workbook
+        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/subject-rotation-and-sports.spec.ts e2e/exact-uploaded-excel-generation.spec.ts --retries=0
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: school-group-browser-gate-failure
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+            /tmp/solver.log
+            /tmp/web.log
+          if-no-files-found: ignore
