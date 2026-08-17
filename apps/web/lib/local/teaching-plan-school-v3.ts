@@ -25,6 +25,7 @@ declare module "./teaching-plan" {
 const SECOND_FOREIGN_LANGUAGE_CODE = "JAZ2";
 const ELECTIVE_SUBJECT_CODE = "VOL";
 const ELECTIVE_EXCLUDED_GRADES = new Set([6, 7]);
+const SPLIT_PERIODS_STORAGE_KEY = "rozvrhar:teaching-plan-split-periods:v1";
 
 let migratingTeachingPlan = false;
 
@@ -37,6 +38,51 @@ function isCurrentSchoolPlan(plan: TeachingPlan): boolean {
     classCodes.size >= 10 &&
     [...classCodes].every((classCode) => allowedCodes.has(classCode))
   );
+}
+
+function readStoredSplitPeriods(): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(SPLIT_PERIODS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return {};
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).flatMap(
+        ([rowId, periods]) =>
+          Number.isInteger(periods) && Number(periods) > 0
+            ? [[rowId, Number(periods)] as const]
+            : [],
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function applyStoredSplitPeriods(plan: TeachingPlan): TeachingPlan {
+  const stored = readStoredSplitPeriods();
+  return {
+    ...plan,
+    rows: plan.rows.map((row) =>
+      stored[row.id]
+        ? { ...row, splitWeeklyPeriods: stored[row.id] }
+        : row,
+    ),
+  };
+}
+
+function writeStoredSplitPeriods(plan: TeachingPlan): void {
+  if (typeof window === "undefined") return;
+  const stored = Object.fromEntries(
+    plan.rows.flatMap((row) =>
+      Number.isInteger(row.splitWeeklyPeriods) &&
+      Number(row.splitWeeklyPeriods) > 0
+        ? [[row.id, Number(row.splitWeeklyPeriods)] as const]
+        : [],
+    ),
+  );
+  window.localStorage.setItem(SPLIT_PERIODS_STORAGE_KEY, JSON.stringify(stored));
 }
 
 function sortedClassCodes(codes: string[]): string[] {
@@ -256,7 +302,7 @@ export function createDefaultSchoolTeachingPlan(
 }
 
 export function loadTeachingPlan(): TeachingPlan {
-  const loaded = base.loadTeachingPlan();
+  const loaded = applyStoredSplitPeriods(base.loadTeachingPlan());
   const enforced = enforceCurrentSchoolTeachingStructure(loaded);
   if (
     typeof window !== "undefined" &&
@@ -265,9 +311,9 @@ export function loadTeachingPlan(): TeachingPlan {
   ) {
     migratingTeachingPlan = true;
     try {
-      return enforceCurrentSchoolTeachingStructure(
-        base.saveTeachingPlan(enforced),
-      );
+      writeStoredSplitPeriods(enforced);
+      const saved = applyStoredSplitPeriods(base.saveTeachingPlan(enforced));
+      return enforceCurrentSchoolTeachingStructure(saved);
     } finally {
       migratingTeachingPlan = false;
     }
@@ -277,7 +323,9 @@ export function loadTeachingPlan(): TeachingPlan {
 
 export function saveTeachingPlan(plan: TeachingPlan): TeachingPlan {
   const enforced = enforceCurrentSchoolTeachingStructure(plan);
-  return enforceCurrentSchoolTeachingStructure(base.saveTeachingPlan(enforced));
+  writeStoredSplitPeriods(enforced);
+  const saved = applyStoredSplitPeriods(base.saveTeachingPlan(enforced));
+  return enforceCurrentSchoolTeachingStructure(saved);
 }
 
 export function rowTeacherPeriods(
