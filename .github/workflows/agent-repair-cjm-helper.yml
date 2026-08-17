@@ -24,8 +24,26 @@ jobs:
           from pathlib import Path
           p = Path('.github/workflows/agent-fix-cjm-import.yml')
           text = p.read_text()
-          old = '''          ''' + "'''    for (const teacher of resolved) {\\n              addSubjectHours(\\n                teacher,\\n                requirement.subject.code,\\n                requirement.weeklyPeriods,\\n              );\\n            }\\n          ''',"
-          new = '''          ''' + "'''    for (const teacher of resolved) {\\n      addSubjectHours(\\n        teacher,\\n        requirement.subject.code,\\n        requirement.weeklyPeriods,\\n      );\\n    }\\n          ''',"
+          old = '''          replace(path,
+          ''' + "'''" + '''    for (const teacher of resolved) {
+              addSubjectHours(
+                teacher,
+                requirement.subject.code,
+                requirement.weeklyPeriods,
+              );
+            }
+          ''' + "'''" + ''',
+          '''
+          new = '''          replace(path,
+          ''' + "'''" + '''    for (const teacher of resolved) {
+      addSubjectHours(
+        teacher,
+        requirement.subject.code,
+        requirement.weeklyPeriods,
+      );
+    }
+          ''' + "'''" + ''',
+          '''
           if old not in text:
               raise SystemExit('Expected helper block not found')
           p.write_text(text.replace(old, new))
