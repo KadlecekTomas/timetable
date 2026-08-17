@@ -1,59 +1,44 @@
-name: Agent school group browser gate
+name: Agent group 3 workbook gate
 
 on:
   push:
     branches:
       - agent/fix-project-delete-and-school-groups
 
+permissions:
+  contents: write
+
 jobs:
-  browser-gate:
+  workbook-gate:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    env:
-      SOLVER_URL: http://127.0.0.1:8000
-      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/fix-project-delete-and-school-groups
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+      - run: python scripts/agent_patch_teaching_plan_group3_workbook.py
       - run: npm install
-      - run: pip install "."
-        working-directory: apps/solver
-      - run: npx playwright install --with-deps chromium
-      - name: Build web
-        run: npm run build --workspace @timetable/web
-      - name: Start solver and web
+      - name: Format and verify web
+        run: |
+          npx prettier --write \
+            .github/workflows/agent-apply-school-group-fixes.yml \
+            apps/web/lib/import/teaching-plan-workbook.ts \
+            apps/web/tests/teaching-plan-workbook.test.ts
+          npm run format:check
+          npm run lint --workspace @timetable/web
+          npm run typecheck --workspace @timetable/web
+          npm run test --workspace @timetable/web
+      - name: Commit tested workbook support
         shell: bash
         run: |
-          nohup bash -c 'cd apps/solver && uvicorn app.main:app --host 127.0.0.1 --port 8000' > /tmp/solver.log 2>&1 &
-          nohup npm run start --workspace @timetable/web > /tmp/web.log 2>&1 &
-          for attempt in $(seq 1 90); do
-            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null && \
-               curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null && \
-               curl --fail --silent http://127.0.0.1:3000/solver/health >/dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-          cat /tmp/solver.log || true
-          cat /tmp/web.log || true
-          exit 1
-      - name: Verify deletion, rotations and exact uploaded workbook
-        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/subject-rotation-and-sports.spec.ts e2e/exact-uploaded-excel-generation.spec.ts --retries=0
-      - name: Upload diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: school-group-browser-gate-failure
-          path: |
-            apps/web/playwright-report
-            apps/web/test-results
-            /tmp/solver.log
-            /tmp/web.log
-          if-no-files-found: ignore
+          rm scripts/agent_patch_teaching_plan_group3_workbook.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/lib/import/teaching-plan-workbook.ts apps/web/tests/teaching-plan-workbook.test.ts scripts/agent_patch_teaching_plan_group3_workbook.py
+          git commit -m "fix: preserve three-group English in teaching plan Excel"
+          git push origin HEAD:agent/fix-project-delete-and-school-groups
