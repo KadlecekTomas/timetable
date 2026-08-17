@@ -148,10 +148,8 @@ export function enforceMandatorySchoolSplits(plan: TeachingPlan): TeachingPlan {
         )
           ? 1
           : row.weeklyPeriods,
-        additionalClassCodes:
-          row.subjectCode === "TV" ? [] : row.additionalClassCodes,
-        sharedGroupLabel:
-          row.subjectCode === "TV" ? "" : row.sharedGroupLabel,
+        additionalClassCodes: row.subjectCode === "TV" ? [] : row.additionalClassCodes,
+        sharedGroupLabel: row.subjectCode === "TV" ? "" : row.sharedGroupLabel,
       };
     }),
   };
