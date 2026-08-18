@@ -427,9 +427,17 @@ async function sha256Hex(
     .join("");
 }
 
+export function generationRandomSeed(runCount: number): number {
+  const normalizedCount = Number.isFinite(runCount)
+    ? Math.max(0, Math.floor(runCount))
+    : 0;
+  return (normalizedCount % 2_147_483_646) + 1;
+}
+
 function projectSnapshot(
   project: LocalProject,
   timeLimitSeconds = 60,
+  randomSeed = 1,
 ): CanonicalSnapshot {
   return {
     contract_version: "1.0",
@@ -507,7 +515,7 @@ function projectSnapshot(
     })),
     locked_lessons: [],
     weights: DEFAULT_WEIGHTS,
-    random_seed: 1,
+    random_seed: randomSeed,
     time_limit_seconds: timeLimitSeconds,
   };
 }
@@ -1334,7 +1342,8 @@ async function createGenerationRun(
     );
   }
   const project = await getLocalProject();
-  const snapshot = projectSnapshot(project, timeLimitSeconds);
+  const randomSeed = generationRandomSeed(project.generationRuns.length);
+  const snapshot = projectSnapshot(project, timeLimitSeconds, randomSeed);
   const readiness = evaluateReadiness(snapshot);
   if (!readiness.ready) {
     return errorResponse(
