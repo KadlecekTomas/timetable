@@ -13,6 +13,7 @@ import type {
   ImportSummary,
 } from "@/lib/import/contracts";
 import { analyzeClientImportWorkbook } from "@/lib/import/client-workbook";
+import { maxGenerationTimeLimitForHost } from "@/lib/local/deep-solve";
 
 export const LOCAL_SCHOOL_YEAR_ID = "local-school-year";
 
@@ -1330,15 +1331,18 @@ async function createGenerationRun(
   body: Record<string, unknown>,
 ): Promise<Response> {
   const timeLimitSeconds = Number(body.timeLimitSeconds ?? 60);
+  const hostname =
+    typeof window === "undefined" ? "" : window.location.hostname;
+  const maxTimeLimitSeconds = maxGenerationTimeLimitForHost(hostname);
   if (
     !Number.isInteger(timeLimitSeconds) ||
     timeLimitSeconds < 1 ||
-    timeLimitSeconds > 300
+    timeLimitSeconds > maxTimeLimitSeconds
   ) {
     return errorResponse(
       422,
       "GENERATION_REQUEST_INVALID",
-      "Časový limit musí být mezi 1 a 300 sekundami.",
+      `Časový limit musí být mezi 1 a ${maxTimeLimitSeconds} sekundami.`,
     );
   }
   const project = await getLocalProject();

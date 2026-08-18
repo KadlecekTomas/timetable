@@ -1,3 +1,4 @@
+import os
 import time
 from collections import defaultdict
 from dataclasses import dataclass
@@ -52,6 +53,8 @@ SUBJECT_LATE_WEIGHTS = {
 }
 DEFAULT_SUBJECT_LATE_WEIGHT = 300
 VERCEL_REQUEST_BUDGET_SECONDS = 270.0
+LOCAL_DEEP_SOLVE_MAX_SECONDS = 1_800.0
+LOCAL_DEEP_SOLVE_ENV = "ALLOW_LONG_SOLVES"
 
 
 @dataclass(frozen=True)
@@ -412,11 +415,21 @@ def _search_workers(payload: SolveRequest) -> int:
     return 8 if payload.time_limit_seconds >= 120 else 1
 
 
+def _long_solves_enabled() -> bool:
+    return os.getenv(LOCAL_DEEP_SOLVE_ENV, "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
 def _solver_time_limit_seconds(
     payload: SolveRequest,
     request_started: float,
 ) -> float:
     requested = float(payload.time_limit_seconds)
+    if _long_solves_enabled():
+        return min(requested, LOCAL_DEEP_SOLVE_MAX_SECONDS)
     elapsed = max(0.0, time.monotonic() - request_started)
     remaining_budget = max(1.0, VERCEL_REQUEST_BUDGET_SECONDS - elapsed)
     return min(requested, remaining_budget)

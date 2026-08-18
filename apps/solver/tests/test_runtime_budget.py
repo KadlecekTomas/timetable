@@ -17,3 +17,19 @@ def test_three_minute_mode_keeps_full_requested_limit(monkeypatch) -> None:
     payload = SolveRequest(assignments=[], time_limit_seconds=180)
 
     assert _solver_time_limit_seconds(payload, request_started=0.0) == 180.0
+
+
+def test_local_deep_solve_allows_thirty_minutes(monkeypatch) -> None:
+    monkeypatch.setenv("ALLOW_LONG_SOLVES", "1")
+    monkeypatch.setattr("app.main.time.monotonic", lambda: 12.0)
+    payload = SolveRequest(assignments=[], time_limit_seconds=1800)
+
+    assert _solver_time_limit_seconds(payload, request_started=0.0) == 1800.0
+
+
+def test_production_still_caps_long_requests(monkeypatch) -> None:
+    monkeypatch.delenv("ALLOW_LONG_SOLVES", raising=False)
+    monkeypatch.setattr("app.main.time.monotonic", lambda: 12.0)
+    payload = SolveRequest(assignments=[], time_limit_seconds=1800)
+
+    assert _solver_time_limit_seconds(payload, request_started=0.0) == 258.0

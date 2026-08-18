@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: apps/solver/Dockerfile
+    environment:
+      ALLOW_LONG_SOLVES: "1"
     ports:
       - "8000:8000"
     healthcheck:

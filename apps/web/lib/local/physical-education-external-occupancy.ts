@@ -14,9 +14,29 @@ export interface PhysicalEducationExternalOccupancySlot {
 }
 
 export interface PhysicalEducationExternalOccupancyState {
-  version: 1;
+  version: 2;
   updatedAt: string;
   slots: PhysicalEducationExternalOccupancySlot[];
+}
+
+export const SCHOOL_DEFAULT_PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_SLOTS = [
+  { dayOfWeek: 1, period: 0, occupiedSpaces: 2 },
+  { dayOfWeek: 1, period: 1, occupiedSpaces: 2 },
+  { dayOfWeek: 1, period: 2, occupiedSpaces: 2 },
+  { dayOfWeek: 1, period: 3, occupiedSpaces: 2 },
+  { dayOfWeek: 1, period: 4, occupiedSpaces: 3 },
+  { dayOfWeek: 3, period: 0, occupiedSpaces: 2 },
+  { dayOfWeek: 3, period: 1, occupiedSpaces: 2 },
+  { dayOfWeek: 3, period: 2, occupiedSpaces: 2 },
+  { dayOfWeek: 3, period: 3, occupiedSpaces: 3 },
+  { dayOfWeek: 4, period: 0, occupiedSpaces: 2 },
+  { dayOfWeek: 4, period: 1, occupiedSpaces: 2 },
+] satisfies PhysicalEducationExternalOccupancySlot[];
+
+export function schoolDefaultPhysicalEducationExternalOccupancySlots(): PhysicalEducationExternalOccupancySlot[] {
+  return SCHOOL_DEFAULT_PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_SLOTS.map(
+    (slot) => ({ ...slot }),
+  );
 }
 
 const CHANGE_EVENT = "rozvrhar:pe-external-occupancy-changed";
@@ -24,9 +44,9 @@ const PHYSICAL_EDUCATION_ROOM_TYPE_ID = "room-type:TV";
 
 function emptyState(): PhysicalEducationExternalOccupancyState {
   return {
-    version: 1,
+    version: 2,
     updatedAt: new Date(0).toISOString(),
-    slots: [],
+    slots: schoolDefaultPhysicalEducationExternalOccupancySlots(),
   };
 }
 
@@ -77,13 +97,20 @@ export function loadPhysicalEducationExternalOccupancy(): PhysicalEducationExter
   if (!raw) return emptyState();
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const normalizedSlots = normalizePhysicalEducationExternalOccupancySlots(
+      parsed.slots,
+    );
+    const isCurrentVersion = Number(parsed.version) === 2;
     return {
-      version: 1,
+      version: 2,
       updatedAt:
         typeof parsed.updatedAt === "string"
           ? parsed.updatedAt
           : new Date(0).toISOString(),
-      slots: normalizePhysicalEducationExternalOccupancySlots(parsed.slots),
+      slots:
+        isCurrentVersion || normalizedSlots.length > 0
+          ? normalizedSlots
+          : schoolDefaultPhysicalEducationExternalOccupancySlots(),
     };
   } catch {
     return emptyState();
@@ -97,7 +124,7 @@ export function savePhysicalEducationExternalOccupancy(
     throw new Error("Obsazenost TV prostorů lze uložit pouze v prohlížeči.");
   }
   const state: PhysicalEducationExternalOccupancyState = {
-    version: 1,
+    version: 2,
     updatedAt: new Date().toISOString(),
     slots: normalizePhysicalEducationExternalOccupancySlots(slots),
   };

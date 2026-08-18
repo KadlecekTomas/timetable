@@ -19,6 +19,11 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import type { ReadinessReport } from "@/lib/domain/contracts";
 import { generationFailureMessage } from "@/lib/generation-errors";
 import {
+  LOCAL_DEEP_SOLVE_SECONDS,
+  defaultGenerationTimeLimitForHost,
+  isLocalDeepSolveHost,
+} from "@/lib/local/deep-solve";
+import {
   getLocalProject,
   localApiFetch,
   subscribeLocalProject,
@@ -79,6 +84,7 @@ export default function GeneratePage() {
   const [readiness, setReadiness] = useState<ReadinessReport | null>(null);
   const [runs, setRuns] = useState<RunView[]>([]);
   const [timeLimitSeconds, setTimeLimitSeconds] = useState(240);
+  const [localDeepSolve, setLocalDeepSolve] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preparation, setPreparation] = useState<PreparationView | null>(null);
@@ -116,6 +122,13 @@ export default function GeneratePage() {
       state: preparedInputState(project, staffing, teaching),
     });
   }, [schoolYearId]);
+
+  useEffect(() => {
+    const hostname = window.location.hostname;
+    const local = isLocalDeepSolveHost(hostname);
+    setLocalDeepSolve(local);
+    setTimeLimitSeconds(defaultGenerationTimeLimitForHost(hostname));
+  }, []);
 
   useEffect(() => {
     void load();
@@ -408,17 +421,35 @@ export default function GeneratePage() {
             }
             className="mt-2 h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
-            <option value={30}>30 sekund · rychlý náhled</option>
-            <option value={60}>1 minuta · orientační návrh</option>
-            <option value={180}>3 minuty · kratší výpočet celé školy</option>
-            <option value={240}>4 minuty · doporučeno pro celou školu</option>
-            <option value={300}>5 minut · maximum s bezpečnou rezervou</option>
+            {localDeepSolve ? (
+              <>
+                <option value={300}>5 minut · rychlý lokální pokus</option>
+                <option value={600}>10 minut · důkladnější hledání</option>
+                <option value={1200}>20 minut · Deep Solve</option>
+                <option value={LOCAL_DEEP_SOLVE_SECONDS}>
+                  30 minut · Deep Solve · doporučeno
+                </option>
+              </>
+            ) : (
+              <>
+                <option value={30}>30 sekund · rychlý náhled</option>
+                <option value={60}>1 minuta · orientační návrh</option>
+                <option value={180}>
+                  3 minuty · kratší výpočet celé školy
+                </option>
+                <option value={240}>
+                  4 minuty · doporučeno pro celou školu
+                </option>
+                <option value={300}>
+                  5 minut · maximum s bezpečnou rezervou
+                </option>
+              </>
+            )}
           </select>
           <p className="mt-2 text-xs text-text-muted">
-            Solver nejdřív hledá libovolný platný rozvrh a teprve potom využije
-            zbývající čas ke zlepšení kvality. Pětiminutový režim na produkci
-            skončí s rezervou před serverovým timeoutem, aby se nejlepší
-            nalezený návrh stihl uložit.
+            {localDeepSolve
+              ? "Lokální Deep Solve může běžet až 30 minut. První platný rozvrh se zachová a zbývající čas solver využije ke zlepšování kvality."
+              : "Solver nejdřív hledá platný rozvrh a potom využije zbývající čas ke zlepšení kvality. Produkční limit zůstává krátký kvůli serverovému timeoutu."}
           </p>
           <Button
             className="mt-4 w-full"
@@ -426,7 +457,11 @@ export default function GeneratePage() {
             disabled={busy || !readiness?.ready}
           >
             <Play className="size-4" aria-hidden="true" />
-            {busy ? "Počítám rozvrh…" : "Vytvořit nový návrh"}
+            {busy
+              ? "Počítám rozvrh…"
+              : localDeepSolve && timeLimitSeconds === LOCAL_DEEP_SOLVE_SECONDS
+                ? "Spustit 30min Deep Solve"
+                : "Vytvořit nový návrh"}
           </Button>
         </article>
       </section>

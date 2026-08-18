@@ -170,7 +170,7 @@ class SolveRequest(BaseModel):
     locked_lessons: list[FixedLesson] = Field(default_factory=list)
     weights: SolverWeights = Field(default_factory=SolverWeights)
     random_seed: int = 1
-    time_limit_seconds: int = Field(default=30, ge=1, le=300)
+    time_limit_seconds: int = Field(default=30, ge=1, le=1800)
 
     @model_validator(mode="after")
     def validate_contract(self) -> "SolveRequest":

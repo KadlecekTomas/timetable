@@ -5,6 +5,7 @@ import type { LocalProject } from "../lib/local/api";
 import {
   normalizePhysicalEducationExternalOccupancySlots,
   physicalEducationExternalAvailability,
+  schoolDefaultPhysicalEducationExternalOccupancySlots,
 } from "../lib/local/physical-education-external-occupancy";
 import { buildSchoolProjectForGeneration } from "../lib/local/school-project-generation";
 import type { StaffingPlan } from "../lib/local/staffing-plan";
@@ -124,4 +125,20 @@ test("occupancy input rejects Monday and clamps impossible values", () => {
       { dayOfWeek: 3, period: 1, occupiedSpaces: 5 },
     ],
   );
+});
+
+test("school PE defaults match the first-grade occupancy profile", () => {
+  assert.deepEqual(schoolDefaultPhysicalEducationExternalOccupancySlots(), [
+    { dayOfWeek: 1, period: 0, occupiedSpaces: 2 },
+    { dayOfWeek: 1, period: 1, occupiedSpaces: 2 },
+    { dayOfWeek: 1, period: 2, occupiedSpaces: 2 },
+    { dayOfWeek: 1, period: 3, occupiedSpaces: 2 },
+    { dayOfWeek: 1, period: 4, occupiedSpaces: 3 },
+    { dayOfWeek: 3, period: 0, occupiedSpaces: 2 },
+    { dayOfWeek: 3, period: 1, occupiedSpaces: 2 },
+    { dayOfWeek: 3, period: 2, occupiedSpaces: 2 },
+    { dayOfWeek: 3, period: 3, occupiedSpaces: 3 },
+    { dayOfWeek: 4, period: 0, occupiedSpaces: 2 },
+    { dayOfWeek: 4, period: 1, occupiedSpaces: 2 },
+  ]);
 });
