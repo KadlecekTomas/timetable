@@ -1,0 +1,203 @@
+name: Apply local Deep Solve and school PE defaults
+
+on:
+  push:
+    branches:
+      - agent/local-deep-solve-school-pe-defaults
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/local-deep-solve-school-pe-defaults
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply product changes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one match, found {count}: {old[:80]!r}")
+              file.write_text(text.replace(old, new))
+
+          pe = Path("apps/web/lib/local/physical-education-external-occupancy.ts")
+          text = pe.read_text()
+          text = text.replace(
+              'export interface PhysicalEducationExternalOccupancyState {\n  version: 1;\n  updatedAt: string;\n  slots: PhysicalEducationExternalOccupancySlot[];\n}\n\nconst CHANGE_EVENT = "rozvrhar:pe-external-occupancy-changed";',
+              '''export interface PhysicalEducationExternalOccupancyState {\n  version: 2;\n  updatedAt: string;\n  slots: PhysicalEducationExternalOccupancySlot[];\n}\n\nexport const SCHOOL_DEFAULT_PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_SLOTS = [\n  { dayOfWeek: 1, period: 0, occupiedSpaces: 2 },\n  { dayOfWeek: 1, period: 1, occupiedSpaces: 2 },\n  { dayOfWeek: 1, period: 2, occupiedSpaces: 2 },\n  { dayOfWeek: 1, period: 3, occupiedSpaces: 2 },\n  { dayOfWeek: 1, period: 4, occupiedSpaces: 3 },\n  { dayOfWeek: 3, period: 0, occupiedSpaces: 2 },\n  { dayOfWeek: 3, period: 1, occupiedSpaces: 2 },\n  { dayOfWeek: 3, period: 2, occupiedSpaces: 2 },\n  { dayOfWeek: 3, period: 3, occupiedSpaces: 3 },\n  { dayOfWeek: 4, period: 0, occupiedSpaces: 2 },\n  { dayOfWeek: 4, period: 1, occupiedSpaces: 2 },\n] satisfies PhysicalEducationExternalOccupancySlot[];\n\nexport function schoolDefaultPhysicalEducationExternalOccupancySlots(): PhysicalEducationExternalOccupancySlot[] {\n  return SCHOOL_DEFAULT_PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_SLOTS.map(\n    (slot) => ({ ...slot }),\n  );\n}\n\nconst CHANGE_EVENT = "rozvrhar:pe-external-occupancy-changed";'''
+          )
+          text = text.replace(
+              '''function emptyState(): PhysicalEducationExternalOccupancyState {\n  return {\n    version: 1,\n    updatedAt: new Date(0).toISOString(),\n    slots: [],\n  };\n}''',
+              '''function emptyState(): PhysicalEducationExternalOccupancyState {\n  return {\n    version: 2,\n    updatedAt: new Date(0).toISOString(),\n    slots: schoolDefaultPhysicalEducationExternalOccupancySlots(),\n  };\n}'''
+          )
+          text = text.replace(
+              '''    const parsed = JSON.parse(raw) as Record<string, unknown>;\n    return {\n      version: 1,\n      updatedAt:\n        typeof parsed.updatedAt === "string"\n          ? parsed.updatedAt\n          : new Date(0).toISOString(),\n      slots: normalizePhysicalEducationExternalOccupancySlots(parsed.slots),\n    };''',
+              '''    const parsed = JSON.parse(raw) as Record<string, unknown>;\n    const normalizedSlots = normalizePhysicalEducationExternalOccupancySlots(\n      parsed.slots,\n    );\n    const isCurrentVersion = Number(parsed.version) === 2;\n    return {\n      version: 2,\n      updatedAt:\n        typeof parsed.updatedAt === "string"\n          ? parsed.updatedAt\n          : new Date(0).toISOString(),\n      slots:\n        isCurrentVersion || normalizedSlots.length > 0\n          ? normalizedSlots\n          : schoolDefaultPhysicalEducationExternalOccupancySlots(),\n    };'''
+          )
+          text = text.replace(
+              '''  const state: PhysicalEducationExternalOccupancyState = {\n    version: 1,''',
+              '''  const state: PhysicalEducationExternalOccupancyState = {\n    version: 2,'''
+          )
+          pe.write_text(text)
+
+          replace_once(
+              "apps/web/app/pe-capacity/page.tsx",
+              '''  savePhysicalEducationExternalOccupancy,\n  subscribePhysicalEducationExternalOccupancy,''',
+              '''  savePhysicalEducationExternalOccupancy,\n  schoolDefaultPhysicalEducationExternalOccupancySlots,\n  subscribePhysicalEducationExternalOccupancy,''',
+          )
+          replace_once(
+              "apps/web/app/pe-capacity/page.tsx",
+              '''  function clearAll() {\n    void persistSlots([]);\n  }''',
+              '''  function restoreSchoolDefaults() {\n    void persistSlots(schoolDefaultPhysicalEducationExternalOccupancySlots());\n  }\n\n  function clearAll() {\n    void persistSlots([]);\n  }''',
+          )
+          replace_once(
+              "apps/web/app/pe-capacity/page.tsx",
+              '''        actions={\n          <Button\n            type="button"\n            variant="outline"\n            onClick={clearAll}\n            disabled={busy || slots.length === 0}\n          >\n            <RotateCcw className="size-4" aria-hidden="true" />\n            Vynulovat obsazenost\n          </Button>\n        }''',
+              '''        actions={\n          <div className="flex flex-wrap gap-2">\n            <Button\n              type="button"\n              variant="outline"\n              onClick={restoreSchoolDefaults}\n              disabled={busy}\n            >\n              <RotateCcw className="size-4" aria-hidden="true" />\n              Obnovit školní výchozí\n            </Button>\n            <Button\n              type="button"\n              variant="ghost"\n              onClick={clearAll}\n              disabled={busy || slots.length === 0}\n            >\n              Vynulovat\n            </Button>\n          </div>\n        }''',
+          )
+          replace_once(
+              "apps/web/app/pe-capacity/page.tsx",
+              '''        <p className="mt-2 text-xs text-text-muted">\n          Aktivní externí omezení: {reservedSlotCount} časových slotů.\n        </p>''',
+              '''        <p className="mt-2 text-xs text-text-muted">\n          Školní výchozí profil je předvyplněný: Út 1.–4. hodina −2, Út 5.\n          hodina −3; Čt 1.–3. hodina −2, Čt 4. hodina −3; Pá 1.–2. hodina\n          −2. Aktivní externí omezení: {reservedSlotCount} časových slotů.\n        </p>''',
+          )
+
+          deep_solve = Path("apps/web/lib/local/deep-solve.ts")
+          deep_solve.write_text('''export const PRODUCTION_MAX_GENERATION_SECONDS = 300;\nexport const PRODUCTION_DEFAULT_GENERATION_SECONDS = 240;\nexport const LOCAL_DEEP_SOLVE_SECONDS = 1_800;\n\nexport function isLocalDeepSolveHost(hostname: string): boolean {\n  const normalized = hostname.trim().toLowerCase();\n  return ["localhost", "127.0.0.1", "::1"].includes(normalized);\n}\n\nexport function maxGenerationTimeLimitForHost(hostname: string): number {\n  return isLocalDeepSolveHost(hostname)\n    ? LOCAL_DEEP_SOLVE_SECONDS\n    : PRODUCTION_MAX_GENERATION_SECONDS;\n}\n\nexport function defaultGenerationTimeLimitForHost(hostname: string): number {\n  return isLocalDeepSolveHost(hostname)\n    ? LOCAL_DEEP_SOLVE_SECONDS\n    : PRODUCTION_DEFAULT_GENERATION_SECONDS;\n}\n''')
+
+          replace_once(
+              "apps/web/app/generate/page.tsx",
+              '''import { generationFailureMessage } from "@/lib/generation-errors";\nimport {\n  getLocalProject,''',
+              '''import { generationFailureMessage } from "@/lib/generation-errors";\nimport {\n  LOCAL_DEEP_SOLVE_SECONDS,\n  defaultGenerationTimeLimitForHost,\n  isLocalDeepSolveHost,\n} from "@/lib/local/deep-solve";\nimport {\n  getLocalProject,''',
+          )
+          replace_once(
+              "apps/web/app/generate/page.tsx",
+              '''  const [timeLimitSeconds, setTimeLimitSeconds] = useState(240);\n  const [busy, setBusy] = useState(false);''',
+              '''  const [timeLimitSeconds, setTimeLimitSeconds] = useState(240);\n  const [localDeepSolve, setLocalDeepSolve] = useState(false);\n  const [busy, setBusy] = useState(false);''',
+          )
+          replace_once(
+              "apps/web/app/generate/page.tsx",
+              '''  useEffect(() => {\n    void load();\n    const unsubscribeProject = subscribeLocalProject(() => void load());''',
+              '''  useEffect(() => {\n    const hostname = window.location.hostname;\n    const local = isLocalDeepSolveHost(hostname);\n    setLocalDeepSolve(local);\n    setTimeLimitSeconds(defaultGenerationTimeLimitForHost(hostname));\n  }, []);\n\n  useEffect(() => {\n    void load();\n    const unsubscribeProject = subscribeLocalProject(() => void load());''',
+          )
+          replace_once(
+              "apps/web/app/generate/page.tsx",
+              '''            <option value={30}>30 sekund · rychlý náhled</option>\n            <option value={60}>1 minuta · orientační návrh</option>\n            <option value={180}>3 minuty · kratší výpočet celé školy</option>\n            <option value={240}>4 minuty · doporučeno pro celou školu</option>\n            <option value={300}>5 minut · maximum s bezpečnou rezervou</option>''',
+              '''            {localDeepSolve ? (\n              <>\n                <option value={300}>5 minut · rychlý lokální pokus</option>\n                <option value={600}>10 minut · důkladnější hledání</option>\n                <option value={1200}>20 minut · Deep Solve</option>\n                <option value={LOCAL_DEEP_SOLVE_SECONDS}>\n                  30 minut · Deep Solve · doporučeno\n                </option>\n              </>\n            ) : (\n              <>\n                <option value={30}>30 sekund · rychlý náhled</option>\n                <option value={60}>1 minuta · orientační návrh</option>\n                <option value={180}>\n                  3 minuty · kratší výpočet celé školy\n                </option>\n                <option value={240}>\n                  4 minuty · doporučeno pro celou školu\n                </option>\n                <option value={300}>\n                  5 minut · maximum s bezpečnou rezervou\n                </option>\n              </>\n            )}''',
+          )
+          replace_once(
+              "apps/web/app/generate/page.tsx",
+              '''          <p className="mt-2 text-xs text-text-muted">\n            Solver nejdřív hledá libovolný platný rozvrh a teprve potom využije\n            zbývající čas ke zlepšení kvality. Pětiminutový režim na produkci\n            skončí s rezervou před serverovým timeoutem, aby se nejlepší\n            nalezený návrh stihl uložit.\n          </p>''',
+              '''          <p className="mt-2 text-xs text-text-muted">\n            {localDeepSolve\n              ? "Lokální Deep Solve může běžet až 30 minut. První platný rozvrh se zachová a zbývající čas solver využije ke zlepšování kvality."\n              : "Solver nejdřív hledá platný rozvrh a potom využije zbývající čas ke zlepšení kvality. Produkční limit zůstává krátký kvůli serverovému timeoutu."}\n          </p>''',
+          )
+          replace_once(
+              "apps/web/app/generate/page.tsx",
+              '''            {busy ? "Počítám rozvrh…" : "Vytvořit nový návrh"}''',
+              '''            {busy\n              ? "Počítám rozvrh…"\n              : localDeepSolve && timeLimitSeconds === LOCAL_DEEP_SOLVE_SECONDS\n                ? "Spustit 30min Deep Solve"\n                : "Vytvořit nový návrh"}''',
+          )
+
+          replace_once(
+              "apps/web/lib/local/api.ts",
+              '''import { analyzeClientImportWorkbook } from "@/lib/import/client-workbook";\n\nexport const LOCAL_SCHOOL_YEAR_ID''',
+              '''import { analyzeClientImportWorkbook } from "@/lib/import/client-workbook";\nimport { maxGenerationTimeLimitForHost } from "@/lib/local/deep-solve";\n\nexport const LOCAL_SCHOOL_YEAR_ID''',
+          )
+          replace_once(
+              "apps/web/lib/local/api.ts",
+              '''  const timeLimitSeconds = Number(body.timeLimitSeconds ?? 60);\n  if (\n    !Number.isInteger(timeLimitSeconds) ||\n    timeLimitSeconds < 1 ||\n    timeLimitSeconds > 300\n  ) {\n    return errorResponse(\n      422,\n      "GENERATION_REQUEST_INVALID",\n      "Časový limit musí být mezi 1 a 300 sekundami.",\n    );\n  }''',
+              '''  const timeLimitSeconds = Number(body.timeLimitSeconds ?? 60);\n  const hostname =\n    typeof window === "undefined" ? "" : window.location.hostname;\n  const maxTimeLimitSeconds = maxGenerationTimeLimitForHost(hostname);\n  if (\n    !Number.isInteger(timeLimitSeconds) ||\n    timeLimitSeconds < 1 ||\n    timeLimitSeconds > maxTimeLimitSeconds\n  ) {\n    return errorResponse(\n      422,\n      "GENERATION_REQUEST_INVALID",\n      `Časový limit musí být mezi 1 a ${maxTimeLimitSeconds} sekundami.`,\n    );\n  }''',
+          )
+
+          replace_once(
+              "apps/solver/app/models.py",
+              '    time_limit_seconds: int = Field(default=30, ge=1, le=300)',
+              '    time_limit_seconds: int = Field(default=30, ge=1, le=1800)',
+          )
+          replace_once(
+              "apps/solver/app/main.py",
+              'import time\nfrom collections import defaultdict',
+              'import os\nimport time\nfrom collections import defaultdict',
+          )
+          replace_once(
+              "apps/solver/app/main.py",
+              'VERCEL_REQUEST_BUDGET_SECONDS = 270.0\n',
+              'VERCEL_REQUEST_BUDGET_SECONDS = 270.0\nLOCAL_DEEP_SOLVE_MAX_SECONDS = 1_800.0\nLOCAL_DEEP_SOLVE_ENV = "ALLOW_LONG_SOLVES"\n',
+          )
+          replace_once(
+              "apps/solver/app/main.py",
+              '''def _solver_time_limit_seconds(\n    payload: SolveRequest,\n    request_started: float,\n) -> float:\n    requested = float(payload.time_limit_seconds)\n    elapsed = max(0.0, time.monotonic() - request_started)\n    remaining_budget = max(1.0, VERCEL_REQUEST_BUDGET_SECONDS - elapsed)\n    return min(requested, remaining_budget)''',
+              '''def _long_solves_enabled() -> bool:\n    return os.getenv(LOCAL_DEEP_SOLVE_ENV, "").strip().lower() in {\n        "1",\n        "true",\n        "yes",\n    }\n\n\ndef _solver_time_limit_seconds(\n    payload: SolveRequest,\n    request_started: float,\n) -> float:\n    requested = float(payload.time_limit_seconds)\n    if _long_solves_enabled():\n        return min(requested, LOCAL_DEEP_SOLVE_MAX_SECONDS)\n    elapsed = max(0.0, time.monotonic() - request_started)\n    remaining_budget = max(1.0, VERCEL_REQUEST_BUDGET_SECONDS - elapsed)\n    return min(requested, remaining_budget)''',
+          )
+
+          replace_once(
+              "compose.yaml",
+              '''  solver:\n    build:\n      context: .\n      dockerfile: apps/solver/Dockerfile\n    ports:''',
+              '''  solver:\n    build:\n      context: .\n      dockerfile: apps/solver/Dockerfile\n    environment:\n      ALLOW_LONG_SOLVES: "1"\n    ports:''',
+          )
+
+          readiness = Path("apps/web/lib/domain/readiness.ts")
+          rtext = readiness.read_text()
+          marker = '''  const sortIssues = (items: ReadinessIssue[]) =>\n    items.sort((left, right) =>'''
+          if rtext.count(marker) != 1:
+              raise SystemExit("readiness insertion marker not found exactly once")
+          diagnostics = '''  const totalWeeklySlots = snapshot.periods_per_day.reduce(\n    (total, periods) => total + periods,\n    0,\n  );\n  const teacherUnavailableSlots = new Map<string, Set<string>>();\n  for (const rule of snapshot.availability) {\n    if (\n      rule.kind !== "UNAVAILABLE" ||\n      rule.entity_type !== "TEACHER" ||\n      rule.period < 0 ||\n      rule.period >= (snapshot.periods_per_day[rule.day] ?? 0)\n    ) {\n      continue;\n    }\n    const slots = teacherUnavailableSlots.get(rule.entity_id) ?? new Set<string>();\n    slots.add(`${rule.day}:${rule.period}`);\n    teacherUnavailableSlots.set(rule.entity_id, slots);\n  }\n  for (const teacher of snapshot.teachers) {\n    const required = teacherLoads.get(teacher.id) ?? 0;\n    const available =\n      totalWeeklySlots - (teacherUnavailableSlots.get(teacher.id)?.size ?? 0);\n    if (required > available) {\n      add(\n        issue(\n          "TEACHER_AVAILABLE_SLOT_CAPACITY_EXCEEDED",\n          "ERROR",\n          `${teacher.first_name} ${teacher.last_name}: ${required} hodin výuky, ale podle zadané dostupnosti má pouze ${available} použitelných hodin. Chybí minimálně ${required - available}.`,\n          [teacher.id],\n          "Uvolněte některé blokované hodiny nebo přesuňte část výuky na jiného učitele.",\n        ),\n      );\n    }\n  }\n\n  const peSubjectIds = new Set(\n    snapshot.subjects\n      .filter((subject) => subject.code.trim().toUpperCase() === "TV")\n      .map((subject) => subject.id),\n  );\n  const peAssignments = snapshot.assignments.filter((assignment) =>\n    peSubjectIds.has(assignment.subject_id),\n  );\n  const peRoomTypeIds = new Set(\n    peAssignments.flatMap((assignment) =>\n      assignment.required_room_type_id\n        ? [assignment.required_room_type_id]\n        : [],\n    ),\n  );\n  for (const subject of snapshot.subjects) {\n    if (\n      peSubjectIds.has(subject.id) &&\n      subject.default_room_type_id\n    ) {\n      peRoomTypeIds.add(subject.default_room_type_id);\n    }\n  }\n  const peRequiredRoomIds = new Set(\n    peAssignments.flatMap((assignment) =>\n      assignment.required_room_id ? [assignment.required_room_id] : [],\n    ),\n  );\n  const peRoomIds = new Set(\n    snapshot.rooms\n      .filter(\n        (room) =>\n          peRequiredRoomIds.has(room.id) ||\n          (room.room_type_id != null && peRoomTypeIds.has(room.room_type_id)),\n      )\n      .map((room) => room.id),\n  );\n  if (peAssignments.length > 0 && peRoomIds.size > 0) {\n    const unavailablePeRoomSlots = new Set(\n      snapshot.availability\n        .filter(\n          (rule) =>\n            rule.kind === "UNAVAILABLE" &&\n            rule.entity_type === "ROOM" &&\n            peRoomIds.has(rule.entity_id),\n        )\n        .map((rule) => `${rule.entity_id}:${rule.day}:${rule.period}`),\n    );\n    let availablePeRoomPeriods = 0;\n    for (let day = 0; day < snapshot.periods_per_day.length; day += 1) {\n      const periods = snapshot.periods_per_day[day] ?? 0;\n      for (let period = 0; period < periods; period += 1) {\n        for (const roomId of peRoomIds) {\n          if (!unavailablePeRoomSlots.has(`${roomId}:${day}:${period}`)) {\n            availablePeRoomPeriods += 1;\n          }\n        }\n      }\n    }\n    const requiredPeRoomPeriods = peAssignments.reduce(\n      (total, assignment) => total + assignment.weekly_periods,\n      0,\n    );\n    const reserve = availablePeRoomPeriods - requiredPeRoomPeriods;\n    if (reserve < 0) {\n      add(\n        issue(\n          "PE_TOTAL_ROOM_CAPACITY_EXCEEDED",\n          "ERROR",\n          `TV vyžaduje ${requiredPeRoomPeriods} prostorohodin týdně, ale po všech omezeních včetně obsazenosti 1. stupně zbývá jen ${availablePeRoomPeriods}. Chybí minimálně ${Math.abs(reserve)} prostorohodin.`,\n          [...peRoomIds],\n          "Uvolněte část TV kapacity, přidejte další použitelný prostor nebo upravte časové omezení TV.",\n        ),\n      );\n    } else if (requiredPeRoomPeriods > 0 && reserve <= 5) {\n      add(\n        issue(\n          "PE_TOTAL_ROOM_CAPACITY_TIGHT",\n          "WARNING",\n          `TV má po započtení 1. stupně rezervu jen ${reserve} prostorohodin týdně. Zadání je velmi těsné.`,\n          [...peRoomIds],\n        ),\n      );\n    }\n  }\n\n'''
+          readiness.write_text(rtext.replace(marker, diagnostics + marker))
+
+          pe_test = Path("apps/web/tests/pe-external-capacity.test.ts")
+          ttext = pe_test.read_text()
+          ttext = ttext.replace(
+              '''  normalizePhysicalEducationExternalOccupancySlots,\n  physicalEducationExternalAvailability,''',
+              '''  normalizePhysicalEducationExternalOccupancySlots,\n  physicalEducationExternalAvailability,\n  schoolDefaultPhysicalEducationExternalOccupancySlots,'''
+          )
+          ttext += '''\n\ntest("school PE defaults match the first-grade occupancy profile", () => {\n  assert.deepEqual(schoolDefaultPhysicalEducationExternalOccupancySlots(), [\n    { dayOfWeek: 1, period: 0, occupiedSpaces: 2 },\n    { dayOfWeek: 1, period: 1, occupiedSpaces: 2 },\n    { dayOfWeek: 1, period: 2, occupiedSpaces: 2 },\n    { dayOfWeek: 1, period: 3, occupiedSpaces: 2 },\n    { dayOfWeek: 1, period: 4, occupiedSpaces: 3 },\n    { dayOfWeek: 3, period: 0, occupiedSpaces: 2 },\n    { dayOfWeek: 3, period: 1, occupiedSpaces: 2 },\n    { dayOfWeek: 3, period: 2, occupiedSpaces: 2 },\n    { dayOfWeek: 3, period: 3, occupiedSpaces: 3 },\n    { dayOfWeek: 4, period: 0, occupiedSpaces: 2 },\n    { dayOfWeek: 4, period: 1, occupiedSpaces: 2 },\n  ]);\n});\n'''
+          pe_test.write_text(ttext)
+
+          Path("apps/web/tests/local-deep-solve.test.ts").write_text('''import assert from "node:assert/strict";\nimport test from "node:test";\n\nimport {\n  LOCAL_DEEP_SOLVE_SECONDS,\n  defaultGenerationTimeLimitForHost,\n  isLocalDeepSolveHost,\n  maxGenerationTimeLimitForHost,\n} from "../lib/local/deep-solve";\n\ntest("localhost gets a 30-minute Deep Solve budget", () => {\n  assert.equal(isLocalDeepSolveHost("localhost"), true);\n  assert.equal(isLocalDeepSolveHost("127.0.0.1"), true);\n  assert.equal(defaultGenerationTimeLimitForHost("localhost"), 1_800);\n  assert.equal(maxGenerationTimeLimitForHost("localhost"), LOCAL_DEEP_SOLVE_SECONDS);\n});\n\ntest("production keeps the short generation budget", () => {\n  assert.equal(isLocalDeepSolveHost("timetable.example.cz"), false);\n  assert.equal(defaultGenerationTimeLimitForHost("timetable.example.cz"), 240);\n  assert.equal(maxGenerationTimeLimitForHost("timetable.example.cz"), 300);\n});\n''')
+
+          Path("apps/web/tests/preflight-capacity.test.ts").write_text('''import assert from "node:assert/strict";\nimport test from "node:test";\n\nimport type { CanonicalSnapshot } from "../lib/domain/contracts";\nimport { evaluateReadiness } from "../lib/domain/readiness";\n\nfunction baseSnapshot(): CanonicalSnapshot {\n  return {\n    contract_version: "1.0",\n    school_year: { id: "sy", label: "2026/2027", version: 1 },\n    periods_per_day: [2, 2],\n    teachers: [\n      {\n        id: "teacher",\n        code: "T",\n        first_name: "Eva",\n        last_name: "Testová",\n        target_weekly_load: 3,\n      },\n    ],\n    classes: [\n      { id: "class", code: "6.A", name: "6.A", grade: 6, profile: "REGULAR" },\n    ],\n    subjects: [\n      {\n        id: "tv",\n        code: "TV",\n        name: "Tělesná výchova",\n        default_room_type_id: "gym",\n      },\n    ],\n    rooms: [\n      { id: "gym-1", code: "G1", name: "Tělocvična 1", room_type_id: "gym" },\n      { id: "gym-2", code: "G2", name: "Tělocvična 2", room_type_id: "gym" },\n    ],\n    assignments: [\n      {\n        id: "tv-a",\n        teacher_id: "teacher",\n        class_id: "class",\n        subject_id: "tv",\n        group: "WHOLE",\n        weekly_periods: 3,\n        lesson_shape: "SINGLE",\n        double_periods_count: 0,\n        required_room_type_id: "gym",\n      },\n    ],\n    availability: [],\n    fixed_lessons: [],\n    locked_lessons: [],\n    weights: {\n      teacher_gap: 20,\n      class_gap: 25,\n      discouraged_slot: 8,\n      preferred_slot_bonus: 3,\n      same_day_concentration: 6,\n      late_period: 1,\n      rotation_spread: 75,\n    },\n    random_seed: 1,\n    time_limit_seconds: 30,\n  };\n}\n\ntest("preflight blocks a teacher whose availability cannot fit the assigned load", () => {\n  const snapshot = baseSnapshot();\n  snapshot.availability.push(\n    { entity_type: "TEACHER", entity_id: "teacher", day: 0, period: 0, kind: "UNAVAILABLE" },\n    { entity_type: "TEACHER", entity_id: "teacher", day: 0, period: 1, kind: "UNAVAILABLE" },\n  );\n  const report = evaluateReadiness(snapshot);\n  assert.equal(report.ready, false);\n  assert.ok(\n    report.blockers.some(\n      (item) =>\n        item.code === "TEACHER_AVAILABLE_SLOT_CAPACITY_EXCEEDED" &&\n        item.message.includes("3 hodin výuky") &&\n        item.message.includes("2 použitelných hodin"),\n    ),\n  );\n});\n\ntest("preflight blocks insufficient total PE room capacity after external occupancy", () => {\n  const snapshot = baseSnapshot();\n  snapshot.assignments[0]!.weekly_periods = 4;\n  snapshot.teachers[0]!.target_weekly_load = 4;\n  snapshot.availability.push(\n    { entity_type: "ROOM", entity_id: "gym-1", day: 0, period: 0, kind: "UNAVAILABLE", reason: "PE_EXTERNAL_CAPACITY:first grade" },\n    { entity_type: "ROOM", entity_id: "gym-2", day: 0, period: 0, kind: "UNAVAILABLE", reason: "PE_EXTERNAL_CAPACITY:first grade" },\n    { entity_type: "ROOM", entity_id: "gym-1", day: 0, period: 1, kind: "UNAVAILABLE", reason: "PE_EXTERNAL_CAPACITY:first grade" },\n    { entity_type: "ROOM", entity_id: "gym-2", day: 0, period: 1, kind: "UNAVAILABLE", reason: "PE_EXTERNAL_CAPACITY:first grade" },\n    { entity_type: "ROOM", entity_id: "gym-1", day: 1, period: 0, kind: "UNAVAILABLE", reason: "PE_EXTERNAL_CAPACITY:first grade" },\n  );\n  const report = evaluateReadiness(snapshot);\n  assert.equal(report.ready, false);\n  assert.ok(\n    report.blockers.some(\n      (item) =>\n        item.code === "PE_TOTAL_ROOM_CAPACITY_EXCEEDED" &&\n        item.message.includes("4 prostorohodin") &&\n        item.message.includes("3"),\n    ),\n  );\n});\n''')
+
+          runtime_test = Path("apps/solver/tests/test_runtime_budget.py")
+          ptext = runtime_test.read_text()
+          ptext += '''\n\ndef test_local_deep_solve_allows_thirty_minutes(monkeypatch) -> None:\n    monkeypatch.setenv("ALLOW_LONG_SOLVES", "1")\n    monkeypatch.setattr("app.main.time.monotonic", lambda: 12.0)\n    payload = SolveRequest(assignments=[], time_limit_seconds=1800)\n\n    assert _solver_time_limit_seconds(payload, request_started=0.0) == 1800.0\n\n\ndef test_production_still_caps_long_requests(monkeypatch) -> None:\n    monkeypatch.delenv("ALLOW_LONG_SOLVES", raising=False)\n    monkeypatch.setattr("app.main.time.monotonic", lambda: 12.0)\n    payload = SolveRequest(assignments=[], time_limit_seconds=1800)\n\n    assert _solver_time_limit_seconds(payload, request_started=0.0) == 258.0\n'''
+          runtime_test.write_text(ptext)
+          PY
+
+      - name: Format changed web files
+        run: |
+          npm ci
+          npx prettier --write \
+            apps/web/lib/local/physical-education-external-occupancy.ts \
+            apps/web/app/pe-capacity/page.tsx \
+            apps/web/lib/local/deep-solve.ts \
+            apps/web/app/generate/page.tsx \
+            apps/web/lib/local/api.ts \
+            apps/web/lib/domain/readiness.ts \
+            apps/web/tests/pe-external-capacity.test.ts \
+            apps/web/tests/local-deep-solve.test.ts \
+            apps/web/tests/preflight-capacity.test.ts \
+            compose.yaml
+
+      - name: Remove temporary workflow and commit patch
+        shell: bash
+        run: |
+          rm .github/workflows/agent-local-deep-solve-school-pe-defaults.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add local Deep Solve and school PE defaults"
+          git push origin HEAD:agent/local-deep-solve-school-pe-defaults
