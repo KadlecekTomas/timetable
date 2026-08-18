@@ -1,3 +1,4 @@
+// Temporary branch migration helper; removed after the generated commit lands.
 import { readFile, writeFile } from "node:fs/promises";
 
 function replaceOnce(content, before, after, label) {
