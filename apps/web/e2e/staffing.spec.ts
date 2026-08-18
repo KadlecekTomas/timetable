@@ -310,3 +310,46 @@ test("problem cards are first and unsaved navigation requires confirmation", asy
   await dialog.getByRole("button", { name: "Zrušit" }).click();
   await expect(page).toHaveURL(/\/staffing/);
 });
+
+test("saving unordered blocked periods clears the unsaved state", async ({
+  page,
+}) => {
+  await page.goto("/staffing?schoolYearId=local-school-year");
+  await page.getByRole("button", { name: "Přidat učitele ručně" }).click();
+  await page.getByLabel("Jméno").fill("Test");
+  await page.getByLabel("Příjmení").fill("Blokace");
+  await page.getByLabel("Úvazek týdně", { exact: true }).fill("1");
+  await page.locator('select[aria-label="Předmět"]').selectOption("M");
+  await page.locator('input[aria-label="Počet hodin předmětu"]').fill("1");
+
+  for (const label of [
+    "Pá 4. hodina volná",
+    "Po 6. hodina volná",
+    "Čt 5. hodina volná",
+  ]) {
+    await page.getByRole("button", { name: label }).click();
+  }
+
+  await expect(page.getByTestId("staffing-manual-save-status")).toContainText(
+    "1 neuložená karta",
+  );
+  await page.getByRole("button", { name: "Uložit Test Blokace" }).click();
+  await expect(page.getByTestId("staffing-manual-save-status")).toContainText(
+    "Všechny změny jsou uložené",
+  );
+  await expect(
+    page.getByRole("button", { name: "Uložit Test Blokace" }),
+  ).toBeDisabled();
+
+  await page.reload();
+  for (const label of [
+    "Pá 4. hodina blokovaná",
+    "Po 6. hodina blokovaná",
+    "Čt 5. hodina blokovaná",
+  ]) {
+    await expect(page.getByRole("button", { name: label })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  }
+});

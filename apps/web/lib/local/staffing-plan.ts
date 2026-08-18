@@ -302,15 +302,7 @@ function normalizePlan(value: unknown): StaffingPlan {
                 ];
               }),
             ).values(),
-          ].sort((left, right) => {
-            const leftDay = STAFFING_DAYS.findIndex(
-              (item) => item.code === left.day,
-            );
-            const rightDay = STAFFING_DAYS.findIndex(
-              (item) => item.code === right.day,
-            );
-            return leftDay - rightDay || left.period - right.period;
-          })
+          ]
         : [],
     })),
   };
