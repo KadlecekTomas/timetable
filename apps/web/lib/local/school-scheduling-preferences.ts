@@ -18,8 +18,8 @@ const SPANISH_FIXED_SLOTS = [
 ] as const;
 const GERMAN_FOLLOW_UP_PREFERENCES = [
   { period: 2, weight: 100 }, // ideálně hned 3. hodinu
-  { period: 3, weight: 60 },
-  { period: 4, weight: 30 },
+  { period: 3, weight: 15 },
+  { period: 4, weight: 5 },
 ] as const;
 
 function normalizedPersonToken(value: string): string {
