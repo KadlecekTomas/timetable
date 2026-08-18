@@ -32,6 +32,57 @@ const UNSCHEDULED_SUBJECT_CODES = new Set([
   "REZERVA",
 ]);
 
+const PHYSICAL_EDUCATION_SUBJECT_CODE = "TV";
+const PHYSICAL_EDUCATION_ROOM_TYPE_ID = "room-type:TV";
+const PHYSICAL_EDUCATION_ROOM_TYPE = {
+  id: PHYSICAL_EDUCATION_ROOM_TYPE_ID,
+  code: "TV",
+  name: "Sportovní prostor",
+};
+const PHYSICAL_EDUCATION_ROOMS = [
+  {
+    id: "room:TV1",
+    code: "Tělocvična 1",
+    name: "Tělocvična 1",
+    capacity: null,
+    roomTypeId: PHYSICAL_EDUCATION_ROOM_TYPE_ID,
+  },
+  {
+    id: "room:TV2",
+    code: "Tělocvična 2",
+    name: "Tělocvična 2",
+    capacity: null,
+    roomTypeId: PHYSICAL_EDUCATION_ROOM_TYPE_ID,
+  },
+  {
+    id: "room:SAL",
+    code: "Sál",
+    name: "Sál",
+    capacity: null,
+    roomTypeId: PHYSICAL_EDUCATION_ROOM_TYPE_ID,
+  },
+  {
+    id: "room:HALA1",
+    code: "Hala 1",
+    name: "Hala 1",
+    capacity: null,
+    roomTypeId: PHYSICAL_EDUCATION_ROOM_TYPE_ID,
+  },
+  {
+    id: "room:HALA2",
+    code: "Hala 2",
+    name: "Hala 2",
+    capacity: null,
+    roomTypeId: PHYSICAL_EDUCATION_ROOM_TYPE_ID,
+  },
+] as const;
+const THURSDAY_ONLY_PHYSICAL_EDUCATION_ROOM_IDS = new Set([
+  "room:HALA1",
+  "room:HALA2",
+]);
+const MONDAY_DAY_INDEX = 0;
+const THURSDAY_DAY_INDEX = 3;
+
 export interface SchoolProjectGenerationSummary {
   teachers: number;
   classes: number;
@@ -90,6 +141,7 @@ function generatedTeacherPeriods(
 function assignmentShape(
   row: TeachingPlanRow,
   additionalClassIds: string[],
+  subjectCode: string,
   weeklyPeriods = row.weeklyPeriods,
 ) {
   const isFragment = weeklyPeriods !== row.weeklyPeriods;
@@ -110,7 +162,10 @@ function assignmentShape(
           ? row.doublePeriodsCount
           : 0,
     requiredRoomId: null,
-    requiredRoomTypeId: null,
+    requiredRoomTypeId:
+      subjectCode === PHYSICAL_EDUCATION_SUBJECT_CODE
+        ? PHYSICAL_EDUCATION_ROOM_TYPE_ID
+        : null,
     maxPerDay: null,
     minDayGap: null,
     additionalClassIds,
@@ -188,6 +243,9 @@ export function buildSchoolProjectForGeneration({
   );
   for (const code of [...UNSCHEDULED_SUBJECT_CODES])
     usedSubjectCodes.delete(code);
+  const usesPhysicalEducation = usedSubjectCodes.has(
+    PHYSICAL_EDUCATION_SUBJECT_CODE,
+  );
   const subjects: LocalSubject[] = [...usedSubjectCodes]
     .filter(Boolean)
     .map((code) => ({
@@ -195,9 +253,36 @@ export function buildSchoolProjectForGeneration({
       code,
       name: STAFFING_SUBJECTS.find((item) => item.code === code)?.label ?? code,
       colorToken: null,
-      defaultRoomTypeId: null,
+      defaultRoomTypeId:
+        code === PHYSICAL_EDUCATION_SUBJECT_CODE
+          ? PHYSICAL_EDUCATION_ROOM_TYPE_ID
+          : null,
     }));
   const subjectIdByCode = new Map(subjects.map((item) => [item.code, item.id]));
+
+  const roomTypes = usesPhysicalEducation
+    ? [
+        ...existingProject.roomTypes
+          .filter((roomType) => roomType.id !== PHYSICAL_EDUCATION_ROOM_TYPE_ID)
+          .map((roomType) => ({ ...roomType })),
+        { ...PHYSICAL_EDUCATION_ROOM_TYPE },
+      ]
+    : existingProject.roomTypes.map((roomType) => ({ ...roomType }));
+  const physicalEducationRoomIds = new Set(
+    PHYSICAL_EDUCATION_ROOMS.map((room) => room.id),
+  );
+  const rooms = usesPhysicalEducation
+    ? [
+        ...existingProject.rooms
+          .filter(
+            (room) =>
+              room.roomTypeId !== PHYSICAL_EDUCATION_ROOM_TYPE_ID &&
+              !physicalEducationRoomIds.has(room.id),
+          )
+          .map((room) => ({ ...room })),
+        ...PHYSICAL_EDUCATION_ROOMS.map((room) => ({ ...room })),
+      ]
+    : existingProject.rooms.map((room) => ({ ...room }));
 
   const assignments: LocalAssignment[] = [];
   const push = (
@@ -248,7 +333,7 @@ export function buildSchoolProjectForGeneration({
       subjectId,
       teacherId,
       group,
-      ...assignmentShape(row, additionalClassIds, weeklyPeriods),
+      ...assignmentShape(row, additionalClassIds, subjectCode, weeklyPeriods),
       parallelKey,
       rotationKey,
       rotationLeg,
@@ -493,7 +578,7 @@ export function buildSchoolProjectForGeneration({
     }
   }
 
-  const availability: LocalAvailability[] = staffingPlan.teachers.flatMap(
+  const teacherAvailability: LocalAvailability[] = staffingPlan.teachers.flatMap(
     (teacher) =>
       teacher.unavailableDays.flatMap((dayCode) => {
         const day = STAFFING_DAYS.find((item) => item.code === dayCode);
@@ -514,6 +599,38 @@ export function buildSchoolProjectForGeneration({
       }),
   );
 
+  const physicalEducationAvailability: LocalAvailability[] = usesPhysicalEducation
+    ? PHYSICAL_EDUCATION_ROOMS.flatMap((room) => {
+        const unavailableDays = THURSDAY_ONLY_PHYSICAL_EDUCATION_ROOM_IDS.has(
+          room.id,
+        )
+          ? [0, 1, 2, 4]
+          : [MONDAY_DAY_INDEX];
+        return unavailableDays.flatMap((dayIndex) =>
+          Array.from(
+            { length: existingProject.periodsPerDay[dayIndex] ?? 0 },
+            (_unused, period) => ({
+              id: `availability:${room.id}:${dayIndex}:${period}`,
+              entityType: "ROOM" as const,
+              entityId: room.id,
+              dayOfWeek: dayIndex,
+              period,
+              kind: "UNAVAILABLE" as const,
+              weight: null,
+              reason:
+                dayIndex === MONDAY_DAY_INDEX
+                  ? "TV se v pondělí nevyučuje"
+                  : `Hala je k dispozici pouze ve čtvrtek (den ${THURSDAY_DAY_INDEX + 1}).`,
+            }),
+          ),
+        );
+      })
+    : [];
+  const availability = [
+    ...teacherAvailability,
+    ...physicalEducationAvailability,
+  ];
+
   const project: LocalProject = blockers.length
     ? structuredClone(existingProject)
     : {
@@ -523,6 +640,8 @@ export function buildSchoolProjectForGeneration({
         teachers,
         classes,
         subjects,
+        roomTypes,
+        rooms,
         assignments,
         availability,
         fixedLessons: existingProject.fixedLessons.filter((lesson) =>
