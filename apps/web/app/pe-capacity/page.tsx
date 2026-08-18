@@ -23,7 +23,9 @@ import {
 const dayNames = ["Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek"];
 
 export default function PeCapacityPage() {
-  const [periodsPerDay, setPeriodsPerDay] = useState<number[]>([8, 8, 8, 8, 7]);
+  const [periodsPerDay, setPeriodsPerDay] = useState<number[]>([
+    8, 8, 8, 8, 7,
+  ]);
   const [slots, setSlots] = useState<PhysicalEducationExternalOccupancySlot[]>(
     [],
   );
@@ -91,7 +93,11 @@ export default function PeCapacityPage() {
     }
   }
 
-  function updateSlot(dayOfWeek: number, period: number, occupiedSpaces: number) {
+  function updateSlot(
+    dayOfWeek: number,
+    period: number,
+    occupiedSpaces: number,
+  ) {
     const next = slots.filter(
       (slot) => !(slot.dayOfWeek === dayOfWeek && slot.period === period),
     );
@@ -200,7 +206,8 @@ export default function PeCapacityPage() {
                               { length: baseCapacity + 1 },
                               (_option, value) => (
                                 <option key={value} value={value}>
-                                  {value} zabraných · {baseCapacity - value} volných
+                                  {value} zabraných · {baseCapacity - value}{" "}
+                                  volných
                                 </option>
                               ),
                             )}
