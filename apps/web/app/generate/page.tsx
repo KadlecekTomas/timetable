@@ -477,11 +477,11 @@ export default function GeneratePage() {
                 <div className="flex items-center gap-2">
                   {run.candidateVersion ? (
                     <Button asChild size="sm">
-                      <Link
+                      <a
                         href={`/timetable?schoolYearId=${encodeURIComponent(schoolYearId)}&versionId=${encodeURIComponent(run.candidateVersion.id)}`}
                       >
                         Otevřít návrh
-                      </Link>
+                      </a>
                     </Button>
                   ) : null}
                   {["QUEUED", "RUNNING"].includes(run.status) ? (
