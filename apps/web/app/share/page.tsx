@@ -15,6 +15,7 @@ import { ChangeEvent, useEffect, useRef, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
+import { confirmAction } from "@/components/ui/confirm-action-dialog";
 import {
   applyBrowserProjectShare,
   BROWSER_PROJECT_SHARE_HASH_PREFIX,
@@ -208,13 +209,16 @@ export default function SharePage() {
 
   async function applyIncoming(): Promise<void> {
     if (!incoming) return;
-    if (
-      !window.confirm(
-        "Načtení nahradí pracovní data i připravený rozvrhový projekt v tomto prohlížeči. Pokračovat?",
-      )
-    ) {
-      return;
-    }
+    const confirmed = await confirmAction(
+      "Načtení nahradí pracovní data i připravený rozvrhový projekt v tomto prohlížeči.",
+      {
+        title: "Načíst přijatý projekt?",
+        confirmLabel: "Načíst projekt",
+        tone: "danger",
+      },
+    );
+    if (!confirmed) return;
+
     setBusy(true);
     setMessage(null);
     setError(null);

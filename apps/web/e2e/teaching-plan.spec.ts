@@ -127,7 +127,7 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
     .getByLabel("Předmět 2")
     .locator("xpath=ancestor::article")
     .getByRole("button", {
-      name: "Dvě skupiny – stejný předmět",
+      name: "Skupiny – stejný předmět",
       exact: true,
     })
     .click();
@@ -138,7 +138,7 @@ test("technical amateur can create a VV double lesson and split INF groups", asy
     .getByLabel("Učitel 2 předmětu 2")
     .selectOption({ label: "N. Vašáková" });
   await expect(
-    page.getByText("Obě skupiny budou vždy ve stejnou dobu."),
+    page.getByText("Všechny skupiny budou vždy ve stejnou dobu."),
   ).toBeVisible();
   await screenshot(page, "03-inf-dve-soubezne-skupiny.png");
 

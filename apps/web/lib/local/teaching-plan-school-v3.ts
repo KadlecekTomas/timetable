@@ -26,6 +26,7 @@ const SECOND_FOREIGN_LANGUAGE_CODE = "JAZ2";
 const ELECTIVE_SUBJECT_CODE = "VOL";
 const ELECTIVE_EXCLUDED_GRADES = new Set([6, 7]);
 const SPLIT_PERIODS_STORAGE_KEY = "rozvrhar:teaching-plan-split-periods:v1";
+const DOUBLE_BLOCK_SUBJECT_CODES = new Set(["TV", "VV"]);
 
 let migratingTeachingPlan = false;
 
@@ -145,6 +146,41 @@ function removeUnavailableElectives(plan: TeachingPlan): TeachingPlan {
       return remainingClasses.length > 0
         ? [rowWithClassCodes(row, remainingClasses)]
         : [];
+    }),
+  };
+}
+
+function enforceRequiredLessonBlocks(plan: TeachingPlan): TeachingPlan {
+  if (!isCurrentSchoolPlan(plan)) return plan;
+
+  return {
+    ...plan,
+    rows: plan.rows.map((row) => {
+      const subjectCodes = [row.subjectCode, row.secondarySubjectCode].filter(
+        (subjectCode): subjectCode is string => Boolean(subjectCode),
+      );
+      const requiresDoubleBlock = subjectCodes.some((subjectCode) =>
+        DOUBLE_BLOCK_SUBJECT_CODES.has(subjectCode),
+      );
+      const containsPhysicalEducation = subjectCodes.includes("TV");
+
+      if (row.weeklyPeriods === 2 && requiresDoubleBlock) {
+        return {
+          ...row,
+          lessonShape: "DOUBLE" as const,
+          doublePeriodsCount: 1,
+        };
+      }
+
+      if (row.weeklyPeriods === 5 && containsPhysicalEducation) {
+        return {
+          ...row,
+          lessonShape: "MIXED" as const,
+          doublePeriodsCount: 2,
+        };
+      }
+
+      return row;
     }),
   };
 }
@@ -317,8 +353,10 @@ export function enforceCurrentSchoolTeachingStructure(
   plan: TeachingPlan,
 ): TeachingPlan {
   if (!isCurrentSchoolPlan(plan)) return plan;
-  return combineSecondForeignLanguageByGrade(
-    enforceMandatorySchoolSplits(removeUnavailableElectives(plan)),
+  return enforceRequiredLessonBlocks(
+    combineSecondForeignLanguageByGrade(
+      enforceMandatorySchoolSplits(removeUnavailableElectives(plan)),
+    ),
   );
 }
 

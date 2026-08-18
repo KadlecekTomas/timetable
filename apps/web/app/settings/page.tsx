@@ -15,6 +15,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
+import { confirmAction } from "@/components/ui/confirm-action-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   getLocalProject,
@@ -128,13 +129,19 @@ export default function SettingsPage() {
   }
 
   async function restoreBackup(file: File) {
-    if (
-      !window.confirm(
-        "Obnova nahradí celý současný lokální projekt obsahem zálohy. Pokračovat?",
-      )
-    ) {
+    const confirmed = await confirmAction(
+      "Obnova nahradí celý současný lokální projekt obsahem vybrané zálohy.",
+      {
+        title: "Obnovit projekt ze zálohy?",
+        confirmLabel: "Obnovit projekt",
+        tone: "danger",
+      },
+    );
+    if (!confirmed) {
+      if (restoreInput.current) restoreInput.current.value = "";
       return;
     }
+
     setBusy(true);
     setMessage(null);
     setError(null);
@@ -157,20 +164,16 @@ export default function SettingsPage() {
   }
 
   async function eraseProject() {
-    if (
-      !window.confirm(
-        "Opravdu vymazat celý projekt z tohoto prohlížeče? Před pokračováním si stáhněte zálohu.",
-      )
-    ) {
-      return;
-    }
-    if (
-      !window.confirm(
-        "Tato operace odstraní učitele, třídy, pravidla i vytvořené rozvrhy. Potvrdit definitivní vymazání?",
-      )
-    ) {
-      return;
-    }
+    const confirmed = await confirmAction(
+      "Tato operace odstraní učitele, třídy, pravidla i vytvořené rozvrhy z tohoto prohlížeče. Bez stažené zálohy nebude možné data obnovit.",
+      {
+        title: "Definitivně vymazat celý projekt?",
+        confirmLabel: "Vymazat projekt",
+        tone: "danger",
+      },
+    );
+    if (!confirmed) return;
+
     setBusy(true);
     setMessage(null);
     setError(null);

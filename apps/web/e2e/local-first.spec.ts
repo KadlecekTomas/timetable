@@ -199,8 +199,15 @@ test("entire project survives backup, deletion and restore without a server data
       "delete-me",
     );
   });
-  page.on("dialog", (dialog) => void dialog.accept());
   await page.getByRole("button", { name: "Vymazat lokální projekt" }).click();
+  await expect(
+    page.getByRole("alertdialog", {
+      name: "Definitivně vymazat celý projekt?",
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Vymazat projekt", exact: true })
+    .click();
   await expect(
     page.getByText("Lokální projekt byl vymazán a vytvořen znovu prázdný."),
   ).toBeVisible();
@@ -239,6 +246,12 @@ test("entire project survives backup, deletion and restore without a server data
     mimeType: "application/json",
     buffer: backupBytes,
   });
+  await expect(
+    page.getByRole("alertdialog", { name: "Obnovit projekt ze zálohy?" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Obnovit projekt", exact: true })
+    .click();
   await expect(
     page.getByText(
       "Projekt byl úspěšně obnoven včetně pracovních úvazků a učebního plánu.",

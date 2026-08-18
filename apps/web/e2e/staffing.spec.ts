@@ -301,12 +301,12 @@ test("problem cards are first and unsaved navigation requires confirmation", asy
     page.getByRole("button", { name: "Neuložené (1)" }),
   ).toBeVisible();
 
-  let dialogMessage = "";
-  page.once("dialog", async (dialog) => {
-    dialogMessage = dialog.message();
-    await dialog.dismiss();
-  });
   await page.getByRole("link", { name: "2. Pokrytí výuky" }).click();
-  expect(dialogMessage).toContain("Máte neuložené změny");
+  const dialog = page.getByRole("alertdialog", {
+    name: "Opustit stránku bez uložení?",
+  });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("Máte neuložené změny");
+  await dialog.getByRole("button", { name: "Zrušit" }).click();
   await expect(page).toHaveURL(/\/staffing/);
 });

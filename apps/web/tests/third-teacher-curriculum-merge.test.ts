@@ -6,16 +6,16 @@ import {
   createEmptyStaffingPlan,
   type StaffingPlan,
 } from "../lib/local/staffing-plan-school-v2";
-import { preserveThirdParallelTeachers } from "../lib/local/teaching-plan-allocation-groups";
-import {
-  applySchoolOperationalRules,
-  createEmptyTeachingPlan,
-} from "../lib/local/teaching-plan-school-v3";
 import {
   SCHOOL_CLASS_CODES,
   createTeachingPlanClass,
   createTeachingPlanRow,
 } from "../lib/local/teaching-plan-school";
+import { preserveThirdParallelTeachers } from "../lib/local/teaching-plan-allocation-groups";
+import {
+  applySchoolOperationalRules,
+  createEmptyTeachingPlan,
+} from "../lib/local/teaching-plan-school-v3";
 
 function staffingPlan(): StaffingPlan {
   const plan = createEmptyStaffingPlan();
@@ -30,7 +30,7 @@ function staffingPlan(): StaffingPlan {
   return plan;
 }
 
-test("curriculum merge keeps the third parallel TV teacher", () => {
+test("authoritative curriculum merge restores the third parallel TV teacher", () => {
   const plan = createEmptyTeachingPlan();
   plan.classes = SCHOOL_CLASS_CODES.map((code) =>
     createTeachingPlanClass(code),
@@ -54,20 +54,23 @@ test("curriculum merge keeps the third parallel TV teacher", () => {
         group: "WHOLE",
         teacherIds: ["alpha", "beta", "gamma"],
         sourceSheet: "Úvazky",
-        sourceRow: 14,
+        sourceRow: 45,
       },
     ],
   };
 
   const restored = preserveThirdParallelTeachers(plan, draft);
-  const enforced = applySchoolOperationalRules(restored, staffingPlan(), draft);
-  const enforcedTv = enforced.rows.find(
-    (row) => row.classCode === "6.B" && row.subjectCode === "TV",
-  );
+  const restoredTv = restored.rows[0]!;
+  assert.equal(restoredTv.organization, "SPLIT");
+  assert.equal(restoredTv.splitGroupCount, 3);
+  assert.equal(restoredTv.primaryTeacherId, "alpha");
+  assert.equal(restoredTv.secondaryTeacherId, "beta");
+  assert.equal(restoredTv.tertiaryTeacherId, "gamma");
 
-  assert.equal(enforcedTv?.organization, "SPLIT");
-  assert.equal(enforcedTv?.splitGroupCount, 3);
-  assert.equal(enforcedTv?.primaryTeacherId, "alpha");
-  assert.equal(enforcedTv?.secondaryTeacherId, "beta");
-  assert.equal(enforcedTv?.tertiaryTeacherId, "gamma");
+  const enforced = applySchoolOperationalRules(restored, staffingPlan(), draft);
+  const enforcedTv = enforced.rows[0]!;
+  assert.equal(enforcedTv.splitGroupCount, 3);
+  assert.equal(enforcedTv.tertiaryTeacherId, "gamma");
+  assert.equal(enforcedTv.lessonShape, "MIXED");
+  assert.equal(enforcedTv.doublePeriodsCount, 2);
 });
