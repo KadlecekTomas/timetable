@@ -45,73 +45,86 @@ function fromPeriod(
  * Authoritative school defaults for hard teacher unavailability in 2026/2027.
  * Matching is surname-first because source workbooks may omit first names.
  */
-export const SCHOOL_TEACHER_AVAILABILITY_DEFAULTS: readonly SchoolTeacherAvailabilityRule[] = [
-  { surname: "Černá", firstName: "Veronika", unavailableDays: ["TUE", "FRI"] },
-  {
-    surname: "Dostálová",
-    firstName: "Kateřina",
-    unavailablePeriods: fromPeriod("THU", 5),
-  },
-  { surname: "Jislová", firstName: "Anežka", unavailableDays: ["FRI"] },
-  { surname: "Kadleček", firstName: "Tomáš", unavailableDays: ["FRI"] },
-  { surname: "Kvapilová", unavailablePeriods: fromPeriod("THU", 3) },
-  { surname: "Lišková", firstName: "Jiřina", unavailableDays: ["MON", "FRI"] },
-  {
-    surname: "Moravcová",
-    firstName: "Myřátská",
-    unavailableDays: ["THU", "FRI"],
-    unavailablePeriods: periods("MON", 5),
-  },
-  { surname: "Pokorná", firstName: "Jaroslava", unavailableDays: ["FRI"] },
-  { surname: "Šárová", firstName: "Eliška", unavailableDays: ["MON", "FRI"] },
-  { surname: "Šobotník", firstName: "Jan", unavailableDays: ["MON"] },
-  {
-    surname: "Vašáková",
-    firstName: "Nikola",
-    unavailableDays: ["MON", "THU", "FRI"],
-  },
-  { surname: "Vavřincová", firstName: "Anna", unavailableDays: ["MON"] },
-  { surname: "Vosyková", firstName: "Božena", unavailableDays: ["WED", "FRI"] },
-  {
-    surname: "Zindulková",
-    firstName: "Zina",
-    unavailablePeriods: fromPeriod("TUE", 4),
-  },
-  {
-    surname: "Indrakova",
-    unavailablePeriods: [
-      ...periods("MON", 5),
-      ...periods("TUE", 3, 4, 5),
-      ...periods("WED", 4, 5),
-      ...periods("THU", 3, 4),
-    ],
-  },
-  {
-    surname: "Jakoubková",
-    firstName: "Zuzana",
-    unavailablePeriods: [
-      ...periods("MON", 6),
-      ...periods("THU", 5),
-      ...periods("FRI", 3, 4),
-    ],
-  },
-  {
-    surname: "Wild",
-    firstName: "Pavel",
-    unavailablePeriods: [...periods("MON", 5), ...periods("FRI", 4)],
-  },
-  {
-    surname: "Hanková",
-    firstName: "Eva",
-    unavailablePeriods: [
-      ...periods("MON", 2, 3, 4, 5),
-      ...periods("TUE", 1, 3, 4, 5),
-      ...periods("WED", 2, 4, 5),
-      ...periods("THU", 1, 3, 4, 5),
-      ...periods("FRI", 5),
-    ],
-  },
-] as const;
+export const SCHOOL_TEACHER_AVAILABILITY_DEFAULTS: readonly SchoolTeacherAvailabilityRule[] =
+  [
+    {
+      surname: "Černá",
+      firstName: "Veronika",
+      unavailableDays: ["TUE", "FRI"],
+    },
+    {
+      surname: "Dostálová",
+      firstName: "Kateřina",
+      unavailablePeriods: fromPeriod("THU", 5),
+    },
+    { surname: "Jislová", firstName: "Anežka", unavailableDays: ["FRI"] },
+    { surname: "Kadleček", firstName: "Tomáš", unavailableDays: ["FRI"] },
+    { surname: "Kvapilová", unavailablePeriods: fromPeriod("THU", 3) },
+    {
+      surname: "Lišková",
+      firstName: "Jiřina",
+      unavailableDays: ["MON", "FRI"],
+    },
+    {
+      surname: "Moravcová",
+      firstName: "Myřátská",
+      unavailableDays: ["THU", "FRI"],
+      unavailablePeriods: periods("MON", 5),
+    },
+    { surname: "Pokorná", firstName: "Jaroslava", unavailableDays: ["FRI"] },
+    { surname: "Šárová", firstName: "Eliška", unavailableDays: ["MON", "FRI"] },
+    { surname: "Šobotník", firstName: "Jan", unavailableDays: ["MON"] },
+    {
+      surname: "Vašáková",
+      firstName: "Nikola",
+      unavailableDays: ["MON", "THU", "FRI"],
+    },
+    { surname: "Vavřincová", firstName: "Anna", unavailableDays: ["MON"] },
+    {
+      surname: "Vosyková",
+      firstName: "Božena",
+      unavailableDays: ["WED", "FRI"],
+    },
+    {
+      surname: "Zindulková",
+      firstName: "Zina",
+      unavailablePeriods: fromPeriod("TUE", 4),
+    },
+    {
+      surname: "Indrakova",
+      unavailablePeriods: [
+        ...periods("MON", 5),
+        ...periods("TUE", 3, 4, 5),
+        ...periods("WED", 4, 5),
+        ...periods("THU", 3, 4),
+      ],
+    },
+    {
+      surname: "Jakoubková",
+      firstName: "Zuzana",
+      unavailablePeriods: [
+        ...periods("MON", 6),
+        ...periods("THU", 5),
+        ...periods("FRI", 3, 4),
+      ],
+    },
+    {
+      surname: "Wild",
+      firstName: "Pavel",
+      unavailablePeriods: [...periods("MON", 5), ...periods("FRI", 4)],
+    },
+    {
+      surname: "Hanková",
+      firstName: "Eva",
+      unavailablePeriods: [
+        ...periods("MON", 2, 3, 4, 5),
+        ...periods("TUE", 1, 3, 4, 5),
+        ...periods("WED", 2, 4, 5),
+        ...periods("THU", 1, 3, 4, 5),
+        ...periods("FRI", 5),
+      ],
+    },
+  ] as const;
 
 function normalizedPersonToken(value: string): string {
   return value
@@ -145,7 +158,10 @@ function mergePeriods(
 ): StaffingUnavailablePeriod[] {
   const merged = new Map<string, StaffingUnavailablePeriod>();
   for (const item of [...(current ?? []), ...defaults]) {
-    merged.set(`${item.day}:${item.period}`, { day: item.day, period: item.period });
+    merged.set(`${item.day}:${item.period}`, {
+      day: item.day,
+      period: item.period,
+    });
   }
   return [...merged.values()].sort(
     (left, right) =>

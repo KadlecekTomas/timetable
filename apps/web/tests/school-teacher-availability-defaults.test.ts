@@ -15,7 +15,9 @@ function teacher(
     lastName,
     targetWeeklyLoad: 1,
     baseWeeklyLoad: 1,
-    subjectLoads: [{ id: `${id}:subject`, subjectCode: "CJ", weeklyPeriods: 1 }],
+    subjectLoads: [
+      { id: `${id}:subject`, subjectCode: "CJ", weeklyPeriods: 1 },
+    ],
     unavailableDays: [],
     unavailablePeriods: [],
   };

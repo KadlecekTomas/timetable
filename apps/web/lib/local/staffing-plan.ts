@@ -316,7 +316,9 @@ export function loadStaffingPlan(): StaffingPlan {
   if (typeof window === "undefined") return createEmptyStaffingPlan();
   try {
     const raw = window.localStorage.getItem(STAFFING_PLAN_STORAGE_KEY);
-    const plan = raw ? normalizePlan(JSON.parse(raw)) : createEmptyStaffingPlan();
+    const plan = raw
+      ? normalizePlan(JSON.parse(raw))
+      : createEmptyStaffingPlan();
     if (
       plan.teachers.length === 0 ||
       window.localStorage.getItem(SCHOOL_TEACHER_AVAILABILITY_MIGRATION_KEY) ===
@@ -336,10 +338,7 @@ export function loadStaffingPlan(): StaffingPlan {
       STAFFING_PLAN_STORAGE_KEY,
       JSON.stringify(migrated),
     );
-    window.localStorage.setItem(
-      SCHOOL_TEACHER_AVAILABILITY_MIGRATION_KEY,
-      "1",
-    );
+    window.localStorage.setItem(SCHOOL_TEACHER_AVAILABILITY_MIGRATION_KEY, "1");
     return migrated;
   } catch {
     return createEmptyStaffingPlan();
