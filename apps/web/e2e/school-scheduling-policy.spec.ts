@@ -1,6 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import type { CanonicalSnapshot, ScheduledLesson } from "../lib/domain/contracts";
+import type {
+  CanonicalSnapshot,
+  ScheduledLesson,
+} from "../lib/domain/contracts";
 import { validateSchedule } from "../lib/domain/validation";
 
 interface StoredTeacher {
