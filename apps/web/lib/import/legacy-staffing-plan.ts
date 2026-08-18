@@ -215,7 +215,11 @@ export function analyzeLegacyStaffingPlan(
           });
         }
       } else {
-        addSubjectHours(teacher, requirement.subject.code, teacherWeeklyPeriods);
+        addSubjectHours(
+          teacher,
+          requirement.subject.code,
+          teacherWeeklyPeriods,
+        );
       }
     }
 
