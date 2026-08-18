@@ -172,6 +172,14 @@ function enforceRequiredLessonBlocks(plan: TeachingPlan): TeachingPlan {
         };
       }
 
+      if (row.weeklyPeriods === 4 && containsPhysicalEducation) {
+        return {
+          ...row,
+          lessonShape: "DOUBLE" as const,
+          doublePeriodsCount: 2,
+        };
+      }
+
       if (row.weeklyPeriods === 5 && containsPhysicalEducation) {
         return {
           ...row,
