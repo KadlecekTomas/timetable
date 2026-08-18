@@ -26,7 +26,9 @@ function tvHours(
   analysis: NonNullable<ReturnType<typeof analyzeLegacyStaffingPlan>>,
   lastName: string,
 ): number {
-  const teacher = analysis.plan.teachers.find((item) => item.lastName === lastName);
+  const teacher = analysis.plan.teachers.find(
+    (item) => item.lastName === lastName,
+  );
   assert.ok(teacher, `Missing teacher ${lastName}`);
   return teacher.subjectLoads
     .filter((item) => item.subjectCode === "TV")
