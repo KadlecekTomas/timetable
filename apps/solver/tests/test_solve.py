@@ -302,7 +302,7 @@ def test_full_school_time_limit_uses_parallel_search() -> None:
     assert _search_workers(full_school) == 8
 
 
-def test_full_school_search_is_feasibility_first() -> None:
+def test_full_school_search_preserves_first_guided_solution() -> None:
     response = client.post(
         "/solve",
         json={
@@ -317,6 +317,7 @@ def test_full_school_search_is_feasibility_first() -> None:
                 }
             ],
             "time_limit_seconds": 120,
+            "random_seed": 7,
         },
     )
 
@@ -324,14 +325,12 @@ def test_full_school_search_is_feasibility_first() -> None:
     payload = response.json()
     assert payload["status"] in {"FEASIBLE", "OPTIMAL"}
     assert any(
-        item["code"] == "FEASIBILITY_FIRST_SEARCH"
+        item["code"] == "GUIDED_FIRST_SOLUTION_SEARCH"
         for item in payload["diagnostics"]
     )
-    assert payload["solver_stats"]["searchPhases"] == [
-        "FEASIBILITY",
-        "OPTIMIZATION",
-    ]
-    assert payload["solver_stats"]["feasibilityWallTimeSeconds"] >= 0
+    assert payload["solver_stats"]["searchPhases"][0] == "GUIDED_FIRST_SOLUTION"
+    assert payload["solver_stats"]["searchSeeds"][0] == 7
+    assert payload["solver_stats"]["firstSolutionWallTimeSeconds"] >= 0
     assert payload["solver_stats"]["optimizationWallTimeSeconds"] >= 0
 
 

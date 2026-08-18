@@ -664,57 +664,85 @@ def solve(payload: SolveRequest) -> SolveResponse:
         "class",
     )
     objective = sum(objective_terms)
+    model.minimize(objective)
     workers = _search_workers(payload)
     effective_time_limit_seconds = _solver_time_limit_seconds(
         payload,
         request_started,
     )
-    feasibility_wall_time_seconds = 0.0
+    first_solution_wall_time_seconds = 0.0
+    fallback_search_wall_time_seconds = 0.0
     optimization_wall_time_seconds = 0.0
     search_phases: list[str] = []
+    search_seeds: list[int] = []
 
     if workers > 1:
-        # Full-school runs are deliberately two-phase. A large weighted objective can
-        # delay the very first solution on a tightly constrained school model. First
-        # prove feasibility without an objective; once a valid timetable exists, use
-        # it as a warm start for the remaining optimization budget.
-        feasibility_solver = cp_model.CpSolver()
-        feasibility_solver.parameters.max_time_in_seconds = (
-            effective_time_limit_seconds
+        # Keep the weighted objective active because it materially guides CP-SAT on
+        # the full school model. The first phase only changes the stopping rule: as
+        # soon as the guided search finds a valid timetable, preserve it instead of
+        # risking an UNKNOWN response while chasing a better objective value.
+        primary_search_seconds = min(180.0, effective_time_limit_seconds)
+        first_solution_solver = cp_model.CpSolver()
+        first_solution_solver.parameters.max_time_in_seconds = primary_search_seconds
+        first_solution_solver.parameters.num_search_workers = workers
+        first_solution_solver.parameters.random_seed = payload.random_seed
+        first_solution_solver.parameters.stop_after_first_solution = True
+        status = first_solution_solver.solve(model)
+        first_solution_wall_time_seconds = first_solution_solver.wall_time
+        search_phases.append("GUIDED_FIRST_SOLUTION")
+        search_seeds.append(payload.random_seed)
+        solver = first_solution_solver
+
+        remaining_seconds = max(
+            0.0,
+            effective_time_limit_seconds - first_solution_wall_time_seconds,
         )
-        feasibility_solver.parameters.num_search_workers = workers
-        feasibility_solver.parameters.random_seed = payload.random_seed
-        feasibility_status = feasibility_solver.solve(model)
-        feasibility_wall_time_seconds = feasibility_solver.wall_time
-        search_phases.append("FEASIBILITY")
-
-        solver = feasibility_solver
-        status = feasibility_status
-        if feasibility_status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            # A satisfaction model reports OPTIMAL when it finds a solution because
-            # there is no objective yet. It is only a feasible seed for our real
-            # weighted objective, so never expose it as an optimized timetable.
-            status = cp_model.FEASIBLE
-            for block in blocks:
-                selected_hint = next(
-                    variable
-                    for _candidate, variable in variables[block.id]
-                    if feasibility_solver.value(variable) == 1
-                )
-                model.add_hint(selected_hint, 1)
-
-            remaining_optimization_seconds = max(
-                0.0,
-                effective_time_limit_seconds - feasibility_wall_time_seconds,
+        if status == cp_model.UNKNOWN and remaining_seconds >= 5.0:
+            # A retry must be a genuinely different search, not another run with the
+            # same fixed seed. This is especially valuable after a long first attempt.
+            alternate_seed = (
+                payload.random_seed + 1
+                if payload.random_seed < 2_147_483_646
+                else 1
             )
-            if remaining_optimization_seconds >= 1.0:
-                model.minimize(objective)
+            fallback_solver = cp_model.CpSolver()
+            fallback_solver.parameters.max_time_in_seconds = remaining_seconds
+            fallback_solver.parameters.num_search_workers = workers
+            fallback_solver.parameters.random_seed = alternate_seed
+            fallback_solver.parameters.stop_after_first_solution = True
+            fallback_status = fallback_solver.solve(model)
+            fallback_search_wall_time_seconds = fallback_solver.wall_time
+            search_phases.append("ALTERNATE_SEED_FIRST_SOLUTION")
+            search_seeds.append(alternate_seed)
+            if fallback_status != cp_model.UNKNOWN:
+                solver = fallback_solver
+                status = fallback_status
+
+        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            remaining_seconds = max(
+                0.0,
+                effective_time_limit_seconds
+                - first_solution_wall_time_seconds
+                - fallback_search_wall_time_seconds,
+            )
+            if status != cp_model.OPTIMAL and remaining_seconds >= 1.0:
+                for block in blocks:
+                    selected_hint = next(
+                        variable
+                        for _candidate, variable in variables[block.id]
+                        if solver.value(variable) == 1
+                    )
+                    model.add_hint(selected_hint, 1)
+
+                # Quality still matters, but once a valid school timetable exists we
+                # cap this phase so the user gets the candidate back promptly.
+                optimization_budget_seconds = min(30.0, remaining_seconds)
                 optimization_solver = cp_model.CpSolver()
                 optimization_solver.parameters.max_time_in_seconds = (
-                    remaining_optimization_seconds
+                    optimization_budget_seconds
                 )
                 optimization_solver.parameters.num_search_workers = workers
-                optimization_solver.parameters.random_seed = payload.random_seed
+                optimization_solver.parameters.random_seed = search_seeds[-1]
                 optimization_status = optimization_solver.solve(model)
                 optimization_wall_time_seconds = optimization_solver.wall_time
                 search_phases.append("OPTIMIZATION")
@@ -722,7 +750,6 @@ def solve(payload: SolveRequest) -> SolveResponse:
                     solver = optimization_solver
                     status = optimization_status
     else:
-        model.minimize(objective)
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = effective_time_limit_seconds
         solver.parameters.num_search_workers = workers
@@ -730,6 +757,7 @@ def solve(payload: SolveRequest) -> SolveResponse:
         status = solver.solve(model)
         optimization_wall_time_seconds = solver.wall_time
         search_phases.append("OPTIMIZATION")
+        search_seeds.append(payload.random_seed)
 
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         if status == cp_model.UNKNOWN:
@@ -819,14 +847,17 @@ def solve(payload: SolveRequest) -> SolveResponse:
     status_name = "OPTIMAL" if status == cp_model.OPTIMAL else "FEASIBLE"
     search_diagnostic = (
         {
-            "code": "FEASIBILITY_FIRST_SEARCH",
+            "code": "GUIDED_FIRST_SOLUTION_SEARCH",
             "message": (
-                f"Solver použil {workers} paralelních pracovníků: nejprve našel "
-                "platný rozvrh a potom využil zbývající čas k optimalizaci."
+                f"Solver použil {workers} paralelních pracovníků a pedagogické "
+                "skóre jako vodítko. První platný rozvrh zachová a zbývající čas "
+                "využije jen omezeně ke zlepšení kvality."
             ),
             "details": {
                 "phases": search_phases,
-                "feasibilityWallTimeSeconds": feasibility_wall_time_seconds,
+                "seeds": search_seeds,
+                "firstSolutionWallTimeSeconds": first_solution_wall_time_seconds,
+                "fallbackSearchWallTimeSeconds": fallback_search_wall_time_seconds,
                 "optimizationWallTimeSeconds": optimization_wall_time_seconds,
             },
         }
@@ -877,14 +908,16 @@ def solve(payload: SolveRequest) -> SolveResponse:
         ],
         solver_stats={
             "solverVersion": ortools.__version__,
-            "wallTimeSeconds": feasibility_wall_time_seconds + optimization_wall_time_seconds,
+            "wallTimeSeconds": first_solution_wall_time_seconds + fallback_search_wall_time_seconds + optimization_wall_time_seconds,
             "branches": solver.num_branches,
             "conflicts": solver.num_conflicts,
             "bestObjectiveBound": solver.best_objective_bound,
             "randomSeed": payload.random_seed,
             "workers": workers,
             "searchPhases": search_phases,
-            "feasibilityWallTimeSeconds": feasibility_wall_time_seconds,
+            "searchSeeds": search_seeds,
+            "firstSolutionWallTimeSeconds": first_solution_wall_time_seconds,
+            "fallbackSearchWallTimeSeconds": fallback_search_wall_time_seconds,
             "optimizationWallTimeSeconds": optimization_wall_time_seconds,
             "requestedTimeLimitSeconds": payload.time_limit_seconds,
             "effectiveTimeLimitSeconds": effective_time_limit_seconds,

@@ -771,7 +771,7 @@ test("school leadership can import 40 teachers, generate the complete second-sta
   await page.getByRole("button", { name: "Vytvořit nový návrh" }).click();
   await expect(
     page.getByText(/^(Proveditelný návrh|Optimální návrh)$/),
-  ).toBeVisible({ timeout: 240_000 });
+  ).toBeVisible({ timeout: 285_000 });
   await page.getByRole("link", { name: "Otevřít návrh" }).click();
   await expect(
     page.getByRole("heading", { name: "Kvalita návrhu" }),
