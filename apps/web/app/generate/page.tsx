@@ -423,6 +423,9 @@ export default function GeneratePage() {
           >
             {localDeepSolve ? (
               <>
+                <option value={30}>30 sekund · rychlý test</option>
+                <option value={60}>1 minuta · rychlý test</option>
+                <option value={180}>3 minuty · kratší pokus</option>
                 <option value={300}>5 minut · rychlý lokální pokus</option>
                 <option value={600}>10 minut · důkladnější hledání</option>
                 <option value={1200}>20 minut · Deep Solve</option>
