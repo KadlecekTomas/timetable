@@ -70,7 +70,7 @@ function ConfirmActionDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[1px] motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[1px]"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onResolve(false);
       }}
@@ -81,7 +81,7 @@ function ConfirmActionDialog({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        className="w-full max-w-md rounded-xl border border-border bg-surface p-5 shadow-2xl motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-150"
+        className="w-full max-w-md rounded-xl border border-border bg-surface p-5 shadow-2xl"
       >
         <div className="flex items-start gap-3">
           <div
