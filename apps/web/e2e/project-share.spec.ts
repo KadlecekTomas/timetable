@@ -170,8 +170,11 @@ test("database-free link transfers working data and solver project to another br
     recipient.getByText("Výukové vazby pro generátor").locator(".."),
   ).toContainText("1");
 
-  recipient.on("dialog", (dialog) => void dialog.accept());
   await recipient.getByRole("button", { name: "Načíst tento projekt" }).click();
+  await expect(
+    recipient.getByRole("alertdialog", { name: "Načíst přijatý projekt?" }),
+  ).toBeVisible();
+  await recipient.getByRole("button", { name: "Načíst projekt" }).click();
   await expect(recipient).toHaveURL(/shared=1/);
 
   const restored = await recipient.evaluate(
