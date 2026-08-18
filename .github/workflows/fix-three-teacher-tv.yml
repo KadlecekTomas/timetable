@@ -1,0 +1,44 @@
+name: Fix three-teacher TV
+
+on:
+  push:
+    branches: [agent/modern-confirm-dialog]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/modern-confirm-dialog
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node scripts/fix-three-teacher-tv.mjs
+      - run: >-
+          npx prettier --write
+          apps/web/lib/import/legacy-staffing-plan.ts
+          apps/web/lib/local/teaching-plan-from-allocation-draft.ts
+          apps/web/lib/local/teaching-plan-school-v3.ts
+          apps/web/lib/local/teaching-plan.ts
+          apps/web/app/teaching-plan/page.tsx
+          apps/web/tests/three-teacher-legacy-import.test.ts
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            apps/web/lib/import/legacy-staffing-plan.ts \
+            apps/web/lib/local/teaching-plan-from-allocation-draft.ts \
+            apps/web/lib/local/teaching-plan-school-v3.ts \
+            apps/web/lib/local/teaching-plan.ts \
+            apps/web/app/teaching-plan/page.tsx \
+            apps/web/tests/three-teacher-legacy-import.test.ts
+          git commit -m "Preserve third teacher in parallel TV"
+          git push origin HEAD:agent/modern-confirm-dialog
