@@ -18,6 +18,14 @@ test("localhost gets a 30-minute Deep Solve budget", () => {
   );
 });
 
+test("127.0.0.1 keeps browser automation fast but can still request Deep Solve", () => {
+  assert.equal(defaultGenerationTimeLimitForHost("127.0.0.1"), 30);
+  assert.equal(
+    maxGenerationTimeLimitForHost("127.0.0.1"),
+    LOCAL_DEEP_SOLVE_SECONDS,
+  );
+});
+
 test("production keeps the short generation budget", () => {
   assert.equal(isLocalDeepSolveHost("timetable.example.cz"), false);
   assert.equal(defaultGenerationTimeLimitForHost("timetable.example.cz"), 240);
