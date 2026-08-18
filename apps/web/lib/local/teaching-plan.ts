@@ -49,8 +49,9 @@ export const TEACHING_ORGANIZATIONS: Array<{
   },
   {
     value: "SPLIT",
-    label: "Dvě skupiny – stejný předmět",
-    description: "Obě skupiny probíhají současně, každá s vlastním učitelem.",
+    label: "Skupiny – stejný předmět",
+    description:
+      "Dvě nebo tři skupiny probíhají současně, každá s vlastním učitelem.",
   },
   {
     value: "ROTATION",

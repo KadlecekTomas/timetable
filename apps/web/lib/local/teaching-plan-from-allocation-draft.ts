@@ -99,8 +99,7 @@ export function createTeachingPlanFromAllocationDraft(
     const whole = rows.find((row) => row.group === "WHOLE");
     const allTeacherIds = uniqueTeacherIds(rows);
     const explicitGroups = rows.filter((row) => row.group !== "WHOLE").length;
-    const threeGroups =
-      subjectCode === "JAZ1" && (Boolean(group3) || allTeacherIds.length >= 3);
+    const threeGroups = Boolean(group3) || allTeacherIds.length >= 3;
     const split = explicitGroups >= 2 || allTeacherIds.length >= 2;
     const primaryTeacherId = group1
       ? (group1.teacherIds[0] ?? allTeacherIds[0] ?? "")

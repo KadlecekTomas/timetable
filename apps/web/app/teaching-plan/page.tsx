@@ -1574,11 +1574,13 @@ function TeachingRowCard({
           </div>
 
           {row.organization === "SPLIT" &&
-          row.subjectCode === "JAZ1" &&
+          ["JAZ1", "TV"].includes(row.subjectCode) &&
           !sameTeacherPartial ? (
             <div className="mt-4 max-w-sm">
               <label className="text-sm font-medium text-text-primary">
-                Počet souběžných skupin angličtiny
+                {row.subjectCode === "TV"
+                  ? "Počet souběžných skupin tělesné výchovy"
+                  : "Počet souběžných skupin angličtiny"}
                 <select
                   value={row.splitGroupCount === 3 ? "3" : "2"}
                   onChange={(event) =>
@@ -1612,7 +1614,7 @@ function TeachingRowCard({
                 </>
               ) : (
                 <>
-                  <strong>Obě skupiny budou vždy ve stejnou dobu.</strong>{" "}
+                  <strong>Všechny skupiny budou vždy ve stejnou dobu.</strong>{" "}
                   Solver zabrání kolizi obou učitelů.
                 </>
               )}
