@@ -97,6 +97,11 @@ const localStorageData = {
   "rozvrhar:staffing-allocation-draft:v1": null,
   "rozvrhar:school-curriculum:v1": null,
   "rozvrhar:teaching-plan-workload-credits:v1": null,
+  "rozvrhar:pe-external-occupancy:v1": JSON.stringify({
+    version: 1,
+    updatedAt: "2026-08-05T00:00:00.000Z",
+    slots: [{ dayOfWeek: 3, period: 2, occupiedSpaces: 2 }],
+  }),
 };
 
 test("browser project share round-trips without a database", async () => {
@@ -111,6 +116,10 @@ test("browser project share round-trips without a database", async () => {
 
   assert.equal(restored.checksum, envelope.checksum);
   assert.equal(restored.data.project.schoolName, "Testovací škola");
+  assert.equal(
+    restored.data.localStorage["rozvrhar:pe-external-occupancy:v1"],
+    localStorageData["rozvrhar:pe-external-occupancy:v1"],
+  );
   assert.deepEqual(summarizeBrowserProjectShare(restored), {
     teachers: 1,
     classes: 1,
@@ -162,6 +171,7 @@ test("browser project owns every persisted working-data key needed for full dele
       "rozvrhar:teaching-plan-allocation-draft-applied:v1",
       "rozvrhar:teaching-plan-shared:v1",
       "rozvrhar:teaching-plan-split-periods:v1",
+      "rozvrhar:pe-external-occupancy:v1",
     ]),
   );
   assert.deepEqual(BROWSER_PROJECT_SESSION_STORAGE_KEYS, [

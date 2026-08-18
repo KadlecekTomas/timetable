@@ -5,6 +5,7 @@ import {
   BookOpenCheck,
   CalendarDays,
   ClipboardCheck,
+  Dumbbell,
   LayoutDashboard,
   Settings,
   UsersRound,
@@ -21,6 +22,7 @@ const navigation = [
   { label: "1. Učitelé a úvazky", icon: UsersRound, href: "/staffing" },
   { label: "2. Pokrytí výuky", icon: BookOpenCheck, href: "/coverage" },
   { label: "3. Výukový plán", icon: BookOpen, href: "/teaching-plan" },
+  { label: "TV prostory 1. stupně", icon: Dumbbell, href: "/pe-capacity" },
   { label: "4. Tvorba rozvrhu", icon: ClipboardCheck, href: "/generate" },
   { label: "5. Rozvrh", icon: CalendarDays, href: "/timetable" },
 ];

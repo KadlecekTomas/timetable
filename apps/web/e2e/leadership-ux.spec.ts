@@ -7,6 +7,7 @@ const primaryRoutes = [
   `/staffing?${schoolYearContext}`,
   `/coverage?${schoolYearContext}`,
   `/teaching-plan?${schoolYearContext}`,
+  `/pe-capacity?${schoolYearContext}`,
   `/generate?${schoolYearContext}`,
   `/timetable?${schoolYearContext}`,
   `/settings?${schoolYearContext}`,
@@ -66,10 +67,13 @@ test("leadership workflow has working navigation and no blind controls", async (
   await expect(page.getByText("Tomáš Kadleček")).toHaveCount(0);
 
   const navigation = page.getByRole("navigation", { name: "Hlavní navigace" });
-  await expect(navigation.getByRole("link")).toHaveCount(6);
+  await expect(navigation.getByRole("link")).toHaveCount(7);
   await expect(
     navigation.getByRole("link", { name: "3. Výukový plán" }),
   ).toHaveAttribute("href", /\/teaching-plan\?/);
+  await expect(
+    navigation.getByRole("link", { name: "TV prostory 1. stupně" }),
+  ).toHaveAttribute("href", /\/pe-capacity\?/);
   await expect(
     page.getByRole("link", { name: "Nastavení a záloha" }).first(),
   ).toHaveAttribute("href", /\/settings\?/);

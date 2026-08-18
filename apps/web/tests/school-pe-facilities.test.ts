@@ -55,9 +55,7 @@ test("TV always uses school sport facilities, never Monday, and hall is Thursday
   const teachingPlan: TeachingPlan = {
     version: 1,
     updatedAt: "test",
-    classes: [
-      { id: "class-plan", code: "7.A", grade: 7, profile: "REGULAR" },
-    ],
+    classes: [{ id: "class-plan", code: "7.A", grade: 7, profile: "REGULAR" }],
     rows: [
       {
         id: "row-tv",

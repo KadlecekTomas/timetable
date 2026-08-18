@@ -4,6 +4,7 @@ import {
   resetLocalProject,
   type LocalProject,
 } from "@/lib/local/api";
+import { PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_STORAGE_KEY } from "@/lib/local/physical-education-external-occupancy";
 
 export const BROWSER_PROJECT_SHARE_FORMAT = "rozvrhar-browser-project";
 export const BROWSER_PROJECT_SHARE_VERSION = 1;
@@ -20,6 +21,7 @@ export const BROWSER_PROJECT_LOCAL_STORAGE_KEYS = [
   "rozvrhar:teaching-plan-allocation-draft-applied:v1",
   "rozvrhar:teaching-plan-shared:v1",
   "rozvrhar:teaching-plan-split-periods:v1",
+  PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_STORAGE_KEY,
 ] as const;
 
 export const BROWSER_PROJECT_SESSION_STORAGE_KEYS = [
