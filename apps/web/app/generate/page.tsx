@@ -78,7 +78,7 @@ export default function GeneratePage() {
   const schoolYearId = searchParams.get("schoolYearId");
   const [readiness, setReadiness] = useState<ReadinessReport | null>(null);
   const [runs, setRuns] = useState<RunView[]>([]);
-  const [timeLimitSeconds, setTimeLimitSeconds] = useState(180);
+  const [timeLimitSeconds, setTimeLimitSeconds] = useState(240);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preparation, setPreparation] = useState<PreparationView | null>(null);
@@ -410,13 +410,15 @@ export default function GeneratePage() {
           >
             <option value={30}>30 sekund · rychlý náhled</option>
             <option value={60}>1 minuta · orientační návrh</option>
-            <option value={180}>3 minuty · doporučeno pro celou školu</option>
+            <option value={180}>3 minuty · kratší výpočet celé školy</option>
+            <option value={240}>4 minuty · doporučeno pro celou školu</option>
             <option value={300}>5 minut · maximum s bezpečnou rezervou</option>
           </select>
           <p className="mt-2 text-xs text-text-muted">
-            Delší výpočet výrazně pomáhá omezit mezery tříd a učitelů.
-            Pětiminutový režim na produkci ukončí solver s rezervou před
-            serverovým timeoutem, aby se nejlepší nalezený návrh stihl uložit.
+            Solver nejdřív hledá libovolný platný rozvrh a teprve potom
+            využije zbývající čas ke zlepšení kvality. Pětiminutový režim na
+            produkci skončí s rezervou před serverovým timeoutem, aby se nejlepší
+            nalezený návrh stihl uložit.
           </p>
           <Button
             className="mt-4 w-full"

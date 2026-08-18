@@ -663,18 +663,73 @@ def solve(payload: SolveRequest) -> SolveResponse:
         payload.weights.class_gap,
         "class",
     )
-    model.minimize(sum(objective_terms))
-
+    objective = sum(objective_terms)
     workers = _search_workers(payload)
     effective_time_limit_seconds = _solver_time_limit_seconds(
         payload,
         request_started,
     )
-    solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = effective_time_limit_seconds
-    solver.parameters.num_search_workers = workers
-    solver.parameters.random_seed = payload.random_seed
-    status = solver.solve(model)
+    feasibility_wall_time_seconds = 0.0
+    optimization_wall_time_seconds = 0.0
+    search_phases: list[str] = []
+
+    if workers > 1:
+        # Full-school runs are deliberately two-phase. A large weighted objective can
+        # delay the very first solution on a tightly constrained school model. First
+        # prove feasibility without an objective; once a valid timetable exists, use
+        # it as a warm start for the remaining optimization budget.
+        feasibility_solver = cp_model.CpSolver()
+        feasibility_solver.parameters.max_time_in_seconds = (
+            effective_time_limit_seconds
+        )
+        feasibility_solver.parameters.num_search_workers = workers
+        feasibility_solver.parameters.random_seed = payload.random_seed
+        feasibility_status = feasibility_solver.solve(model)
+        feasibility_wall_time_seconds = feasibility_solver.wall_time
+        search_phases.append("FEASIBILITY")
+
+        solver = feasibility_solver
+        status = feasibility_status
+        if feasibility_status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            # A satisfaction model reports OPTIMAL when it finds a solution because
+            # there is no objective yet. It is only a feasible seed for our real
+            # weighted objective, so never expose it as an optimized timetable.
+            status = cp_model.FEASIBLE
+            for block in blocks:
+                selected_hint = next(
+                    variable
+                    for _candidate, variable in variables[block.id]
+                    if feasibility_solver.value(variable) == 1
+                )
+                model.add_hint(selected_hint, 1)
+
+            remaining_optimization_seconds = max(
+                0.0,
+                effective_time_limit_seconds - feasibility_wall_time_seconds,
+            )
+            if remaining_optimization_seconds >= 1.0:
+                model.minimize(objective)
+                optimization_solver = cp_model.CpSolver()
+                optimization_solver.parameters.max_time_in_seconds = (
+                    remaining_optimization_seconds
+                )
+                optimization_solver.parameters.num_search_workers = workers
+                optimization_solver.parameters.random_seed = payload.random_seed
+                optimization_status = optimization_solver.solve(model)
+                optimization_wall_time_seconds = optimization_solver.wall_time
+                search_phases.append("OPTIMIZATION")
+                if optimization_status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+                    solver = optimization_solver
+                    status = optimization_status
+    else:
+        model.minimize(objective)
+        solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = effective_time_limit_seconds
+        solver.parameters.num_search_workers = workers
+        solver.parameters.random_seed = payload.random_seed
+        status = solver.solve(model)
+        optimization_wall_time_seconds = solver.wall_time
+        search_phases.append("OPTIMIZATION")
 
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         if status == cp_model.UNKNOWN:
@@ -687,6 +742,7 @@ def solve(payload: SolveRequest) -> SolveResponse:
                         "requestedTimeLimitSeconds": payload.time_limit_seconds,
                         "effectiveTimeLimitSeconds": effective_time_limit_seconds,
                         "workers": workers,
+                        "searchPhase": search_phases[-1] if search_phases else "UNKNOWN",
                     },
                 }
             ]
@@ -763,8 +819,16 @@ def solve(payload: SolveRequest) -> SolveResponse:
     status_name = "OPTIMAL" if status == cp_model.OPTIMAL else "FEASIBLE"
     search_diagnostic = (
         {
-            "code": "PARALLEL_FULL_SCHOOL_SEARCH",
-            "message": (f"Solver použil portfolio {workers} paralelních pracovníků."),
+            "code": "FEASIBILITY_FIRST_SEARCH",
+            "message": (
+                f"Solver použil {workers} paralelních pracovníků: nejprve našel "
+                "platný rozvrh a potom využil zbývající čas k optimalizaci."
+            ),
+            "details": {
+                "phases": search_phases,
+                "feasibilityWallTimeSeconds": feasibility_wall_time_seconds,
+                "optimizationWallTimeSeconds": optimization_wall_time_seconds,
+            },
         }
         if workers > 1
         else {
@@ -813,12 +877,15 @@ def solve(payload: SolveRequest) -> SolveResponse:
         ],
         solver_stats={
             "solverVersion": ortools.__version__,
-            "wallTimeSeconds": solver.wall_time,
+            "wallTimeSeconds": feasibility_wall_time_seconds + optimization_wall_time_seconds,
             "branches": solver.num_branches,
             "conflicts": solver.num_conflicts,
             "bestObjectiveBound": solver.best_objective_bound,
             "randomSeed": payload.random_seed,
             "workers": workers,
+            "searchPhases": search_phases,
+            "feasibilityWallTimeSeconds": feasibility_wall_time_seconds,
+            "optimizationWallTimeSeconds": optimization_wall_time_seconds,
             "requestedTimeLimitSeconds": payload.time_limit_seconds,
             "effectiveTimeLimitSeconds": effective_time_limit_seconds,
         },

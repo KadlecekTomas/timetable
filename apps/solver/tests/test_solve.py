@@ -302,6 +302,39 @@ def test_full_school_time_limit_uses_parallel_search() -> None:
     assert _search_workers(full_school) == 8
 
 
+def test_full_school_search_is_feasibility_first() -> None:
+    response = client.post(
+        "/solve",
+        json={
+            "periods_per_day": [2, 2],
+            "assignments": [
+                {
+                    "id": "lesson",
+                    "teacher_id": "teacher",
+                    "class_id": "class",
+                    "subject_id": "subject",
+                    "weekly_periods": 1,
+                }
+            ],
+            "time_limit_seconds": 120,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["status"] in {"FEASIBLE", "OPTIMAL"}
+    assert any(
+        item["code"] == "FEASIBILITY_FIRST_SEARCH"
+        for item in payload["diagnostics"]
+    )
+    assert payload["solver_stats"]["searchPhases"] == [
+        "FEASIBILITY",
+        "OPTIMIZATION",
+    ]
+    assert payload["solver_stats"]["feasibilityWallTimeSeconds"] >= 0
+    assert payload["solver_stats"]["optimizationWallTimeSeconds"] >= 0
+
+
 def test_three_split_groups_run_in_the_same_parallel_slot() -> None:
     response = client.post(
         "/solve",
