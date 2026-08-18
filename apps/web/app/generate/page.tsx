@@ -415,9 +415,9 @@ export default function GeneratePage() {
             <option value={300}>5 minut · maximum s bezpečnou rezervou</option>
           </select>
           <p className="mt-2 text-xs text-text-muted">
-            Solver nejdřív hledá libovolný platný rozvrh a teprve potom
-            využije zbývající čas ke zlepšení kvality. Pětiminutový režim na
-            produkci skončí s rezervou před serverovým timeoutem, aby se nejlepší
+            Solver nejdřív hledá libovolný platný rozvrh a teprve potom využije
+            zbývající čas ke zlepšení kvality. Pětiminutový režim na produkci
+            skončí s rezervou před serverovým timeoutem, aby se nejlepší
             nalezený návrh stihl uložit.
           </p>
           <Button
