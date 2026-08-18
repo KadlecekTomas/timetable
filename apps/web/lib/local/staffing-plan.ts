@@ -145,7 +145,6 @@ export function validateStaffingTeacher(
   const baseLoad = baseWeeklyLoad(teacher);
   const overtimeLoad = overtimeWeeklyLoad(teacher);
 
-  if (!teacher.firstName.trim()) messages.push("Doplňte jméno.");
   if (!teacher.lastName.trim()) messages.push("Doplňte příjmení.");
   if (
     !Number.isInteger(baseLoad) ||
