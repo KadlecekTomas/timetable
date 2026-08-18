@@ -293,8 +293,9 @@ export function scoreSchedule(
   ].sort();
   if (snapshot.periods_per_day.length === 5) {
     for (const classId of classIds) {
-      const loads = Array.from({ length: 5 }, (_, day) =>
-        classOccupancy.get(`${classId}:${day}`)?.size ?? 0,
+      const loads = Array.from(
+        { length: 5 },
+        (_, day) => classOccupancy.get(`${classId}:${day}`)?.size ?? 0,
       );
       const weeklyPeriods = loads.reduce((sum, value) => sum + value, 0);
       if (weeklyPeriods < 5) continue;
