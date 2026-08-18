@@ -5,9 +5,14 @@ import { useEffect, useMemo, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { getLocalProject, subscribeLocalProject } from "@/lib/local/api";
+import {
+  getLocalProject,
+  replaceLocalProjectAtomically,
+  subscribeLocalProject,
+} from "@/lib/local/api";
 import {
   PHYSICAL_EDUCATION_BASE_CAPACITY_BY_DAY,
+  applyPhysicalEducationExternalOccupancy,
   loadPhysicalEducationExternalOccupancy,
   occupiedPhysicalEducationSpacesAt,
   savePhysicalEducationExternalOccupancy,
@@ -22,6 +27,7 @@ export default function PeCapacityPage() {
   const [slots, setSlots] = useState<PhysicalEducationExternalOccupancySlot[]>(
     [],
   );
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,6 +61,36 @@ export default function PeCapacityPage() {
     [slots],
   );
 
+  async function persistSlots(next: PhysicalEducationExternalOccupancySlot[]) {
+    setBusy(true);
+    setError(null);
+    try {
+      const saved = savePhysicalEducationExternalOccupancy(next);
+      setSlots(saved.slots);
+
+      const project = await getLocalProject();
+      if (project.rooms.some((room) => room.roomTypeId === "room-type:TV")) {
+        const updated = applyPhysicalEducationExternalOccupancy(
+          project,
+          saved.slots,
+        );
+        updated.version = project.version + 1;
+        await replaceLocalProjectAtomically(updated);
+      }
+      setMessage(
+        "Uloženo. Pokud jsou data pro generátor už připravená, omezení je aktivní okamžitě; při další přípravě se použije znovu.",
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Obsazenost TV prostorů se nepodařilo uložit.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function updateSlot(dayOfWeek: number, period: number, occupiedSpaces: number) {
     const next = slots.filter(
       (slot) => !(slot.dayOfWeek === dayOfWeek && slot.period === period),
@@ -62,19 +98,11 @@ export default function PeCapacityPage() {
     if (occupiedSpaces > 0) {
       next.push({ dayOfWeek, period, occupiedSpaces });
     }
-    const saved = savePhysicalEducationExternalOccupancy(next);
-    setSlots(saved.slots);
-    setError(null);
-    setMessage(
-      "Uloženo. Omezení se použije při další přípravě dat pro tvorbu rozvrhu.",
-    );
+    void persistSlots(next);
   }
 
   function clearAll() {
-    const saved = savePhysicalEducationExternalOccupancy([]);
-    setSlots(saved.slots);
-    setError(null);
-    setMessage("Všechna externí obsazení TV prostorů byla zrušena.");
+    void persistSlots([]);
   }
 
   return (
@@ -88,7 +116,7 @@ export default function PeCapacityPage() {
             type="button"
             variant="outline"
             onClick={clearAll}
-            disabled={slots.length === 0}
+            disabled={busy || slots.length === 0}
           >
             <RotateCcw className="size-4" aria-hidden="true" />
             Vynulovat obsazenost
@@ -98,7 +126,7 @@ export default function PeCapacityPage() {
 
       <section className="rounded-xl border border-primary/30 bg-primary-subtle p-5">
         <p className="text-sm leading-6 text-text-secondary">
-          Příklad: ve čtvrtek jsou běžně dostupné 5 TV prostory. Pokud u 3.
+          Příklad: ve čtvrtek je běžně dostupných 5 TV prostorů. Pokud u 3.
           hodiny nastavíte <strong>2 zabrané</strong>, solver v tomto slotu smí
           použít maximálně <strong>3 paralelní TV kapacity</strong>. Je to tvrdé
           omezení, ne preference.
@@ -158,6 +186,7 @@ export default function PeCapacityPage() {
                           {period + 1}. hodina
                           <select
                             value={occupied}
+                            disabled={busy}
                             onChange={(event) =>
                               updateSlot(
                                 dayIndex,
@@ -165,7 +194,7 @@ export default function PeCapacityPage() {
                                 Number(event.target.value),
                               )
                             }
-                            className="mt-2 h-10 w-full rounded-md border border-border-strong bg-surface px-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            className="mt-2 h-10 w-full rounded-md border border-border-strong bg-surface px-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
                           >
                             {Array.from(
                               { length: baseCapacity + 1 },
