@@ -106,7 +106,7 @@ jobs:
           cat /tmp/web.log || true
           exit 1
       - name: Run database-free browser workflows
-        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/local-first-backup.spec.ts e2e/project-share.spec.ts e2e/timetable-export.spec.ts e2e/staffing.spec.ts e2e/teaching-plan.spec.ts e2e/teaching-plan-import-review.spec.ts e2e/subject-rotation-and-sports.spec.ts e2e/auto-cover.spec.ts e2e/current-school-generation.spec.ts e2e/coverage-overview.spec.ts e2e/actual-2027-workbook.spec.ts e2e/dashboard-workflow.spec.ts e2e/leadership-ux.spec.ts --retries=0
+        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/local-first-backup.spec.ts e2e/project-share.spec.ts e2e/timetable-export.spec.ts e2e/staffing.spec.ts e2e/teaching-plan.spec.ts e2e/teaching-plan-import-review.spec.ts e2e/subject-rotation-and-sports.spec.ts e2e/auto-cover.spec.ts e2e/current-school-generation.spec.ts e2e/school-scheduling-policy.spec.ts e2e/coverage-overview.spec.ts e2e/actual-2027-workbook.spec.ts e2e/dashboard-workflow.spec.ts e2e/leadership-ux.spec.ts --retries=0
       - name: Upload detailed teaching-plan screenshots and Excel
         if: always()
         uses: actions/upload-artifact@v4
