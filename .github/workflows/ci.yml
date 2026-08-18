@@ -72,6 +72,7 @@ jobs:
     env:
       SOLVER_URL: http://127.0.0.1:8000
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+      ALLOW_LONG_SOLVES: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
