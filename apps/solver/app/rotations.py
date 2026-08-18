@@ -15,6 +15,7 @@ from app.models import (
     RotationPlacement,
     ScheduledLesson,
     SolveRequest,
+    TeachingGroup,
     ValidationIssue,
 )
 from app.school_day import crosses_lunch_break
@@ -24,6 +25,20 @@ ALLOWED_CLASS_AFTERNOON_DAYS = {1, 2, 3}  # Tuesday, Wednesday, Thursday
 CLASS_DAY_BALANCE_WEIGHT = 50_000
 TEACHER_GAP_EXTRA_WEIGHT = 5_000
 ASSIGNMENT_SPREAD_EXTRA_WEIGHT = 2_450
+TV_SYNC_BONUS = 1_500
+
+# Requested PE pairings. These are deliberately soft preferences: the solver
+# rewards a shared start slot, but teacher/class/room feasibility always wins.
+# 9.B has two double blocks: one is paired with 8.B, the other with 9.A.
+TV_SYNC_BLOCK_GROUPS: tuple[tuple[tuple[str, int], ...], ...] = (
+    (("6.A", 0), ("6.C", 0)),
+    (("6.B", 0), ("6.D", 0), ("7.B", 0)),
+    (("6.B", 1), ("6.D", 1), ("7.B", 1)),
+    (("6.B", 2), ("6.D", 2), ("7.B", 2)),
+    (("7.A", 0), ("7.C", 0)),
+    (("8.B", 0), ("9.B", 0)),
+    (("9.A", 0), ("9.B", 1)),
+)
 
 
 def effective_rotation_placement(assignments: tuple[Any, ...]) -> RotationPlacement:
@@ -120,6 +135,105 @@ def _occupancy_bool(
     model.add(source_sum >= occupied)
     model.add(source_sum <= len(sources) * occupied)
     return occupied
+
+
+def _preferred_tv_assignments(payload: SolveRequest) -> dict[str, Any]:
+    class_code_by_id = {school_class.id: school_class.code for school_class in payload.classes}
+    subject_code_by_id = {subject.id: subject.code.strip().upper() for subject in payload.subjects}
+    candidates: dict[str, list[Any]] = defaultdict(list)
+
+    for assignment in payload.assignments:
+        if subject_code_by_id.get(assignment.subject_id, "") != "TV":
+            continue
+        class_ids = assignment_class_ids(assignment)
+        if len(class_ids) != 1:
+            continue
+        class_code = class_code_by_id.get(class_ids[0], "")
+        if class_code:
+            candidates[class_code].append(assignment)
+
+    priority = {
+        TeachingGroup.GROUP_1: 0,
+        TeachingGroup.WHOLE: 1,
+        TeachingGroup.GROUP_2: 2,
+        TeachingGroup.GROUP_3: 3,
+    }
+    return {
+        class_code: sorted(
+            assignments,
+            key=lambda assignment: (priority[assignment.group], assignment.id),
+        )[0]
+        for class_code, assignments in candidates.items()
+        if assignments
+    }
+
+
+def _block_slot_variable(
+    *,
+    model: cp_model.CpModel,
+    block: Any,
+    variables: dict[str, list[tuple[Any, cp_model.IntVar]]],
+) -> cp_model.IntVar:
+    candidates = variables[block.id]
+    encoded = [(candidate.day * 16 + candidate.period, variable) for candidate, variable in candidates]
+    upper_bound = max((slot for slot, _variable in encoded), default=0)
+    slot = model.new_int_var(0, upper_bound, f"tv_sync_slot_{block.id}")
+    model.add(slot == sum(value * variable for value, variable in encoded))
+    return slot
+
+
+def _add_preferred_tv_sync(
+    *,
+    model: cp_model.CpModel,
+    payload: SolveRequest,
+    blocks_by_assignment: dict[str, list[Any]],
+    variables: dict[str, list[tuple[Any, cp_model.IntVar]]],
+    objective_terms: list[cp_model.LinearExpr],
+) -> None:
+    representatives = _preferred_tv_assignments(payload)
+    slot_cache: dict[str, cp_model.IntVar] = {}
+
+    for group_index, requested_group in enumerate(TV_SYNC_BLOCK_GROUPS):
+        blocks: list[Any] = []
+        for class_code, block_index in requested_group:
+            assignment = representatives.get(class_code)
+            if assignment is None:
+                continue
+            assignment_blocks = sorted(
+                blocks_by_assignment.get(assignment.id, []),
+                key=lambda block: block.index,
+            )
+            if block_index >= len(assignment_blocks):
+                continue
+            blocks.append(assignment_blocks[block_index])
+
+        for left_index, left in enumerate(blocks):
+            for right in blocks[left_index + 1 :]:
+                if left.duration != right.duration:
+                    continue
+                left_slot = slot_cache.get(left.id)
+                if left_slot is None:
+                    left_slot = _block_slot_variable(
+                        model=model,
+                        block=left,
+                        variables=variables,
+                    )
+                    slot_cache[left.id] = left_slot
+                right_slot = slot_cache.get(right.id)
+                if right_slot is None:
+                    right_slot = _block_slot_variable(
+                        model=model,
+                        block=right,
+                        variables=variables,
+                    )
+                    slot_cache[right.id] = right_slot
+
+                same_slot = model.new_bool_var(
+                    f"tv_sync_{group_index}_{left.id}_{right.id}"
+                )
+                model.add(left_slot == right_slot).only_enforce_if(same_slot)
+                model.add(left_slot != right_slot).only_enforce_if(same_slot.Not())
+                objective_terms.append(same_slot * -TV_SYNC_BONUS)
 
 
 def _add_school_quality_policy(
@@ -410,6 +524,13 @@ def add_rotation_constraints(
                 ]
                 model.add(sum(source_variables) == sum(linked_pairs))
 
+    _add_preferred_tv_sync(
+        model=model,
+        payload=payload,
+        blocks_by_assignment=blocks_by_assignment,
+        variables=variables,
+        objective_terms=objective_terms,
+    )
     _add_school_quality_policy(
         model=model,
         payload=payload,
