@@ -9,33 +9,6 @@ permissions:
   contents: read
 
 jobs:
-  migrate-confirms:
-    if: github.event_name == 'pull_request' && github.head_ref == 'agent/modern-confirm-dialog' && github.actor != 'github-actions[bot]'
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: node scripts/migrate-confirm-dialogs.mjs
-      - run: npx prettier --write apps/web/app/coverage/page.tsx apps/web/app/staffing/page.tsx apps/web/app/teaching-plan/page.tsx
-      - name: Commit migrated confirms
-        run: |
-          if git diff --quiet; then
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f apps/web/app/coverage/page.tsx apps/web/app/staffing/page.tsx apps/web/app/teaching-plan/page.tsx
-          git commit -m "Replace remaining browser confirms"
-          git push origin HEAD:${{ github.head_ref }}
-
   web:
     runs-on: ubuntu-latest
     env:
