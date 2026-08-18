@@ -35,6 +35,13 @@ test("two weekly art periods are one double lesson", () => {
   assert.deepEqual(lessonBlockDurations(row), [2]);
 });
 
+test("four weekly physical education periods are two double lessons", () => {
+  const row = enforcedRow("TV", 4);
+  assert.equal(row.lessonShape, "DOUBLE");
+  assert.equal(row.doublePeriodsCount, 2);
+  assert.deepEqual(lessonBlockDurations(row), [2, 2]);
+});
+
 test("five weekly physical education periods are two doubles and one single", () => {
   const row = enforcedRow("TV", 5);
   assert.equal(row.lessonShape, "MIXED");
