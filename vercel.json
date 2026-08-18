@@ -2,11 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
-      "agent/fix-staffing-save-button-layout": false,
-      "agent/fix-vercel-solver-timeout-and-timetable-layout": false,
-      "agent/production-hardening-2026-08-17": false,
-      "agent/improve-five-minute-timetable-quality": false,
-      "agent/validate-school-day-policy": false
+      "agent/*": false,
+      "codex/*": false,
+      "claude/*": false,
+      "claude-*": false
     }
   },
   "services": {
