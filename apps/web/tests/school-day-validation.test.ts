@@ -105,6 +105,7 @@ test("manual move cannot create a Friday afternoon", () => {
     target_day: 4,
     target_period: 6,
     target_room_id: null,
+    expected_version: 1,
   });
 
   assert.equal(result.valid, false);
