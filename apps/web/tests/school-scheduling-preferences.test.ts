@@ -2,10 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { schoolSchedulingPreferences } from "../lib/local/school-scheduling-preferences";
-import type {
-  LocalAssignment,
-  LocalSubject,
-} from "../lib/local/api";
+import type { LocalAssignment, LocalSubject } from "../lib/local/api";
 import type { StaffingPlan } from "../lib/local/staffing-plan";
 
 const subjects: LocalSubject[] = [
@@ -88,7 +85,10 @@ test("Špánková Spanish is fixed Tue-Wed-Thu second period and German follow-u
       [2, 3, 1],
     ],
   );
-  assert.equal(result.fixedLessons.every((lesson) => lesson.locked), true);
+  assert.equal(
+    result.fixedLessons.every((lesson) => lesson.locked),
+    true,
+  );
 
   assert.deepEqual(
     result.availability.map((rule) => [

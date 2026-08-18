@@ -26,6 +26,7 @@ import {
 } from "./teaching-plan";
 import { isSameTeacherPartialSplit } from "./teaching-plan-school-v3";
 import { schoolInputFingerprint } from "./school-input-state";
+import { schoolSchedulingPreferences } from "./school-scheduling-preferences";
 
 const UNSCHEDULED_SUBJECT_CODES = new Set([
   ...NON_TEACHING_SUBJECT_CODES,
@@ -631,6 +632,21 @@ export function buildSchoolProjectForGeneration({
     ...teacherAvailability,
     ...physicalEducationAvailability,
   ];
+  const retainedFixedLessons = existingProject.fixedLessons.filter((lesson) =>
+    assignments.some((assignment) => assignment.id === lesson.assignmentId),
+  );
+  const schedulingPreferences = schoolSchedulingPreferences({
+    assignments,
+    subjects,
+    staffingPlan,
+    existingFixedLessons: retainedFixedLessons,
+  });
+  warnings.push(...schedulingPreferences.warnings);
+  availability.push(...schedulingPreferences.availability);
+  const fixedLessons = [
+    ...retainedFixedLessons,
+    ...schedulingPreferences.fixedLessons,
+  ];
 
   const project: LocalProject = blockers.length
     ? structuredClone(existingProject)
@@ -645,11 +661,7 @@ export function buildSchoolProjectForGeneration({
         rooms,
         assignments,
         availability,
-        fixedLessons: existingProject.fixedLessons.filter((lesson) =>
-          assignments.some(
-            (assignment) => assignment.id === lesson.assignmentId,
-          ),
-        ),
+        fixedLessons,
         generationRuns: forceReplaceGeneratedData
           ? []
           : existingProject.generationRuns,

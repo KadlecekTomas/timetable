@@ -86,7 +86,11 @@ export function schoolSchedulingPreferences({
   const spanish = languageAssignments.find(isEighthGradeSharedLanguage);
 
   const fixedLessons: LocalFixedLesson[] = [];
-  if (!spanish || spanish.weeklyPeriods !== 3 || spanish.lessonShape !== "SINGLE") {
+  if (
+    !spanish ||
+    spanish.weeklyPeriods !== 3 ||
+    spanish.lessonShape !== "SINGLE"
+  ) {
     warnings.push(
       "Špánková: nebyla nalezena očekávaná společná ŠpJ výuka 8. ročníku 3 h týdně; pevné Út–St–Čt 2. hodiny nebyly automaticky vloženy.",
     );

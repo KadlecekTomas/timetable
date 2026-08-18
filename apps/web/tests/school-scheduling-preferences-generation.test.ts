@@ -30,7 +30,11 @@ function project(): LocalProject {
   };
 }
 
-function teacher(id: string, firstName: string, lastName: string): StaffingTeacher {
+function teacher(
+  id: string,
+  firstName: string,
+  lastName: string,
+): StaffingTeacher {
   return {
     id,
     firstName,
@@ -112,7 +116,11 @@ test("prepared solver project contains Špánková fixed Spanish and German foll
   assert.deepEqual(
     result.project.fixedLessons
       .filter((lesson) => lesson.assignmentId === spanishAssignment.id)
-      .map((lesson) => [lesson.blockIndex, lesson.dayOfWeek, lesson.startPeriod]),
+      .map((lesson) => [
+        lesson.blockIndex,
+        lesson.dayOfWeek,
+        lesson.startPeriod,
+      ]),
     [
       [0, 1, 1],
       [1, 2, 1],
@@ -128,7 +136,9 @@ test("prepared solver project contains Špánková fixed Spanish and German foll
   );
   assert.equal(preferences.length, 9);
   assert.deepEqual(
-    preferences.filter((rule) => rule.weight === 100).map((rule) => [rule.dayOfWeek, rule.period]),
+    preferences
+      .filter((rule) => rule.weight === 100)
+      .map((rule) => [rule.dayOfWeek, rule.period]),
     [
       [1, 2],
       [2, 2],

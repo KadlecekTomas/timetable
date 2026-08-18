@@ -51,6 +51,17 @@ SUBJECT_LATE_WEIGHTS = {
     "VV": 0,
     "PC": 0,
 }
+SUBJECT_AFTERNOON_BONUSES = {
+    "TV": 1_800,
+    "PC": 1_500,
+    "VV": 1_500,
+    "SVS": 1_300,
+    "VZ": 1_300,
+    "VKZ": 1_300,
+    "HV": 350,
+    "PRPK": 300,
+    "PKCJ": 300,
+}
 DEFAULT_SUBJECT_LATE_WEIGHT = 300
 VERCEL_REQUEST_BUDGET_SECONDS = 270.0
 LOCAL_DEEP_SOLVE_MAX_SECONDS = 1_800.0
@@ -286,6 +297,9 @@ def _subject_late_cost(
     if afternoon_distance == 0:
         return 0
     subject_code = _subject_code(payload, assignment.subject_id)
+    afternoon_bonus = SUBJECT_AFTERNOON_BONUSES.get(subject_code, 0)
+    if afternoon_bonus > 0:
+        return -afternoon_distance * afternoon_bonus
     weight = SUBJECT_LATE_WEIGHTS.get(
         subject_code,
         DEFAULT_SUBJECT_LATE_WEIGHT,
@@ -913,7 +927,7 @@ def solve(payload: SolveRequest) -> SolveResponse:
             {
                 "code": "PEDAGOGICAL_AFTERNOON_PRIORITY",
                 "message": (
-                    "Pozdní hodiny přednostně využívají pohybové, výtvarné a praktické předměty před matematikou, jazyky a informatikou."
+                    "Odpolední hodiny aktivně preferují TV, PČ, VV, SVS a VKZ; HV, PřPk a PkČj jsou záložní odpolední předměty. Jádrové předměty zůstávají prioritně dříve."
                 ),
             },
             search_diagnostic,
