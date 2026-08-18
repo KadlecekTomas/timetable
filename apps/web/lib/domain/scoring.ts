@@ -312,7 +312,8 @@ export function scoreSchedule(
             message: `Třída ${classId} má nepřiměřeně krátký vyučovací den.`,
             entity_ids: [classId],
             day,
-            suggestion: "Rozložte týdenní výuku rovnoměrněji mezi pracovní dny.",
+            suggestion:
+              "Rozložte týdenní výuku rovnoměrněji mezi pracovní dny.",
           });
         }
         if ([...occupied].some((period) => period >= AFTERNOON_START_PERIOD)) {
