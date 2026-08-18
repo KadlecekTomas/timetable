@@ -76,7 +76,7 @@ const PHYSICAL_EDUCATION_ROOMS = [
     roomTypeId: PHYSICAL_EDUCATION_ROOM_TYPE_ID,
   },
 ] as const;
-const THURSDAY_ONLY_PHYSICAL_EDUCATION_ROOM_IDS = new Set([
+const THURSDAY_ONLY_PHYSICAL_EDUCATION_ROOM_IDS = new Set<string>([
   "room:HALA1",
   "room:HALA2",
 ]);
@@ -263,12 +263,14 @@ export function buildSchoolProjectForGeneration({
   const roomTypes = usesPhysicalEducation
     ? [
         ...existingProject.roomTypes
-          .filter((roomType) => roomType.id !== PHYSICAL_EDUCATION_ROOM_TYPE_ID)
+          .filter(
+            (roomType) => roomType.id !== PHYSICAL_EDUCATION_ROOM_TYPE_ID,
+          )
           .map((roomType) => ({ ...roomType })),
         { ...PHYSICAL_EDUCATION_ROOM_TYPE },
       ]
     : existingProject.roomTypes.map((roomType) => ({ ...roomType }));
-  const physicalEducationRoomIds = new Set(
+  const physicalEducationRoomIds = new Set<string>(
     PHYSICAL_EDUCATION_ROOMS.map((room) => room.id),
   );
   const rooms = usesPhysicalEducation
@@ -599,33 +601,33 @@ export function buildSchoolProjectForGeneration({
       }),
   );
 
-  const physicalEducationAvailability: LocalAvailability[] = usesPhysicalEducation
-    ? PHYSICAL_EDUCATION_ROOMS.flatMap((room) => {
-        const unavailableDays = THURSDAY_ONLY_PHYSICAL_EDUCATION_ROOM_IDS.has(
-          room.id,
-        )
-          ? [0, 1, 2, 4]
-          : [MONDAY_DAY_INDEX];
-        return unavailableDays.flatMap((dayIndex) =>
-          Array.from(
-            { length: existingProject.periodsPerDay[dayIndex] ?? 0 },
-            (_unused, period) => ({
-              id: `availability:${room.id}:${dayIndex}:${period}`,
-              entityType: "ROOM" as const,
-              entityId: room.id,
-              dayOfWeek: dayIndex,
-              period,
-              kind: "UNAVAILABLE" as const,
-              weight: null,
-              reason:
-                dayIndex === MONDAY_DAY_INDEX
-                  ? "TV se v pondělí nevyučuje"
-                  : `Hala je k dispozici pouze ve čtvrtek (den ${THURSDAY_DAY_INDEX + 1}).`,
-            }),
-          ),
-        );
-      })
-    : [];
+  const physicalEducationAvailability: LocalAvailability[] =
+    usesPhysicalEducation
+      ? PHYSICAL_EDUCATION_ROOMS.flatMap((room) => {
+          const unavailableDays =
+            THURSDAY_ONLY_PHYSICAL_EDUCATION_ROOM_IDS.has(room.id)
+              ? [0, 1, 2, 4]
+              : [MONDAY_DAY_INDEX];
+          return unavailableDays.flatMap((dayIndex) =>
+            Array.from(
+              { length: existingProject.periodsPerDay[dayIndex] ?? 0 },
+              (_unused, period) => ({
+                id: `availability:${room.id}:${dayIndex}:${period}`,
+                entityType: "ROOM" as const,
+                entityId: room.id,
+                dayOfWeek: dayIndex,
+                period,
+                kind: "UNAVAILABLE" as const,
+                weight: null,
+                reason:
+                  dayIndex === MONDAY_DAY_INDEX
+                    ? "TV se v pondělí nevyučuje"
+                    : `Hala je k dispozici pouze ve čtvrtek (den ${THURSDAY_DAY_INDEX + 1}).`,
+              }),
+            ),
+          );
+        })
+      : [];
   const availability = [
     ...teacherAvailability,
     ...physicalEducationAvailability,
