@@ -31,11 +31,12 @@ function ConfirmActionDialog({
   const titleId = useId();
   const descriptionId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
-  const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const previousActiveElement = document.activeElement as HTMLElement | null;
-    cancelRef.current?.focus();
+    panelRef.current
+      ?.querySelector<HTMLElement>("[data-dialog-cancel]")
+      ?.focus();
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -117,7 +118,7 @@ function ConfirmActionDialog({
 
         <div className="mt-6 flex justify-end gap-3">
           <Button
-            ref={cancelRef}
+            data-dialog-cancel
             type="button"
             variant="outline"
             onClick={() => onResolve(false)}
