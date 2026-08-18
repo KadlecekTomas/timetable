@@ -927,7 +927,9 @@ def solve(payload: SolveRequest) -> SolveResponse:
             {
                 "code": "PEDAGOGICAL_AFTERNOON_PRIORITY",
                 "message": (
-                    "Odpolední hodiny aktivně preferují TV, PČ, VV, SVS a VKZ; HV, PřPk a PkČj jsou záložní odpolední předměty. Jádrové předměty zůstávají prioritně dříve."
+                    "Odpolední hodiny aktivně preferují TV, PČ, VV, SVS a VKZ; "
+                "HV, PřPk a PkČj jsou záložní odpolední předměty. "
+                "Jádrové předměty zůstávají prioritně dříve."
                 ),
             },
             search_diagnostic,
