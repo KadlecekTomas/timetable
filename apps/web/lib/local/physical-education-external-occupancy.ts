@@ -5,9 +5,7 @@ export const PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_STORAGE_KEY =
 export const PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_REASON_PREFIX =
   "PE_EXTERNAL_CAPACITY:";
 
-export const PHYSICAL_EDUCATION_BASE_CAPACITY_BY_DAY = [
-  0, 3, 3, 5, 3,
-] as const;
+export const PHYSICAL_EDUCATION_BASE_CAPACITY_BY_DAY = [0, 3, 3, 5, 3] as const;
 
 export interface PhysicalEducationExternalOccupancySlot {
   dayOfWeek: number;
@@ -55,7 +53,8 @@ export function normalizePhysicalEducationExternalOccupancySlots(
     ) {
       continue;
     }
-    const maxCapacity = PHYSICAL_EDUCATION_BASE_CAPACITY_BY_DAY[dayOfWeek] ?? 0;
+    const maxCapacity =
+      PHYSICAL_EDUCATION_BASE_CAPACITY_BY_DAY[dayOfWeek] ?? 0;
     const normalized = Math.min(maxCapacity, Math.max(0, occupiedSpaces));
     if (normalized === 0) continue;
     slots.set(`${dayOfWeek}:${period}`, {
