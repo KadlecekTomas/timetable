@@ -30,6 +30,8 @@ interface TeacherAggregate extends TeacherSeed {
   subjectHours: Map<string, number>;
 }
 
+const MAX_PARALLEL_TEACHERS = 3;
+
 export interface LegacyStaffingPlanAnalysis extends StaffingWorkbookAnalysis {
   recognized: boolean;
   allocationDraft: StaffingAllocationDraft | null;
@@ -193,13 +195,11 @@ export function analyzeLegacyStaffingPlan(
 
   for (const requirement of parsed.requirements) {
     const allTokens = teacherTokens(requirement.rawTeacher);
-    const activeTeacherLimit = requirement.subject.code === "JAZ1" ? 3 : 2;
-    const allResolved = allTokens.flatMap((token) => {
+    const tokens = allTokens.slice(0, MAX_PARALLEL_TEACHERS);
+    const resolved = tokens.flatMap((token) => {
       const teacher = resolveTeacher(token, requirement.row);
       return teacher ? [teacher] : [];
     });
-    const resolved = allResolved.slice(0, activeTeacherLimit);
-    const tokens = allTokens.slice(0, activeTeacherLimit);
 
     const teacherWeeklyPeriods =
       requirement.weeklyPeriods + requirement.teacherExtraPeriods;
@@ -234,15 +234,13 @@ export function analyzeLegacyStaffingPlan(
         ),
       );
     }
-    if (allTokens.length > activeTeacherLimit) {
+    if (allTokens.length > MAX_PARALLEL_TEACHERS) {
       issues.push(
         issue(
           "WARNING",
           requirement.row,
           "Učitel/učitelka",
-          requirement.subject.code === "TV"
-            ? `${requirement.classCode} · ${requirement.subject.name}: TV zůstává rozdělená jen na dvě žákovské skupiny. První dva učitelé byli nastaveni a další zůstávají v seznamu pro ruční změnu obsazení.`
-            : `${requirement.classCode} · ${requirement.subject.name}: zachováni byli první ${activeTeacherLimit} souběžní učitelé; další je potřeba zkontrolovat ručně.`,
+          `${requirement.classCode} · ${requirement.subject.name}: zdroj uvádí ${allTokens.length} souběžných učitelů. Rozvrhář podporuje nejvýše ${MAX_PARALLEL_TEACHERS} skupiny; zachováni byli první ${MAX_PARALLEL_TEACHERS}.`,
         ),
       );
     }

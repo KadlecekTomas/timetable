@@ -2,6 +2,7 @@ import type { StaffingPlan } from "@/lib/local/staffing-plan";
 import { loadStaffingAllocationDraft } from "@/lib/local/staffing-allocation-draft";
 import { saveSchoolCurriculum } from "@/lib/local/school-curriculum";
 import { applySchoolOperationalRules } from "@/lib/local/teaching-plan";
+import { preserveThirdParallelTeachers } from "@/lib/local/teaching-plan-allocation-groups";
 import {
   analyzeTeachingPlanWorkbook as analyzeExistingSchoolWorkbook,
   createTeachingPlanWorkbook,
@@ -30,6 +31,10 @@ export async function analyzeTeachingPlanWorkbook(
     allocationDraft,
   );
   if (curriculum) {
+    curriculum.plan = preserveThirdParallelTeachers(
+      curriculum.plan,
+      allocationDraft,
+    );
     curriculum.plan = applySchoolOperationalRules(
       curriculum.plan,
       staffingPlan,
