@@ -7,6 +7,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
+import { confirmAction } from "@/components/ui/confirm-action-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   getLocalProject,
@@ -146,13 +147,15 @@ export default function DataPage() {
   }
 
   async function remove(record: RecordValue) {
-    if (
-      projectVersion == null ||
-      !window.confirm(
-        `Odstranit „${text(record, "name") || text(record, "code")}“?`,
-      )
-    )
-      return;
+    if (projectVersion == null) return;
+    const itemName = text(record, "name") || text(record, "code");
+    const confirmed = await confirmAction(`Odstranit „${itemName}“?`, {
+      title: "Odstranit položku",
+      confirmLabel: "Odstranit",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+
     const response = await localApiFetch(
       `/api/school-years/${schoolYearId}/${section}/${encodeURIComponent(text(record, "id"))}`,
       {
