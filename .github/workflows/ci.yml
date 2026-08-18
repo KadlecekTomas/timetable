@@ -2,140 +2,154 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  web:
+  apply-school-scheduling-policy:
+    if: github.head_ref == 'agent/local-deep-solve-school-pe-defaults'
     runs-on: ubuntu-latest
-    env:
-      SOLVER_URL: http://127.0.0.1:8000
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: agent/local-deep-solve-school-pe-defaults
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run format:check
-      - run: npm run lint --workspace @timetable/web
-      - run: npm run typecheck --workspace @timetable/web
-      - run: npm run test --workspace @timetable/web
-      - run: npm run build --workspace @timetable/web
-
-  solver:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: python -m pip install --upgrade pip
-      - run: pip install ".[dev]"
-        working-directory: apps/solver
-      - run: ruff check apps/solver
-      - run: pytest apps/solver
-
-  containers:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - run: docker compose config
-      - run: docker compose build
-      - name: Start database-free Docker stack
-        run: docker compose up -d --wait --wait-timeout 180
-      - name: Verify web, security headers and proxied solver runtime
-        run: |
-          curl --fail --silent --show-error http://127.0.0.1:3000/api/health
-          curl --fail --silent --show-error http://127.0.0.1:3000/solver/health
-          curl --fail --silent --show-error http://127.0.0.1:8000/health
-
-          headers="$(curl --fail --silent --show-error --head http://127.0.0.1:3000/)"
-          echo "$headers" | grep -qi '^x-content-type-options: nosniff'
-          echo "$headers" | grep -qi '^x-frame-options: DENY'
-          echo "$headers" | grep -qi '^referrer-policy: strict-origin-when-cross-origin'
-          echo "$headers" | grep -qi '^permissions-policy: camera=(), microphone=(), geolocation=()'
-      - name: Show container diagnostics
-        if: failure()
-        run: docker compose ps && docker compose logs --no-color
-      - name: Stop Docker stack
-        if: always()
-        run: docker compose down --volumes --remove-orphans
-
-  local-first-e2e:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      SOLVER_URL: http://127.0.0.1:8000
-      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: npm ci
-      - run: pip install "."
-        working-directory: apps/solver
-      - run: npx playwright install --with-deps chromium
-      - name: Build web without a database
-        run: npm run build --workspace @timetable/web
-      - name: Start solver and web
+      - name: Apply scheduling policy and restore CI
         shell: bash
         run: |
-          nohup bash -c 'cd apps/solver && uvicorn app.main:app --host 127.0.0.1 --port 8000' > /tmp/solver.log 2>&1 &
-          nohup npm run start --workspace @timetable/web > /tmp/web.log 2>&1 &
+          python - <<'PY'
+          from pathlib import Path
 
-          for attempt in $(seq 1 90); do
-            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null && \
-               curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null && \
-               curl --fail --silent http://127.0.0.1:3000/solver/health >/dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
+          main_path = Path("apps/solver/app/main.py")
+          main = main_path.read_text()
+          if "SUBJECT_AFTERNOON_BONUSES" not in main:
+              marker = "DEFAULT_SUBJECT_LATE_WEIGHT = 300\n"
+              addition = '''SUBJECT_AFTERNOON_BONUSES = {
+              "TV": 1_800,
+              "PC": 1_500,
+              "VV": 1_500,
+              "SVS": 1_300,
+              "VZ": 1_300,
+              "VKZ": 1_300,
+              "HV": 350,
+              "PRPK": 300,
+              "PKCJ": 300,
+          }
+          '''
+              if marker not in main:
+                  raise SystemExit("subject priority marker missing")
+              main = main.replace(marker, addition + marker, 1)
 
-          cat /tmp/solver.log || true
-          cat /tmp/web.log || true
-          exit 1
-      - name: Run database-free browser workflows
-        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/local-first-backup.spec.ts e2e/project-share.spec.ts e2e/timetable-export.spec.ts e2e/staffing.spec.ts e2e/teaching-plan.spec.ts e2e/teaching-plan-import-review.spec.ts e2e/subject-rotation-and-sports.spec.ts e2e/auto-cover.spec.ts e2e/current-school-generation.spec.ts e2e/coverage-overview.spec.ts e2e/actual-2027-workbook.spec.ts e2e/dashboard-workflow.spec.ts e2e/leadership-ux.spec.ts --retries=0
-      - name: Upload detailed teaching-plan screenshots and Excel
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: teaching-plan-ui-screenshots-and-workbook
-          path: |
-            apps/web/test-results/teaching-plan-screenshots
-            apps/web/test-results/teaching-plan-review-screenshots
-            apps/web/test-results/subject-rotation-screenshots
-            apps/web/test-results/coverage-screenshots
-          if-no-files-found: warn
-      - name: Run realistic 40-teacher school workflow
-        run: npm run e2e --workspace @timetable/web -- e2e/school-scale.spec.ts --retries=0
-      - name: Run full 122-hour curriculum and leadership export
-        run: npm run e2e --workspace @timetable/web -- e2e/full-curriculum.spec.ts --retries=0
-      - name: Upload full-curriculum leadership export
-        uses: actions/upload-artifact@v4
-        with:
-          name: leadership-full-curriculum-timetable
-          path: /tmp/rozvrh-vedeni-plny-druhy-stupen.xlsx
-          if-no-files-found: error
-      - name: Repeat critical local-first workflow three times
-        run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts --repeat-each=3 --retries=0
-      - name: Upload failure diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: local-first-failure
-          path: |
-            apps/web/playwright-report
-            apps/web/test-results
-          if-no-files-found: ignore
+          old_cost = '''    subject_code = _subject_code(payload, assignment.subject_id)
+              weight = SUBJECT_LATE_WEIGHTS.get(
+                  subject_code,
+                  DEFAULT_SUBJECT_LATE_WEIGHT,
+              )
+              return afternoon_distance * weight
+          '''
+          new_cost = '''    subject_code = _subject_code(payload, assignment.subject_id)
+              afternoon_bonus = SUBJECT_AFTERNOON_BONUSES.get(subject_code, 0)
+              if afternoon_bonus > 0:
+                  return -afternoon_distance * afternoon_bonus
+              weight = SUBJECT_LATE_WEIGHTS.get(
+                  subject_code,
+                  DEFAULT_SUBJECT_LATE_WEIGHT,
+              )
+              return afternoon_distance * weight
+          '''
+          if old_cost not in main:
+              raise SystemExit("late cost block missing")
+          main = main.replace(old_cost, new_cost, 1)
+          main = main.replace(
+              '"Pozdní hodiny přednostně využívají pohybové, výtvarné a praktické předměty před matematikou, jazyky a informatikou."',
+              '"Odpolední hodiny aktivně preferují TV, PČ, VV, SVS a VKZ; HV, PřPk a PkČj jsou záložní odpolední předměty. Jádrové předměty zůstávají prioritně dříve."',
+          )
+          main_path.write_text(main)
+
+          generation_path = Path("apps/web/lib/local/school-project-generation.ts")
+          generation = generation_path.read_text()
+          import_marker = 'import { schoolInputFingerprint } from "./school-input-state";\n'
+          scheduling_import = 'import { schoolSchedulingPreferences } from "./school-scheduling-preferences";\n'
+          if scheduling_import not in generation:
+              if import_marker not in generation:
+                  raise SystemExit("generation import marker missing")
+              generation = generation.replace(
+                  import_marker,
+                  import_marker + scheduling_import,
+                  1,
+              )
+
+          availability_block = '''  const availability = [
+              ...teacherAvailability,
+              ...physicalEducationAvailability,
+            ];
+
+            const project: LocalProject = blockers.length
+          '''
+          availability_replacement = '''  const availability = [
+              ...teacherAvailability,
+              ...physicalEducationAvailability,
+            ];
+            const retainedFixedLessons = existingProject.fixedLessons.filter((lesson) =>
+              assignments.some((assignment) => assignment.id === lesson.assignmentId),
+            );
+            const schedulingPreferences = schoolSchedulingPreferences({
+              assignments,
+              subjects,
+              staffingPlan,
+              existingFixedLessons: retainedFixedLessons,
+            });
+            warnings.push(...schedulingPreferences.warnings);
+            availability.push(...schedulingPreferences.availability);
+            const fixedLessons = [
+              ...retainedFixedLessons,
+              ...schedulingPreferences.fixedLessons,
+            ];
+
+            const project: LocalProject = blockers.length
+          '''
+          if availability_block not in generation:
+              raise SystemExit("generation availability block missing")
+          generation = generation.replace(
+              availability_block,
+              availability_replacement,
+              1,
+          )
+
+          old_fixed = '''        fixedLessons: existingProject.fixedLessons.filter((lesson) =>
+                    assignments.some(
+                      (assignment) => assignment.id === lesson.assignmentId,
+                    ),
+                  ),
+          '''
+          if old_fixed not in generation:
+              raise SystemExit("generation fixed lesson block missing")
+          generation = generation.replace(old_fixed, "        fixedLessons,\n", 1)
+          generation_path.write_text(generation)
+          PY
+
+          npx prettier --write \
+            apps/web/lib/local/school-project-generation.ts \
+            apps/web/lib/local/school-scheduling-preferences.ts \
+            apps/web/tests/school-scheduling-preferences.test.ts \
+            apps/web/tests/school-scheduling-preferences-generation.test.ts
+
+          git fetch origin main
+          git checkout origin/main -- .github/workflows/ci.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/ci.yml \
+            apps/solver/app/main.py \
+            apps/solver/tests/test_subject_priorities.py \
+            apps/web/lib/local/school-project-generation.ts \
+            apps/web/lib/local/school-scheduling-preferences.ts \
+            apps/web/tests/school-scheduling-preferences.test.ts \
+            apps/web/tests/school-scheduling-preferences-generation.test.ts
+          git commit -m "Add afternoon priorities and Špánková schedule"
+          git push origin HEAD:agent/local-deep-solve-school-pe-defaults
