@@ -20,7 +20,17 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run format:check
+      - name: Show exact Prettier diff
+        run: |
+          npm run format
+          git diff -- \
+            apps/web/app/pe-capacity/page.tsx \
+            apps/web/lib/import/legacy-staffing-plan.ts \
+            apps/web/lib/local/physical-education-external-occupancy.ts \
+            apps/web/lib/local/school-project-generation.ts \
+            apps/web/tests/pe-external-capacity.test.ts \
+            apps/web/tests/school-pe-facilities.test.ts
+          exit 1
       - run: npm run lint --workspace @timetable/web
       - run: npm run typecheck --workspace @timetable/web
       - run: npm run test --workspace @timetable/web
