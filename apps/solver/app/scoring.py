@@ -19,6 +19,9 @@ CATEGORY_MAXIMUMS = {
     "stability_and_rooms": 10,
 }
 
+AFTERNOON_START_PERIOD = 6
+ALLOWED_CLASS_AFTERNOON_DAYS = {1, 2, 3}
+
 
 def _score_label(total: int) -> str:
     if total >= 95:
@@ -69,9 +72,14 @@ def _occupancy(
 ) -> dict[tuple[str, int], set[int]]:
     result: dict[tuple[str, int], set[int]] = defaultdict(set)
     for lesson in lessons:
-        entity_id = getattr(lesson, attribute)
-        for period in range(lesson.period, lesson.period + lesson.duration):
-            result[(entity_id, lesson.day)].add(period)
+        entity_ids = (
+            [lesson.class_id, *lesson.additional_class_ids]
+            if attribute == "class_id"
+            else [getattr(lesson, attribute)]
+        )
+        for entity_id in entity_ids:
+            for period in range(lesson.period, lesson.period + lesson.duration):
+                result[(entity_id, lesson.day)].add(period)
     return result
 
 
@@ -83,18 +91,32 @@ def _entity_occupies(
     period: int,
 ) -> bool:
     for lesson in lessons:
-        if lesson.day != day or not (lesson.period <= period < lesson.period + lesson.duration):
+        if lesson.day != day or not (
+            lesson.period <= period < lesson.period + lesson.duration
+        ):
             continue
-        if entity_type == AvailabilityEntityType.TEACHER and lesson.teacher_id == entity_id:
+        if (
+            entity_type == AvailabilityEntityType.TEACHER
+            and lesson.teacher_id == entity_id
+        ):
             return True
-        if entity_type == AvailabilityEntityType.CLASS and lesson.class_id == entity_id:
+        if (
+            entity_type == AvailabilityEntityType.CLASS
+            and entity_id in [lesson.class_id, *lesson.additional_class_ids]
+        ):
             return True
-        if entity_type == AvailabilityEntityType.ROOM and lesson.room_id == entity_id:
+        if (
+            entity_type == AvailabilityEntityType.ROOM
+            and lesson.room_id == entity_id
+        ):
             return True
     return False
 
 
-def score_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> ScoreReport:
+def score_schedule(
+    payload: SolveRequest,
+    lessons: list[ScheduledLesson],
+) -> ScoreReport:
     hard_issues = validate_schedule(payload, lessons)
     if hard_issues:
         return ScoreReport(
@@ -113,10 +135,16 @@ def score_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> Sco
         ("class_compactness", "class_id", "CLASS_GAP", "Třída"),
         ("teacher_compactness", "teacher_id", "TEACHER_GAP", "Učitel"),
     ):
-        for (entity_id, day), occupied in sorted(_occupancy(lessons, attribute).items()):
+        for (entity_id, day), occupied in sorted(
+            _occupancy(lessons, attribute).items()
+        ):
             if len(occupied) < 2:
                 continue
-            gaps = [period for period in range(min(occupied), max(occupied) + 1) if period not in occupied]
+            gaps = [
+                period
+                for period in range(min(occupied), max(occupied) + 1)
+                if period not in occupied
+            ]
             for index, period in enumerate(gaps):
                 points = 1 if index == 0 else 2 if index == 1 else 3
                 _deduct(
@@ -125,36 +153,61 @@ def score_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> Sco
                     category=category,
                     points=points,
                     code=code,
-                    message=f"{noun} {entity_id} má v rozvrhu vnitřní volnou hodinu.",
+                    message=(
+                        f"{noun} {entity_id} má v rozvrhu vnitřní volnou hodinu."
+                    ),
                     entity_ids=[entity_id],
                     day=day,
                     period=period,
-                    suggestion="Přesuňte sousední výuku blíže k sobě, pokud to ostatní omezení dovolí.",
+                    suggestion=(
+                        "Přesuňte sousední výuku blíže k sobě, "
+                        "pokud to ostatní omezení dovolí."
+                    ),
                 )
 
-    assignments = {assignment.id: assignment for assignment in payload.assignments}
-    assignment_days: dict[tuple[str, int], list[ScheduledLesson]] = defaultdict(list)
-    subject_days: dict[tuple[str, str, int], int] = defaultdict(int)
+    assignments = {
+        assignment.id: assignment for assignment in payload.assignments
+    }
+    assignment_days: dict[
+        tuple[str, int],
+        list[ScheduledLesson],
+    ] = defaultdict(list)
+    subject_days: dict[tuple[str, str, int], set[int]] = defaultdict(set)
     for lesson in lessons:
         assignment_days[(lesson.assignment_id, lesson.day)].append(lesson)
-        subject_days[(lesson.class_id, lesson.subject_id, lesson.day)] += lesson.duration
+        for class_id in [lesson.class_id, *lesson.additional_class_ids]:
+            for period in range(
+                lesson.period,
+                lesson.period + lesson.duration,
+            ):
+                subject_days[(class_id, lesson.subject_id, lesson.day)].add(
+                    period
+                )
 
     for (assignment_id, day), day_lessons in sorted(assignment_days.items()):
         assignment = assignments[assignment_id]
-        if len(day_lessons) > 1 and assignment.lesson_shape.value != "DOUBLE":
+        if (
+            len(day_lessons) > 1
+            and assignment.lesson_shape.value != "DOUBLE"
+        ):
             _deduct(
                 categories,
                 incidents,
                 category="distribution",
                 points=len(day_lessons) - 1,
                 code="ASSIGNMENT_SAME_DAY_CONCENTRATION",
-                message=f"Vazba {assignment_id} má více samostatných bloků v jednom dni.",
+                message=(
+                    f"Vazba {assignment_id} má více samostatných bloků v jednom dni."
+                ),
                 entity_ids=[assignment_id],
                 day=day,
                 suggestion="Rozložte výuku do více dnů.",
             )
 
-    for (class_id, subject_id, day), periods in sorted(subject_days.items()):
+    for (class_id, subject_id, day), occupied_periods in sorted(
+        subject_days.items()
+    ):
+        periods = len(occupied_periods)
         if periods > 2:
             _deduct(
                 categories,
@@ -162,7 +215,9 @@ def score_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> Sco
                 category="distribution",
                 points=periods - 2,
                 code="SUBJECT_SAME_DAY_CONCENTRATION",
-                message=f"Třída {class_id} má předmět {subject_id} soustředěný do jednoho dne.",
+                message=(
+                    f"Třída {class_id} má předmět {subject_id} soustředěný do jednoho dne."
+                ),
                 entity_ids=[class_id, subject_id],
                 day=day,
                 suggestion="Rozložte předmět do více pracovních dnů.",
@@ -170,7 +225,13 @@ def score_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> Sco
 
     for rule in sorted(
         payload.availability,
-        key=lambda item: (item.entity_type.value, item.entity_id, item.day, item.period, item.kind.value),
+        key=lambda item: (
+            item.entity_type.value,
+            item.entity_id,
+            item.day,
+            item.period,
+            item.kind.value,
+        ),
     ):
         occupied = _entity_occupies(
             lessons,
@@ -186,11 +247,16 @@ def score_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> Sco
                 category="teacher_preferences",
                 points=max(1, (rule.weight or 25) // 25),
                 code="DISCOURAGED_SLOT",
-                message=f"Výuka zasahuje do nedoporučeného slotu entity {rule.entity_id}.",
+                message=(
+                    "Výuka zasahuje do nedoporučeného slotu entity "
+                    f"{rule.entity_id}."
+                ),
                 entity_ids=[rule.entity_id],
                 day=rule.day,
                 period=rule.period,
-                suggestion=rule.reason or "Zvažte přesun do vhodnějšího slotu.",
+                suggestion=(
+                    rule.reason or "Zvažte přesun do vhodnějšího slotu."
+                ),
             )
         elif rule.kind == AvailabilityKind.PREFERRED and not occupied:
             _deduct(
@@ -199,11 +265,16 @@ def score_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> Sco
                 category="teacher_preferences",
                 points=1,
                 code="PREFERRED_SLOT_UNUSED",
-                message=f"Preferovaný slot entity {rule.entity_id} nebyl využit.",
+                message=(
+                    f"Preferovaný slot entity {rule.entity_id} nebyl využit."
+                ),
                 entity_ids=[rule.entity_id],
                 day=rule.day,
                 period=rule.period,
-                suggestion=rule.reason or "Při další optimalizaci zkuste preferovaný slot využít.",
+                suggestion=(
+                    rule.reason
+                    or "Při další optimalizaci zkuste preferovaný slot využít."
+                ),
             )
 
     teacher_occupancy = _occupancy(lessons, "teacher_id")
@@ -217,29 +288,105 @@ def score_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> Sco
                     category="day_edges",
                     points=1,
                     code="ISOLATED_EDGE_LESSON",
-                    message=f"Učitel {teacher_id} má v daný den jedinou hodinu na okraji dne.",
+                    message=(
+                        f"Učitel {teacher_id} má v daný den jedinou hodinu na okraji dne."
+                    ),
                     entity_ids=[teacher_id],
                     day=day,
                     period=period,
-                    suggestion="Zvažte spojení této hodiny s další výukou stejného dne.",
+                    suggestion=(
+                        "Zvažte spojení této hodiny s další výukou stejného dne."
+                    ),
                 )
 
     class_occupancy = _occupancy(lessons, "class_id")
-    for (class_id, day), occupied in sorted(class_occupancy.items()):
-        last_period = max(occupied)
-        if last_period >= max(6, payload.periods_per_day[day] - 1):
-            _deduct(
-                categories,
-                incidents,
-                category="day_edges",
-                points=1,
-                code="LATE_CLASS_FINISH",
-                message=f"Třída {class_id} končí pozdě.",
-                entity_ids=[class_id],
-                day=day,
-                period=last_period,
-                suggestion="Zvažte přesun některé výuky do dřívějšího slotu.",
+    class_ids = sorted({class_id for class_id, _day in class_occupancy})
+    if len(payload.periods_per_day) == 5:
+        for class_id in class_ids:
+            loads = [
+                len(class_occupancy.get((class_id, day), set()))
+                for day in range(5)
+            ]
+            weekly_periods = sum(loads)
+            if weekly_periods < 5:
+                continue
+
+            minimum_daily_load = max(
+                1,
+                ((weekly_periods + 4) // 5) - 1,
             )
+            afternoon_days: set[int] = set()
+            for day, load in enumerate(loads):
+                occupied = class_occupancy.get((class_id, day), set())
+                if load < minimum_daily_load:
+                    _deduct(
+                        categories,
+                        incidents,
+                        category="day_edges",
+                        points=2,
+                        code="CLASS_DAY_TOO_SHORT",
+                        message=(
+                            f"Třída {class_id} má nepřiměřeně krátký vyučovací den."
+                        ),
+                        entity_ids=[class_id],
+                        day=day,
+                        suggestion=(
+                            "Rozložte týdenní výuku rovnoměrněji mezi pracovní dny."
+                        ),
+                    )
+                if any(period >= AFTERNOON_START_PERIOD for period in occupied):
+                    afternoon_days.add(day)
+                    if day not in ALLOWED_CLASS_AFTERNOON_DAYS:
+                        _deduct(
+                            categories,
+                            incidents,
+                            category="day_edges",
+                            points=3,
+                            code="CLASS_AFTERNOON_FORBIDDEN_DAY",
+                            message=(
+                                f"Třída {class_id} má odpolední výuku v nevhodný den."
+                            ),
+                            entity_ids=[class_id],
+                            day=day,
+                            suggestion=(
+                                "Odpolední výuku plánujte pouze na úterý, "
+                                "středu nebo čtvrtek."
+                            ),
+                        )
+
+            for day in range(4):
+                if day in afternoon_days and day + 1 in afternoon_days:
+                    _deduct(
+                        categories,
+                        incidents,
+                        category="day_edges",
+                        points=2,
+                        code="CONSECUTIVE_CLASS_AFTERNOONS",
+                        message=(
+                            f"Třída {class_id} má odpolední výuku dva dny po sobě."
+                        ),
+                        entity_ids=[class_id],
+                        day=day + 1,
+                        suggestion=(
+                            "Oddělte odpolední dny alespoň jedním dnem "
+                            "bez 7.–8. hodiny."
+                        ),
+                    )
+
+            spread = max(loads) - min(loads)
+            if spread > 2:
+                _deduct(
+                    categories,
+                    incidents,
+                    category="day_edges",
+                    points=min(3, spread - 2),
+                    code="CLASS_DAY_LOAD_IMBALANCE",
+                    message=(
+                        f"Třída {class_id} má výrazně nevyrovnanou délku vyučovacích dnů."
+                    ),
+                    entity_ids=[class_id],
+                    suggestion="Vyrovnejte počet hodin mezi jednotlivými dny.",
+                )
 
     total = sum(categories.values())
     return ScoreReport(
