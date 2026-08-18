@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
+import { confirmAction } from "@/components/ui/confirm-action-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { ReadinessReport } from "@/lib/domain/contracts";
 import { generationFailureMessage } from "@/lib/generation-errors";
@@ -195,12 +196,15 @@ export default function GeneratePage() {
         error?: { message?: string };
       };
       if (response.status === 409 && !forceReplaceGeneratedData) {
-        if (
-          !window.confirm(
-            "Příprava nových vstupních dat odstraní dosavadní návrhy rozvrhu.",
-          )
-        )
-          return;
+        const confirmed = await confirmAction(
+          "Příprava nových vstupních dat odstraní dosavadní návrhy rozvrhu. Pracovní úvazky a učební plán zůstanou zachované.",
+          {
+            title: "Připravit data znovu?",
+            confirmLabel: "Připravit znovu",
+            tone: "danger",
+          },
+        );
+        if (!confirmed) return;
         response = await localApiFetch(
           `/api/school-years/${schoolYearId}/prepare-generation`,
           {
