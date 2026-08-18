@@ -49,7 +49,9 @@ test("local settings survive reload and a corrupted backup is rejected", async (
   await expect(
     page.getByRole("alertdialog", { name: "Obnovit projekt ze zálohy?" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Obnovit projekt" }).click();
+  await page
+    .getByRole("button", { name: "Obnovit projekt", exact: true })
+    .click();
   await expect(
     page.getByText(
       "Kontrolní součet nesouhlasí. Odkaz nebo soubor je poškozený či neúplný.",
