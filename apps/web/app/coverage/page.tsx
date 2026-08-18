@@ -19,6 +19,7 @@ import { ChangeEvent, useEffect, useMemo, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
+import { confirmAction } from "@/components/ui/confirm-action-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   buildCoverageOverview,
@@ -176,13 +177,16 @@ export default function CoveragePage() {
         );
         return;
       }
-      if (
-        staffingPlan.teachers.length > 0 &&
-        !window.confirm(
-          "Nahradit současný seznam učitelů a úvazků tímto Excelem?",
-        )
-      ) {
-        return;
+      if (staffingPlan.teachers.length > 0) {
+        const confirmed = await confirmAction(
+          "Současný seznam učitelů a úvazků bude nahrazen daty z tohoto Excelu.",
+          {
+            title: "Nahradit učitele a úvazky?",
+            confirmLabel: "Nahradit data",
+            tone: "danger",
+          },
+        );
+        if (!confirmed) return;
       }
 
       const savedStaffing = saveStaffingPlan(result.plan);

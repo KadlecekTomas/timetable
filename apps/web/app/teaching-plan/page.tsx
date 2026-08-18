@@ -21,6 +21,7 @@ import { ChangeEvent, useEffect, useMemo, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
+import { confirmAction } from "@/components/ui/confirm-action-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { proposeCzechMathRotations } from "@/lib/domain/rotation-proposal";
 import {
@@ -298,12 +299,16 @@ export default function TeachingPlanPage() {
     });
   }
 
-  function removeClass(code: string): void {
-    if (
-      !window.confirm(`Odstranit třídu ${code} včetně všech jejích předmětů?`)
-    ) {
-      return;
-    }
+  async function removeClass(code: string): Promise<void> {
+    const confirmed = await confirmAction(
+      `Odstranit třídu ${code} včetně všech jejích předmětů?`,
+      {
+        title: "Odstranit třídu?",
+        confirmLabel: "Odstranit třídu",
+        tone: "danger",
+      },
+    );
+    if (!confirmed) return;
     const nextClasses = plan.classes.filter((item) => item.code !== code);
     commit({
       ...plan,
@@ -452,13 +457,16 @@ export default function TeachingPlanPage() {
         }
       }
 
-      if (
-        assignmentsResponse.items.length > 0 &&
-        !window.confirm(
-          `Projekt už obsahuje ${assignmentsResponse.items.length} výukových vazeb. Nahradit je tímto zkontrolovaným plánem?`,
-        )
-      ) {
-        return;
+      if (assignmentsResponse.items.length > 0) {
+        const confirmed = await confirmAction(
+          `Projekt už obsahuje ${assignmentsResponse.items.length} výukových vazeb. Nový zkontrolovaný plán je nahradí.`,
+          {
+            title: "Nahradit výukové vazby?",
+            confirmLabel: "Nahradit vazby",
+            tone: "danger",
+          },
+        );
+        if (!confirmed) return;
       }
 
       for (
@@ -816,13 +824,15 @@ export default function TeachingPlanPage() {
             type="button"
             variant="outline"
             disabled={rotationProposal.candidates.length === 0}
-            onClick={() => {
-              if (
-                !window.confirm(
-                  `Použít ${rotationProposal.candidates.length} navržených rotací ČJ / M?`,
-                )
-              )
-                return;
+            onClick={async () => {
+              const confirmed = await confirmAction(
+                `Použít ${rotationProposal.candidates.length} navržených rotací ČJ / M?`,
+                {
+                  title: "Použít navržené rotace?",
+                  confirmLabel: "Použít rotace",
+                },
+              );
+              if (!confirmed) return;
               commit(rotationProposal.plan);
               setMessage(
                 `Použito ${rotationProposal.candidates.length} rotací ČJ / M. Zkontrolujte ${rotationProposal.residualUncoveredHours} zbytkových nepokrytých hodin.`,

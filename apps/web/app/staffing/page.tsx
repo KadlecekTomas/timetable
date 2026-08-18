@@ -18,6 +18,7 @@ import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
+import { confirmAction } from "@/components/ui/confirm-action-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   analyzeStaffingWorkbook,
@@ -225,7 +226,7 @@ export default function StaffingPage() {
       event.returnValue = "";
     };
 
-    const handleDocumentClick = (event: MouseEvent) => {
+    const handleDocumentClick = async (event: MouseEvent) => {
       if (!hasUnsavedChanges || event.defaultPrevented || event.button !== 0) {
         return;
       }
@@ -246,12 +247,16 @@ export default function StaffingPage() {
       ) {
         return;
       }
-      if (!window.confirm(unsavedNavigationMessage)) {
-        event.preventDefault();
-        event.stopPropagation();
-        return;
-      }
+      event.preventDefault();
+      event.stopPropagation();
+      const confirmed = await confirmAction(unsavedNavigationMessage, {
+        title: "Opustit stránku bez uložení?",
+        confirmLabel: "Opustit stránku",
+        tone: "danger",
+      });
+      if (!confirmed) return;
       allowNavigationRef.current = true;
+      anchor.click();
       window.setTimeout(() => {
         allowNavigationRef.current = false;
       }, 0);
@@ -362,14 +367,16 @@ export default function StaffingPage() {
     }
   }
 
-  function removeTeacher(teacher: StaffingTeacher): void {
-    if (
-      !window.confirm(
-        `Opravdu odstranit ${teacher.firstName || "tohoto učitele"} ${teacher.lastName}?`,
-      )
-    ) {
-      return;
-    }
+  async function removeTeacher(teacher: StaffingTeacher): Promise<void> {
+    const confirmed = await confirmAction(
+      `Odstranit ${teacher.firstName || "tohoto učitele"} ${teacher.lastName}?`,
+      {
+        title: "Odstranit učitele?",
+        confirmLabel: "Odstranit učitele",
+        tone: "danger",
+      },
+    );
+    if (!confirmed) return;
 
     try {
       const wasSaved = savedPlan.teachers.some(
@@ -436,13 +443,16 @@ export default function StaffingPage() {
       const result = await analyzeStaffingWorkbook(await file.arrayBuffer());
       setAnalysis(result);
       if (!result.valid) return;
-      if (
-        plan.teachers.length > 0 &&
-        !window.confirm(
-          "Nahradit aktuálně rozepsané učitele obsahem tohoto Excelu? Neuložené změny se zahodí.",
-        )
-      ) {
-        return;
+      if (plan.teachers.length > 0) {
+        const confirmed = await confirmAction(
+          "Aktuálně rozepsaní učitelé budou nahrazeni obsahem tohoto Excelu. Neuložené změny se zahodí.",
+          {
+            title: "Nahradit rozepsané učitele?",
+            confirmLabel: "Nahradit učitele",
+            tone: "danger",
+          },
+        );
+        if (!confirmed) return;
       }
       setPlan(result.plan);
       setFilter("ALL");
