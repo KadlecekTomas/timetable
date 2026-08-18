@@ -45,9 +45,7 @@ function generatedPeProject(): LocalProject {
         firstName: "Tělocvik",
         lastName: "Testovací",
         targetWeeklyLoad: 2,
-        subjectLoads: [
-          { id: "tv-load", subjectCode: "TV", weeklyPeriods: 2 },
-        ],
+        subjectLoads: [{ id: "tv-load", subjectCode: "TV", weeklyPeriods: 2 }],
         unavailableDays: [],
       },
     ],
@@ -55,9 +53,7 @@ function generatedPeProject(): LocalProject {
   const teachingPlan: TeachingPlan = {
     version: 1,
     updatedAt: "test",
-    classes: [
-      { id: "class-plan", code: "7.A", grade: 7, profile: "REGULAR" },
-    ],
+    classes: [{ id: "class-plan", code: "7.A", grade: 7, profile: "REGULAR" }],
     rows: [
       {
         id: "row-tv",
@@ -83,24 +79,19 @@ function generatedPeProject(): LocalProject {
   return result.project;
 }
 
-test(
-  "external first-grade occupancy reduces only currently available PE capacity",
-  () => {
-    const project = generatedPeProject();
-    const rules = physicalEducationExternalAvailability(project, [
-      { dayOfWeek: 3, period: 2, occupiedSpaces: 2 },
-    ]);
+test("external first-grade occupancy reduces only currently available PE capacity", () => {
+  const project = generatedPeProject();
+  const rules = physicalEducationExternalAvailability(project, [
+    { dayOfWeek: 3, period: 2, occupiedSpaces: 2 },
+  ]);
 
-    assert.equal(rules.length, 2);
-    assert.equal(new Set(rules.map((rule) => rule.entityId)).size, 2);
-    assert.ok(rules.every((rule) => rule.dayOfWeek === 3 && rule.period === 2));
-    assert.ok(
-      rules.every((rule) =>
-        rule.reason?.startsWith("PE_EXTERNAL_CAPACITY:"),
-      ),
-    );
-  },
-);
+  assert.equal(rules.length, 2);
+  assert.equal(new Set(rules.map((rule) => rule.entityId)).size, 2);
+  assert.ok(rules.every((rule) => rule.dayOfWeek === 3 && rule.period === 2));
+  assert.ok(
+    rules.every((rule) => rule.reason?.startsWith("PE_EXTERNAL_CAPACITY:")),
+  );
+});
 
 test("external occupancy is capped by the real daily PE capacity", () => {
   const project = generatedPeProject();

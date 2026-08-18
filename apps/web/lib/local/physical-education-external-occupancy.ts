@@ -53,8 +53,7 @@ export function normalizePhysicalEducationExternalOccupancySlots(
     ) {
       continue;
     }
-    const maxCapacity =
-      PHYSICAL_EDUCATION_BASE_CAPACITY_BY_DAY[dayOfWeek] ?? 0;
+    const maxCapacity = PHYSICAL_EDUCATION_BASE_CAPACITY_BY_DAY[dayOfWeek] ?? 0;
     const normalized = Math.min(maxCapacity, Math.max(0, occupiedSpaces));
     if (normalized === 0) continue;
     slots.set(`${dayOfWeek}:${period}`, {
@@ -124,9 +123,8 @@ export function occupiedPhysicalEducationSpacesAt(
   period: number,
 ): number {
   return (
-    slots.find(
-      (slot) => slot.dayOfWeek === dayOfWeek && slot.period === period,
-    )?.occupiedSpaces ?? 0
+    slots.find((slot) => slot.dayOfWeek === dayOfWeek && slot.period === period)
+      ?.occupiedSpaces ?? 0
   );
 }
 

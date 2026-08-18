@@ -23,9 +23,7 @@ import {
 const dayNames = ["Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek"];
 
 export default function PeCapacityPage() {
-  const [periodsPerDay, setPeriodsPerDay] = useState<number[]>([
-    8, 8, 8, 8, 7,
-  ]);
+  const [periodsPerDay, setPeriodsPerDay] = useState<number[]>([8, 8, 8, 8, 7]);
   const [slots, setSlots] = useState<PhysicalEducationExternalOccupancySlot[]>(
     [],
   );

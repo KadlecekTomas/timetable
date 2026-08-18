@@ -263,9 +263,7 @@ export function buildSchoolProjectForGeneration({
   const roomTypes = usesPhysicalEducation
     ? [
         ...existingProject.roomTypes
-          .filter(
-            (roomType) => roomType.id !== PHYSICAL_EDUCATION_ROOM_TYPE_ID,
-          )
+          .filter((roomType) => roomType.id !== PHYSICAL_EDUCATION_ROOM_TYPE_ID)
           .map((roomType) => ({ ...roomType })),
         { ...PHYSICAL_EDUCATION_ROOM_TYPE },
       ]
@@ -580,8 +578,8 @@ export function buildSchoolProjectForGeneration({
     }
   }
 
-  const teacherAvailability: LocalAvailability[] = staffingPlan.teachers.flatMap(
-    (teacher) =>
+  const teacherAvailability: LocalAvailability[] =
+    staffingPlan.teachers.flatMap((teacher) =>
       teacher.unavailableDays.flatMap((dayCode) => {
         const day = STAFFING_DAYS.find((item) => item.code === dayCode);
         if (!day) return [];
@@ -599,15 +597,16 @@ export function buildSchoolProjectForGeneration({
           }),
         );
       }),
-  );
+    );
 
   const physicalEducationAvailability: LocalAvailability[] =
     usesPhysicalEducation
       ? PHYSICAL_EDUCATION_ROOMS.flatMap((room) => {
-          const unavailableDays =
-            THURSDAY_ONLY_PHYSICAL_EDUCATION_ROOM_IDS.has(room.id)
-              ? [0, 1, 2, 4]
-              : [MONDAY_DAY_INDEX];
+          const unavailableDays = THURSDAY_ONLY_PHYSICAL_EDUCATION_ROOM_IDS.has(
+            room.id,
+          )
+            ? [0, 1, 2, 4]
+            : [MONDAY_DAY_INDEX];
           return unavailableDays.flatMap((dayIndex) =>
             Array.from(
               { length: existingProject.periodsPerDay[dayIndex] ?? 0 },
