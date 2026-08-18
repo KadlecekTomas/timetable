@@ -17,6 +17,9 @@ export const SCORE_MAXIMUMS: Record<ScoreCategory, number> = {
   stability_and_rooms: 10,
 };
 
+const AFTERNOON_START_PERIOD = 6;
+const ALLOWED_CLASS_AFTERNOON_DAYS = new Set([1, 2, 3]);
+
 function scoreLabel(total: number): string {
   if (total >= 95) return "Výborný návrh";
   if (total >= 85) return "Velmi dobrý návrh";
@@ -42,16 +45,22 @@ function occupancy(
 ): Map<string, Set<number>> {
   const result = new Map<string, Set<number>>();
   for (const lesson of lessons) {
-    const key = `${lesson[attribute]}:${lesson.day}`;
-    const periods = result.get(key) ?? new Set<number>();
-    for (
-      let period = lesson.period;
-      period < lesson.period + lesson.duration;
-      period += 1
-    ) {
-      periods.add(period);
+    const entityIds =
+      attribute === "class_id"
+        ? [lesson.class_id, ...(lesson.additional_class_ids ?? [])]
+        : [lesson[attribute]];
+    for (const entityId of entityIds) {
+      const key = `${entityId}:${lesson.day}`;
+      const periods = result.get(key) ?? new Set<number>();
+      for (
+        let period = lesson.period;
+        period < lesson.period + lesson.duration;
+        period += 1
+      ) {
+        periods.add(period);
+      }
+      result.set(key, periods);
     }
-    result.set(key, periods);
   }
   return result;
 }
@@ -72,7 +81,11 @@ function entityOccupies(
       return false;
     }
     if (entityType === "TEACHER") return lesson.teacher_id === entityId;
-    if (entityType === "CLASS") return lesson.class_id === entityId;
+    if (entityType === "CLASS") {
+      return [lesson.class_id, ...(lesson.additional_class_ids ?? [])].includes(
+        entityId,
+      );
+    }
     return lesson.room_id === entityId;
   });
 }
@@ -150,18 +163,28 @@ export function scoreSchedule(
     snapshot.assignments.map((assignment) => [assignment.id, assignment]),
   );
   const assignmentDays = new Map<string, ScheduledLesson[]>();
-  const subjectDays = new Map<string, number>();
+  const subjectDays = new Map<string, Set<number>>();
   for (const lesson of lessons) {
     const assignmentKey = `${lesson.assignment_id}:${lesson.day}`;
     assignmentDays.set(assignmentKey, [
       ...(assignmentDays.get(assignmentKey) ?? []),
       lesson,
     ]);
-    const subjectKey = `${lesson.class_id}:${lesson.subject_id}:${lesson.day}`;
-    subjectDays.set(
-      subjectKey,
-      (subjectDays.get(subjectKey) ?? 0) + lesson.duration,
-    );
+    for (const classId of [
+      lesson.class_id,
+      ...(lesson.additional_class_ids ?? []),
+    ]) {
+      const subjectKey = `${classId}:${lesson.subject_id}:${lesson.day}`;
+      const occupiedPeriods = subjectDays.get(subjectKey) ?? new Set<number>();
+      for (
+        let period = lesson.period;
+        period < lesson.period + lesson.duration;
+        period += 1
+      ) {
+        occupiedPeriods.add(period);
+      }
+      subjectDays.set(subjectKey, occupiedPeriods);
+    }
   }
 
   for (const [key, dayLessons] of [...assignmentDays.entries()].sort()) {
@@ -186,7 +209,8 @@ export function scoreSchedule(
     }
   }
 
-  for (const [key, periods] of [...subjectDays.entries()].sort()) {
+  for (const [key, occupiedPeriods] of [...subjectDays.entries()].sort()) {
+    const periods = occupiedPeriods.size;
     if (periods <= 2) continue;
     const parts = key.split(":");
     const day = Number(parts.pop());
@@ -263,23 +287,76 @@ export function scoreSchedule(
     }
   }
 
-  for (const [key, occupied] of [
-    ...occupancy(lessons, "class_id").entries(),
-  ].sort()) {
-    const [classId, dayValue] = key.split(":");
-    const day = Number(dayValue);
-    const lastPeriod = Math.max(...occupied);
-    if (lastPeriod >= Math.max(6, snapshot.periods_per_day[day] - 1)) {
-      deduct(categories, incidents, {
-        category: "day_edges",
-        code: "LATE_CLASS_FINISH",
-        points: 1,
-        message: `Třída ${classId} končí pozdě.`,
-        entity_ids: [classId],
-        day,
-        period: lastPeriod,
-        suggestion: "Zvažte přesun některé výuky do dřívějšího slotu.",
+  const classOccupancy = occupancy(lessons, "class_id");
+  const classIds = [
+    ...new Set([...classOccupancy.keys()].map((key) => key.split(":")[0]!)),
+  ].sort();
+  if (snapshot.periods_per_day.length === 5) {
+    for (const classId of classIds) {
+      const loads = Array.from({ length: 5 }, (_, day) =>
+        classOccupancy.get(`${classId}:${day}`)?.size ?? 0,
+      );
+      const weeklyPeriods = loads.reduce((sum, value) => sum + value, 0);
+      if (weeklyPeriods < 5) continue;
+      const minimumDailyLoad = Math.max(1, Math.ceil(weeklyPeriods / 5) - 1);
+      const afternoonDays = new Set<number>();
+
+      loads.forEach((load, day) => {
+        const occupied = classOccupancy.get(`${classId}:${day}`) ?? new Set();
+        if (load < minimumDailyLoad) {
+          deduct(categories, incidents, {
+            category: "day_edges",
+            code: "CLASS_DAY_TOO_SHORT",
+            points: 2,
+            message: `Třída ${classId} má nepřiměřeně krátký vyučovací den.`,
+            entity_ids: [classId],
+            day,
+            suggestion: "Rozložte týdenní výuku rovnoměrněji mezi pracovní dny.",
+          });
+        }
+        if ([...occupied].some((period) => period >= AFTERNOON_START_PERIOD)) {
+          afternoonDays.add(day);
+          if (!ALLOWED_CLASS_AFTERNOON_DAYS.has(day)) {
+            deduct(categories, incidents, {
+              category: "day_edges",
+              code: "CLASS_AFTERNOON_FORBIDDEN_DAY",
+              points: 3,
+              message: `Třída ${classId} má odpolední výuku v nevhodný den.`,
+              entity_ids: [classId],
+              day,
+              suggestion:
+                "Odpolední výuku plánujte pouze na úterý, středu nebo čtvrtek.",
+            });
+          }
+        }
       });
+
+      for (let day = 0; day < 4; day += 1) {
+        if (afternoonDays.has(day) && afternoonDays.has(day + 1)) {
+          deduct(categories, incidents, {
+            category: "day_edges",
+            code: "CONSECUTIVE_CLASS_AFTERNOONS",
+            points: 2,
+            message: `Třída ${classId} má odpolední výuku dva dny po sobě.`,
+            entity_ids: [classId],
+            day: day + 1,
+            suggestion:
+              "Oddělte odpolední dny alespoň jedním dnem bez 7.–8. hodiny.",
+          });
+        }
+      }
+
+      const spread = Math.max(...loads) - Math.min(...loads);
+      if (spread > 2) {
+        deduct(categories, incidents, {
+          category: "day_edges",
+          code: "CLASS_DAY_LOAD_IMBALANCE",
+          points: Math.min(3, spread - 2),
+          message: `Třída ${classId} má výrazně nevyrovnanou délku vyučovacích dnů.`,
+          entity_ids: [classId],
+          suggestion: "Vyrovnejte počet hodin mezi jednotlivými dny.",
+        });
+      }
     }
   }
 
