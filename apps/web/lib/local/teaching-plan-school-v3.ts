@@ -180,9 +180,7 @@ export function enforceMandatorySchoolSplits(plan: TeachingPlan): TeachingPlan {
         row.subjectCode,
       );
       const splitGroupCount =
-        !singleSplit && row.subjectCode === "JAZ1" && row.splitGroupCount === 3
-          ? 3
-          : 2;
+        !singleSplit && row.splitGroupCount === 3 ? 3 : 2;
       return {
         ...row,
         organization: "SPLIT" as const,
