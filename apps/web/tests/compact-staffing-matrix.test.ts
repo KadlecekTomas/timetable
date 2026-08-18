@@ -76,6 +76,7 @@ test("compact school matrix imports X+1 as teacher hours and normalizes names", 
   assert.equal(hours(analysis, "Testová", "JAZ1"), 4);
   assert.equal(hours(analysis, "Mašek", "TV"), 2);
   assert.equal(hours(analysis, "Šárová", "TV"), 2);
+  assert.equal(hours(analysis, "Náhradní", "TV"), 2);
   const spankova = analysis.plan.teachers.filter((teacher) =>
     teacher.lastName
       .normalize("NFKD")
@@ -103,9 +104,9 @@ test("compact school matrix imports X+1 as teacher hours and normalizes names", 
   const pe = analysis.allocationDraft?.rows.find(
     (row) => row.classCode === "6.A" && row.subjectCode === "TV",
   );
-  assert.equal(pe?.teacherIds.length, 2);
+  assert.equal(pe?.teacherIds.length, 3);
   assert.ok(
-    analysis.issues.some((item) =>
+    !analysis.issues.some((item) =>
       item.message.includes("TV zůstává rozdělená jen na dvě žákovské skupiny"),
     ),
   );
