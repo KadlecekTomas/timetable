@@ -187,6 +187,10 @@ export function analyzeLegacyStaffingPlan(
   };
 
   const draftRows: StaffingAllocationDraftRow[] = [];
+  const sharedSecondLanguageHours = new Map<
+    string,
+    { teacher: TeacherAggregate; weeklyPeriods: number }
+  >();
   let unassignedClassPeriods = 0;
 
   for (const requirement of parsed.requirements) {
@@ -200,7 +204,19 @@ export function analyzeLegacyStaffingPlan(
     const teacherWeeklyPeriods =
       requirement.weeklyPeriods + requirement.teacherExtraPeriods;
     for (const teacher of resolved) {
-      addSubjectHours(teacher, requirement.subject.code, teacherWeeklyPeriods);
+      if (requirement.subject.code === "JAZ2") {
+        const grade = Number(requirement.classCode.split(".")[0] ?? 0);
+        const key = `${grade}|${teacher.key}`;
+        const current = sharedSecondLanguageHours.get(key);
+        if (!current || teacherWeeklyPeriods > current.weeklyPeriods) {
+          sharedSecondLanguageHours.set(key, {
+            teacher,
+            weeklyPeriods: teacherWeeklyPeriods,
+          });
+        }
+      } else {
+        addSubjectHours(teacher, requirement.subject.code, teacherWeeklyPeriods);
+      }
     }
 
     if (tokens.length === 0) {
@@ -235,6 +251,10 @@ export function analyzeLegacyStaffingPlan(
       sourceSheet: parsed.sheetName,
       sourceRow: requirement.row,
     });
+  }
+
+  for (const { teacher, weeklyPeriods } of sharedSecondLanguageHours.values()) {
+    addSubjectHours(teacher, "JAZ2", weeklyPeriods);
   }
 
   const teacherRows: StaffingTeacher[] = [...teachers.values()]
