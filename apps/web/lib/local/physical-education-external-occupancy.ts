@@ -1,5 +1,9 @@
+import type { LocalAvailability, LocalProject } from "./api";
+
 export const PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_STORAGE_KEY =
   "rozvrhar:pe-external-occupancy:v1";
+export const PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_REASON_PREFIX =
+  "PE_EXTERNAL_CAPACITY:";
 
 export const PHYSICAL_EDUCATION_BASE_CAPACITY_BY_DAY = [0, 3, 3, 5, 3] as const;
 
@@ -16,6 +20,7 @@ export interface PhysicalEducationExternalOccupancyState {
 }
 
 const CHANGE_EVENT = "rozvrhar:pe-external-occupancy-changed";
+const PHYSICAL_EDUCATION_ROOM_TYPE_ID = "room-type:TV";
 
 function emptyState(): PhysicalEducationExternalOccupancyState {
   return {
@@ -121,5 +126,54 @@ export function occupiedPhysicalEducationSpacesAt(
     slots.find(
       (slot) => slot.dayOfWeek === dayOfWeek && slot.period === period,
     )?.occupiedSpaces ?? 0
+  );
+}
+
+export function physicalEducationExternalAvailability(
+  project: LocalProject,
+  slots: PhysicalEducationExternalOccupancySlot[],
+): LocalAvailability[] {
+  const sportRoomIds = project.rooms
+    .filter((room) => room.roomTypeId === PHYSICAL_EDUCATION_ROOM_TYPE_ID)
+    .map((room) => room.id);
+  if (sportRoomIds.length === 0) return [];
+
+  return normalizePhysicalEducationExternalOccupancySlots(slots).flatMap(
+    (slot) => {
+      if (slot.period >= (project.periodsPerDay[slot.dayOfWeek] ?? 0)) return [];
+
+      const unavailableRoomIds = new Set(
+        project.availability
+          .filter(
+            (rule) =>
+              rule.entityType === "ROOM" &&
+              rule.kind === "UNAVAILABLE" &&
+              rule.dayOfWeek === slot.dayOfWeek &&
+              rule.period === slot.period,
+          )
+          .map((rule) => rule.entityId),
+      );
+      const availableRoomIds = sportRoomIds.filter(
+        (roomId) => !unavailableRoomIds.has(roomId),
+      );
+      const occupiedCount = Math.min(
+        slot.occupiedSpaces,
+        availableRoomIds.length,
+      );
+      const blockedRoomIds = availableRoomIds.slice(
+        Math.max(0, availableRoomIds.length - occupiedCount),
+      );
+
+      return blockedRoomIds.map((roomId) => ({
+        id: `availability:pe-external:${slot.dayOfWeek}:${slot.period}:${roomId}`,
+        entityType: "ROOM" as const,
+        entityId: roomId,
+        dayOfWeek: slot.dayOfWeek,
+        period: slot.period,
+        kind: "UNAVAILABLE" as const,
+        weight: null,
+        reason: `${PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_REASON_PREFIX}1. stupeň zabírá ${slot.occupiedSpaces} z ${availableRoomIds.length} dostupných TV prostorů.`,
+      })),
+    },
   );
 }
