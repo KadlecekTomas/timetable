@@ -41,12 +41,15 @@ test("local settings survive reload and a corrupted backup is rejected", async (
   backup.checksum = "0".repeat(64);
   const corruptedBackup = Buffer.from(JSON.stringify(backup), "utf8");
 
-  page.on("dialog", (dialog) => void dialog.accept());
   await page.locator('input[type="file"]').setInputFiles({
     name: "poskozena-zaloha.rozvrhar.json",
     mimeType: "application/json",
     buffer: corruptedBackup,
   });
+  await expect(
+    page.getByRole("alertdialog", { name: "Obnovit projekt ze zálohy?" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Obnovit projekt" }).click();
   await expect(
     page.getByText(
       "Kontrolní součet nesouhlasí. Odkaz nebo soubor je poškozený či neúplný.",
