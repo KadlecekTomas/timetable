@@ -223,8 +223,8 @@ test("Špánková keeps Spanish Tue-Wed-Thu second period and German follows whe
       const assignment = assignmentById.get(lesson.assignment_id);
       return (
         assignment?.classId === classIdByCode.get("8.A") &&
-        assignment.additionalClassIds.includes(classIdByCode.get("8.B")!) &&
-        assignment.additionalClassIds.includes(classIdByCode.get("8.C")!)
+        assignment?.additionalClassIds.includes(classIdByCode.get("8.B")!) &&
+        assignment?.additionalClassIds.includes(classIdByCode.get("8.C")!)
       );
     })
     .sort((left, right) => left.day - right.day);
