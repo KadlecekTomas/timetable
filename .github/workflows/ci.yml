@@ -29,28 +29,14 @@ jobs:
           from pathlib import Path
           path = Path('apps/web/app/generate/page.tsx')
           text = path.read_text()
-          old = '''              <>
-                <option value={300}>5 minut · rychlý lokální pokus</option>
-                <option value={600}>10 minut · důkladnější hledání</option>
-                <option value={1200}>20 minut · Deep Solve</option>
-                <option value={LOCAL_DEEP_SOLVE_SECONDS}>
-                  30 minut · Deep Solve · doporučeno
-                </option>
-              </>'''
-          new = '''              <>
-                <option value={30}>30 sekund · rychlý test</option>
+          needle = '<option value={300}>5 minut · rychlý lokální pokus</option>'
+          replacement = '''<option value={30}>30 sekund · rychlý test</option>
                 <option value={60}>1 minuta · rychlý test</option>
                 <option value={180}>3 minuty · kratší pokus</option>
-                <option value={300}>5 minut · rychlý lokální pokus</option>
-                <option value={600}>10 minut · důkladnější hledání</option>
-                <option value={1200}>20 minut · Deep Solve</option>
-                <option value={LOCAL_DEEP_SOLVE_SECONDS}>
-                  30 minut · Deep Solve · doporučeno
-                </option>
-              </>'''
-          if text.count(old) != 1:
-              raise SystemExit(f'expected exactly one local option block, got {text.count(old)}')
-          path.write_text(text.replace(old, new))
+                <option value={300}>5 minut · rychlý lokální pokus</option>'''
+          if text.count(needle) != 1:
+              raise SystemExit(f'expected one local 5-minute option, got {text.count(needle)}')
+          path.write_text(text.replace(needle, replacement))
           PY
           npx prettier --write apps/web/app/generate/page.tsx
           rm -f .github/workflows/agent-fix-local-deep-solve-options.yml
@@ -105,7 +91,6 @@ jobs:
           curl --fail --silent --show-error http://127.0.0.1:3000/api/health
           curl --fail --silent --show-error http://127.0.0.1:3000/solver/health
           curl --fail --silent --show-error http://127.0.0.1:8000/health
-
           headers="$(curl --fail --silent --show-error --head http://127.0.0.1:3000/)"
           echo "$headers" | grep -qi '^x-content-type-options: nosniff'
           echo "$headers" | grep -qi '^x-frame-options: DENY'
@@ -144,7 +129,6 @@ jobs:
         run: |
           nohup bash -c 'cd apps/solver && uvicorn app.main:app --host 127.0.0.1 --port 8000' > /tmp/solver.log 2>&1 &
           nohup npm run start --workspace @timetable/web > /tmp/web.log 2>&1 &
-
           for attempt in $(seq 1 90); do
             if curl --fail --silent http://127.0.0.1:8000/health >/dev/null && \
                curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null && \
@@ -153,7 +137,6 @@ jobs:
             fi
             sleep 1
           done
-
           cat /tmp/solver.log || true
           cat /tmp/web.log || true
           exit 1
