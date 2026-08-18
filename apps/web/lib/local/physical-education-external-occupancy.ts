@@ -5,7 +5,9 @@ export const PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_STORAGE_KEY =
 export const PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_REASON_PREFIX =
   "PE_EXTERNAL_CAPACITY:";
 
-export const PHYSICAL_EDUCATION_BASE_CAPACITY_BY_DAY = [0, 3, 3, 5, 3] as const;
+export const PHYSICAL_EDUCATION_BASE_CAPACITY_BY_DAY = [
+  0, 3, 3, 5, 3,
+] as const;
 
 export interface PhysicalEducationExternalOccupancySlot {
   dayOfWeek: number;
@@ -129,21 +131,38 @@ export function occupiedPhysicalEducationSpacesAt(
   );
 }
 
+function withoutExternalPhysicalEducationAvailability(
+  project: LocalProject,
+): LocalProject {
+  return {
+    ...project,
+    availability: project.availability.filter(
+      (rule) =>
+        !rule.reason?.startsWith(
+          PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_REASON_PREFIX,
+        ),
+    ),
+  };
+}
+
 export function physicalEducationExternalAvailability(
   project: LocalProject,
   slots: PhysicalEducationExternalOccupancySlot[],
 ): LocalAvailability[] {
-  const sportRoomIds = project.rooms
+  const cleanProject = withoutExternalPhysicalEducationAvailability(project);
+  const sportRoomIds = cleanProject.rooms
     .filter((room) => room.roomTypeId === PHYSICAL_EDUCATION_ROOM_TYPE_ID)
     .map((room) => room.id);
   if (sportRoomIds.length === 0) return [];
 
   return normalizePhysicalEducationExternalOccupancySlots(slots).flatMap(
     (slot) => {
-      if (slot.period >= (project.periodsPerDay[slot.dayOfWeek] ?? 0)) return [];
+      if (slot.period >= (cleanProject.periodsPerDay[slot.dayOfWeek] ?? 0)) {
+        return [];
+      }
 
       const unavailableRoomIds = new Set(
-        project.availability
+        cleanProject.availability
           .filter(
             (rule) =>
               rule.entityType === "ROOM" &&
@@ -173,7 +192,22 @@ export function physicalEducationExternalAvailability(
         kind: "UNAVAILABLE" as const,
         weight: null,
         reason: `${PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_REASON_PREFIX}1. stupeň zabírá ${slot.occupiedSpaces} z ${availableRoomIds.length} dostupných TV prostorů.`,
-      })),
+      }));
     },
   );
+}
+
+export function applyPhysicalEducationExternalOccupancy(
+  project: LocalProject,
+  slots: PhysicalEducationExternalOccupancySlot[],
+): LocalProject {
+  const cleanProject = withoutExternalPhysicalEducationAvailability(project);
+  const externalAvailability = physicalEducationExternalAvailability(
+    cleanProject,
+    slots,
+  );
+  return {
+    ...cleanProject,
+    availability: [...cleanProject.availability, ...externalAvailability],
+  };
 }
