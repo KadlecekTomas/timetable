@@ -32,7 +32,7 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/web/app/coverage/page.tsx apps/web/app/staffing/page.tsx apps/web/app/teaching-plan/page.tsx
+          git add -f apps/web/app/coverage/page.tsx apps/web/app/staffing/page.tsx apps/web/app/teaching-plan/page.tsx
           git commit -m "Replace remaining browser confirms"
           git push origin HEAD:${{ github.head_ref }}
 
