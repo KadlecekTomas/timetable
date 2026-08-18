@@ -1,4 +1,8 @@
 import * as base from "./api";
+import {
+  loadPhysicalEducationExternalOccupancy,
+  physicalEducationExternalAvailability,
+} from "./physical-education-external-occupancy";
 import { buildSchoolProjectForGeneration } from "./school-project-generation";
 import {
   loadStaffingPlan,
@@ -212,6 +216,13 @@ export async function localApiFetch(
           : 422,
       );
     }
+    const externalAvailability = physicalEducationExternalAvailability(
+      result.project,
+      loadPhysicalEducationExternalOccupancy().slots,
+    );
+    result.project.availability.push(...externalAvailability);
+    result.summary.availability = result.project.availability.length;
+
     const project = await base.replaceLocalProjectAtomically(result.project);
     return responseWithJson({
       ...result.summary,
