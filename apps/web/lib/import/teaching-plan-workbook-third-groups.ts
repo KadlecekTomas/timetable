@@ -47,13 +47,15 @@ export async function preserveThreeGroupTvOnExport(
   staffingPlan: StaffingPlan,
   existingPlan?: TeachingPlan,
 ): Promise<Uint8Array> {
-  if (!existingPlan?.rows.some(
-    (row) =>
-      row.subjectCode === "TV" &&
-      row.organization === "SPLIT" &&
-      row.splitGroupCount === 3 &&
-      Boolean(row.tertiaryTeacherId),
-  )) {
+  if (
+    !existingPlan?.rows.some(
+      (row) =>
+        row.subjectCode === "TV" &&
+        row.organization === "SPLIT" &&
+        row.splitGroupCount === 3 &&
+        Boolean(row.tertiaryTeacherId),
+    )
+  ) {
     return input;
   }
 
@@ -106,9 +108,9 @@ export async function preserveThreeGroupTvOnImport(
     const match = /^teaching-row-(\d+)$/.exec(planRow.id);
     if (!match) return planRow;
     const rowNumber = Number(match[1]);
-    const subjectCode = cellText(sheet.getCell(rowNumber, 2).value).toLocaleUpperCase(
-      "cs-CZ",
-    );
+    const subjectCode = cellText(
+      sheet.getCell(rowNumber, 2).value,
+    ).toLocaleUpperCase("cs-CZ");
     const organization = cellText(sheet.getCell(rowNumber, 6).value);
     const rawThirdTeacher = cellText(sheet.getCell(rowNumber, 9).value);
     if (
