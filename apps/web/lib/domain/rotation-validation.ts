@@ -3,8 +3,15 @@ import type {
   ScheduledLesson,
   ValidationIssue,
 } from "./contracts";
-import { rotationAssignmentLegs } from "./class-groups";
+import {
+  classRequiredWeeklyPeriods,
+  lessonClassIds,
+  rotationAssignmentLegs,
+} from "./class-groups";
 import { crossesLunchBreak } from "./school-day";
+
+const AFTERNOON_START_PERIOD = 6;
+const ALLOWED_CLASS_AFTERNOON_DAYS = new Set([1, 2, 3]);
 
 function intervalsOverlap(
   leftPeriod: number,
@@ -32,11 +39,97 @@ function issue(
   };
 }
 
+function validateSchoolDayPolicy(
+  snapshot: CanonicalSnapshot,
+  lessonsByAssignment: Map<string, ScheduledLesson[]>,
+): ValidationIssue[] {
+  if (snapshot.periods_per_day.length !== 5) return [];
+
+  const issues: ValidationIssue[] = [];
+  const occupancy = new Map<string, Set<number>>();
+  const seenBlocks = new Set<string>();
+
+  for (const assignmentLessons of lessonsByAssignment.values()) {
+    for (const lesson of assignmentLessons) {
+      if (seenBlocks.has(lesson.block_id)) continue;
+      seenBlocks.add(lesson.block_id);
+      for (const classId of lessonClassIds(lesson)) {
+        const key = `${classId}:${lesson.day}`;
+        const periods = occupancy.get(key) ?? new Set<number>();
+        for (
+          let period = lesson.period;
+          period < lesson.period + lesson.duration;
+          period += 1
+        ) {
+          periods.add(period);
+        }
+        occupancy.set(key, periods);
+      }
+    }
+  }
+
+  for (const [classId, weeklyPeriods] of classRequiredWeeklyPeriods(
+    snapshot.assignments,
+  )) {
+    if (weeklyPeriods < 5) continue;
+
+    const minimumDailyLoad = Math.max(1, Math.ceil(weeklyPeriods / 5) - 1);
+    const afternoonDays = new Set<number>();
+
+    for (let day = 0; day < 5; day += 1) {
+      const occupied = occupancy.get(`${classId}:${day}`) ?? new Set<number>();
+      if (occupied.size < minimumDailyLoad) {
+        issues.push(
+          issue(
+            "CLASS_DAY_TOO_SHORT",
+            `Třída ${classId} má nepřiměřeně krátký vyučovací den.`,
+            [classId],
+            day,
+          ),
+        );
+      }
+
+      if ([...occupied].some((period) => period >= AFTERNOON_START_PERIOD)) {
+        afternoonDays.add(day);
+        if (!ALLOWED_CLASS_AFTERNOON_DAYS.has(day)) {
+          issues.push(
+            issue(
+              "CLASS_AFTERNOON_FORBIDDEN_DAY",
+              `Třída ${classId} může mít 7.–8. hodinu pouze v úterý, středu nebo čtvrtek.`,
+              [classId],
+              day,
+              AFTERNOON_START_PERIOD,
+            ),
+          );
+        }
+      }
+    }
+
+    for (let day = 0; day < 4; day += 1) {
+      if (!afternoonDays.has(day) || !afternoonDays.has(day + 1)) continue;
+      issues.push(
+        issue(
+          "CONSECUTIVE_CLASS_AFTERNOONS",
+          `Třída ${classId} nesmí mít odpolední výuku dva dny po sobě.`,
+          [classId],
+          day + 1,
+          AFTERNOON_START_PERIOD,
+        ),
+      );
+    }
+  }
+
+  return issues;
+}
+
 export function validateRotationSchedule(
   snapshot: CanonicalSnapshot,
   lessonsByAssignment: Map<string, ScheduledLesson[]>,
 ): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
+  const issues: ValidationIssue[] = validateSchoolDayPolicy(
+    snapshot,
+    lessonsByAssignment,
+  );
 
   for (const { rotationKey, leg1, leg2 } of rotationAssignmentLegs(
     snapshot.assignments,
