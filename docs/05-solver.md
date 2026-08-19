@@ -63,6 +63,14 @@ Blok s `requiredRoomId` smí být pouze v dané učebně. Blok s `requiredRoomTy
 
 `MAX_PER_DAY` omezuje počet period stejné výukové vazby v jednom dni.
 
+### Školní provozní pravidla
+
+- každý učitel musí mít alespoň jednu volnou hodinu mezi 4.–6. vyučovací hodinou,
+- v pátek jsou globálně zakázané 7. a pozdější vyučovací hodiny,
+- dějepis (`DEJ`) nesmí mít pro stejnou třídu dvě bezprostředně následující hodiny.
+
+Tato pravidla jsou tvrdá omezení modelu a kontroluje je také nezávislý validátor výsledku používaný ručním editorem.
+
 ### Dvojhodiny
 
 Dvojhodina zabírá dva bezprostředně navazující sloty stejného dne, učitele, třídy/skupiny a učebny.

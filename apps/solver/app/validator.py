@@ -21,7 +21,12 @@ from app.room_sharing import (
     shared_room_block_durations,
 )
 from app.rotations import validate_rotation_schedule
-from app.school_day import crosses_lunch_break
+from app.school_day import (
+    HISTORY_SUBJECT_CODE,
+    TEACHER_BREAK_PERIODS,
+    crosses_lunch_break,
+    is_forbidden_friday_lesson,
+)
 
 
 def _groups_conflict(left: TeachingGroup, right: TeachingGroup) -> bool:
@@ -132,6 +137,21 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
                     day=lesson.day,
                     period=lesson.period,
                     details={"morningPeriodLimit": 6, "minimumLunchBreakMinutes": 50},
+                )
+            )
+            continue
+
+        if is_forbidden_friday_lesson(
+            lesson.day, lesson.period, lesson.duration
+        ):
+            issues.append(
+                ValidationIssue(
+                    code="FRIDAY_AFTERNOON_FORBIDDEN",
+                    message="V pátek nesmí výuka pokračovat sedmou ani pozdější hodinou.",
+                    entity_ids=[lesson.block_id],
+                    day=lesson.day,
+                    period=lesson.period,
+                    details={"latestAllowedPeriod": 6},
                 )
             )
             continue
@@ -283,6 +303,27 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
                         )
                 class_slots[class_key].append(lesson)
 
+    teacher_ids = {lesson.teacher_id for lesson in lessons}
+    for teacher_id in sorted(teacher_ids):
+        for day, periods in enumerate(payload.periods_per_day):
+            if all(
+                period < periods and (teacher_id, day, period) in teacher_slots
+                for period in TEACHER_BREAK_PERIODS
+            ):
+                issues.append(
+                    ValidationIssue(
+                        code="TEACHER_BREAK_MISSING",
+                        message=(
+                            f"Učitel {teacher_id} musí mít mezi 4.–6. hodinou "
+                            "alespoň jednu volnou hodinu."
+                        ),
+                        entity_ids=[teacher_id],
+                        day=day,
+                        period=TEACHER_BREAK_PERIODS[0],
+                        details={"periods": [4, 5, 6], "maximumTaught": 2},
+                    )
+                )
+
     required_periods_by_class = class_required_weekly_periods(payload.assignments)
     if len(payload.periods_per_day) >= 5:
         for class_id, weekly_periods in required_periods_by_class.items():
@@ -324,6 +365,61 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
     lessons_by_assignment: dict[str, list[ScheduledLesson]] = defaultdict(list)
     for lesson in lessons:
         lessons_by_assignment[lesson.assignment_id].append(lesson)
+    for assignment in payload.assignments:
+        if assignment.max_per_day is None:
+            continue
+        daily_periods: dict[int, int] = defaultdict(int)
+        for lesson in lessons_by_assignment[assignment.id]:
+            daily_periods[lesson.day] += lesson.duration
+        for day, period_count in daily_periods.items():
+            if period_count <= assignment.max_per_day:
+                continue
+            issues.append(
+                ValidationIssue(
+                    code="MAX_PER_DAY_EXCEEDED",
+                    message=(
+                        f"Výuková vazba {assignment.id} překročila denní limit "
+                        f"{assignment.max_per_day} hodin."
+                    ),
+                    entity_ids=[assignment.id],
+                    day=day,
+                    details={
+                        "maximum": assignment.max_per_day,
+                        "actual": period_count,
+                    },
+                )
+            )
+
+    history_subject_ids = {
+        subject.id
+        for subject in payload.subjects
+        if subject.code.strip().upper() == HISTORY_SUBJECT_CODE
+    }
+    history_occupancy: dict[tuple[str, int], set[int]] = defaultdict(set)
+    for lesson in lessons:
+        if lesson.subject_id not in history_subject_ids:
+            continue
+        for class_id in lesson_class_ids(lesson):
+            history_occupancy[(class_id, lesson.day)].update(
+                range(lesson.period, lesson.period + lesson.duration)
+            )
+    for (class_id, day), periods in history_occupancy.items():
+        for period in sorted(periods):
+            if period + 1 not in periods:
+                continue
+            issues.append(
+                ValidationIssue(
+                    code="CONSECUTIVE_HISTORY_LESSONS",
+                    message=(
+                        f"Třída {class_id} nesmí mít dějepis ve dvou "
+                        "bezprostředně následujících hodinách."
+                    ),
+                    entity_ids=[class_id, *sorted(history_subject_ids)],
+                    day=day,
+                    period=period,
+                )
+            )
+            break
     for _key, group in room_share_assignment_groups(payload.assignments):
         if len(group) != 2:
             continue

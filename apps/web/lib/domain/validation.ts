@@ -20,8 +20,11 @@ import {
 } from "./room-sharing";
 import {
   crossesLunchBreak,
+  HISTORY_SUBJECT_CODE,
+  isForbiddenFridayLesson,
   MIN_LUNCH_BREAK_MINUTES,
   MORNING_PERIOD_LIMIT,
+  TEACHER_BREAK_PERIODS,
 } from "./school-day";
 import { validateRotationSchedule } from "./rotation-validation";
 
@@ -163,6 +166,19 @@ export function validateSchedule(
           morningPeriodLimit: MORNING_PERIOD_LIMIT,
           minimumLunchBreakMinutes: MIN_LUNCH_BREAK_MINUTES,
         },
+      );
+      continue;
+    }
+
+    if (isForbiddenFridayLesson(lesson.day, lesson.period, lesson.duration)) {
+      pushIssue(
+        issues,
+        "FRIDAY_AFTERNOON_FORBIDDEN",
+        "V pátek nesmí výuka pokračovat sedmou ani pozdější hodinou.",
+        [lesson.block_id],
+        lesson.day,
+        lesson.period,
+        { latestAllowedPeriod: 6 },
       );
       continue;
     }
@@ -324,6 +340,26 @@ export function validateSchedule(
     }
   }
 
+  const teacherIds = new Set(lessons.map((lesson) => lesson.teacher_id));
+  for (const teacherId of [...teacherIds].sort()) {
+    snapshot.periods_per_day.forEach((periods, day) => {
+      const teachesAllBreakPeriods = TEACHER_BREAK_PERIODS.every(
+        (period) =>
+          period < periods && teacherSlots.has(`${teacherId}:${day}:${period}`),
+      );
+      if (!teachesAllBreakPeriods) return;
+      pushIssue(
+        issues,
+        "TEACHER_BREAK_MISSING",
+        `Učitel ${teacherId} musí mít mezi 4.–6. hodinou alespoň jednu volnou hodinu.`,
+        [teacherId],
+        day,
+        TEACHER_BREAK_PERIODS[0],
+        { periods: [4, 5, 6], maximumTaught: 2 },
+      );
+    });
+  }
+
   const requiredPeriodsByClass = classRequiredWeeklyPeriods(
     snapshot.assignments,
   );
@@ -351,6 +387,69 @@ export function validateSchedule(
       ...(lessonsByAssignment.get(lesson.assignment_id) ?? []),
       lesson,
     ]);
+  }
+  for (const assignment of snapshot.assignments) {
+    if (assignment.max_per_day == null) continue;
+    const dailyPeriods = new Map<number, number>();
+    for (const lesson of lessonsByAssignment.get(assignment.id) ?? []) {
+      dailyPeriods.set(
+        lesson.day,
+        (dailyPeriods.get(lesson.day) ?? 0) + lesson.duration,
+      );
+    }
+    for (const [day, periodCount] of dailyPeriods) {
+      if (periodCount <= assignment.max_per_day) continue;
+      pushIssue(
+        issues,
+        "MAX_PER_DAY_EXCEEDED",
+        `Výuková vazba ${assignment.id} překročila denní limit ${assignment.max_per_day} hodin.`,
+        [assignment.id],
+        day,
+        undefined,
+        { maximum: assignment.max_per_day, actual: periodCount },
+      );
+    }
+  }
+
+  const historySubjectIds = new Set(
+    snapshot.subjects
+      .filter(
+        (subject) => subject.code.trim().toUpperCase() === HISTORY_SUBJECT_CODE,
+      )
+      .map((subject) => subject.id),
+  );
+  const historyOccupancy = new Map<string, Set<number>>();
+  for (const lesson of lessons) {
+    if (!historySubjectIds.has(lesson.subject_id)) continue;
+    for (const classId of lessonClassIds(lesson)) {
+      const key = `${classId}:${lesson.day}`;
+      const periods = historyOccupancy.get(key) ?? new Set<number>();
+      for (
+        let period = lesson.period;
+        period < lesson.period + lesson.duration;
+        period += 1
+      ) {
+        periods.add(period);
+      }
+      historyOccupancy.set(key, periods);
+    }
+  }
+  for (const [key, periods] of historyOccupancy) {
+    const separator = key.lastIndexOf(":");
+    const classId = key.slice(0, separator);
+    const day = Number(key.slice(separator + 1));
+    const consecutiveStart = [...periods]
+      .sort((left, right) => left - right)
+      .find((period) => periods.has(period + 1));
+    if (consecutiveStart == null) continue;
+    pushIssue(
+      issues,
+      "CONSECUTIVE_HISTORY_LESSONS",
+      `Třída ${classId} nesmí mít dějepis ve dvou bezprostředně následujících hodinách.`,
+      [classId, ...[...historySubjectIds].sort()],
+      day,
+      consecutiveStart,
+    );
   }
   for (const group of roomShareAssignmentGroups(snapshot.assignments)) {
     if (group.assignments.length !== 2) continue;

@@ -393,7 +393,7 @@ function buildAvailabilityRows() {
   ];
 
   for (const day of ["Úterý", "Středa"] as const) {
-    for (const period of [7, 8] as const) {
+    for (const period of [8] as const) {
       rows.push([
         "Učitel",
         "KAD",
@@ -401,7 +401,7 @@ function buildAvailabilityRows() {
         period,
         "Nemůže",
         null,
-        "Nejvýše šest vyučovacích hodin denně",
+        "Sedmá hodina umožňuje povinnou přestávku mezi 4.–6. hodinou",
       ]);
       rows.push([
         "Učitel",
@@ -410,7 +410,7 @@ function buildAvailabilityRows() {
         period,
         "Nemůže",
         null,
-        "Nejvýše šest vyučovacích hodin denně",
+        "Sedmá hodina umožňuje povinnou přestávku mezi 4.–6. hodinou",
       ]);
     }
   }
@@ -747,13 +747,13 @@ test("vedení školy vytvoří pedagogický rozvrh se čtyřmi matematikáři a 
   const vasUnavailable = imported.availability.filter(
     (rule) => rule.entityId === vas.id && rule.kind === "UNAVAILABLE",
   );
-  expect(vasUnavailable).toHaveLength(27);
+  expect(vasUnavailable).toHaveLength(25);
   expect(
     vasUnavailable
       .filter((rule) => [1, 2].includes(rule.dayOfWeek))
       .map((rule) => `${rule.dayOfWeek}:${rule.period}`)
       .sort(),
-  ).toEqual(["1:6", "1:7", "2:6", "2:7"]);
+  ).toEqual(["1:7", "2:7"]);
 
   const kadUnavailable = imported.availability.filter(
     (rule) => rule.entityId === kad.id && rule.kind === "UNAVAILABLE",
@@ -763,7 +763,7 @@ test("vedení školy vytvoří pedagogický rozvrh se čtyřmi matematikáři a 
       .filter((rule) => [1, 2].includes(rule.dayOfWeek))
       .map((rule) => `${rule.dayOfWeek}:${rule.period}`)
       .sort(),
-  ).toEqual(["1:6", "1:7", "2:6", "2:7"]);
+  ).toEqual(["1:7", "2:7"]);
 
   for (const schoolClass of imported.classes) {
     const assignments = assignmentsForClass(imported, schoolClass);

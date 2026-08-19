@@ -92,7 +92,7 @@ function targetClassCodes(row: TeachingPlanRow): string[] {
   );
 }
 
-test("JAZ2 merges every class in grades 8 and 9 even when Špánková has a 12-hour staffing load", () => {
+test("JAZ2 keeps 9.A and 9.C with Přikrylová only and preserves 9.B staffing", () => {
   const staffingPlan: StaffingPlan = {
     version: 1,
     updatedAt: "test",
@@ -134,6 +134,10 @@ test("JAZ2 merges every class in grades 8 and 9 even when Špánková has a 12-h
       ["prikrylova", "spankova"],
     ],
   );
+  assert.deepEqual(languageRows[1]?.teacherClassCodes, {
+    prikrylova: ["9.A", "9.B", "9.C"],
+    spankova: ["9.B"],
+  });
 
   const result = buildSchoolProjectForGeneration({
     existingProject: project(),
@@ -154,7 +158,7 @@ test("JAZ2 merges every class in grades 8 and 9 even when Špánková has a 12-h
     ]),
     [
       ["class:8-A", ["class:8-B", "class:8-C"]],
-      ["class:9-A", ["class:9-B", "class:9-C"]],
+      ["class:9-B", []],
     ],
   );
 
