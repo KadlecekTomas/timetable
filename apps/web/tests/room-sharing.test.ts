@@ -156,9 +156,14 @@ test("8.B + 9.B room sharing turns a five-room-hour deficit into three hours of 
 
 test("validator allows only the declared co-teaching pair to share one room", () => {
   const snapshot = sharedPeSnapshot();
-  snapshot.assignments = snapshot.assignments.filter((assignment) =>
-    ["8b-g1", "9b-g1"].includes(assignment.id),
-  );
+  snapshot.assignments = snapshot.assignments
+    .filter((assignment) => ["8b-g1", "9b-g1"].includes(assignment.id))
+    .map((assignment) => ({
+      ...assignment,
+      weekly_periods: 2,
+      lesson_shape: "DOUBLE" as const,
+      double_periods_count: 1,
+    }));
   snapshot.teachers = snapshot.teachers.filter((teacher) =>
     ["teacher:8b-g1", "teacher:9b-g1"].includes(teacher.id),
   );
