@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 
-import type { CanonicalSnapshot, ScheduledLesson } from "../lib/domain/contracts";
+import type {
+  CanonicalSnapshot,
+  ScheduledLesson,
+} from "../lib/domain/contracts";
 import { validateSchedule } from "../lib/domain/validation";
 import { analyzeStaffingWorkbook } from "../lib/import/staffing-workbook-school-v2";
 import type { LocalProject } from "../lib/local/api";
@@ -183,7 +186,10 @@ async function main() {
   };
   assert.ok(["FEASIBLE", "OPTIMAL"].includes(result.status), result.status);
   assert.deepEqual(validateSchedule(request, result.lessons), []);
-  assert.ok(result.lessons.length > 400, `Only ${result.lessons.length} lessons`);
+  assert.ok(
+    result.lessons.length > 400,
+    `Only ${result.lessons.length} lessons`,
+  );
 
   const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
   console.log(
