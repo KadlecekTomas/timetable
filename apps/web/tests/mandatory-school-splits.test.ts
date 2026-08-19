@@ -163,15 +163,12 @@ test("second foreign language stays class-scoped while grade-six/seven electives
     false,
   );
 
-  const languages = enforced.rows.filter(
-    (row) => row.subjectCode === "JAZ2",
-  );
+  const languages = enforced.rows.filter((row) => row.subjectCode === "JAZ2");
   assert.equal(languages.length, 3);
-  assert.deepEqual(languages.map((row) => row.classCode).sort(), [
-    "8.A",
-    "8.B",
-    "8.C",
-  ]);
+  assert.deepEqual(
+    languages.map((row) => row.classCode).sort(),
+    ["8.A", "8.B", "8.C"],
+  );
   for (const row of languages) {
     assert.deepEqual(row.additionalClassCodes ?? [], [], row.classCode);
     assert.equal(row.sharedGroupLabel ?? "", "", row.classCode);
