@@ -1,4 +1,5 @@
 name: CI
+# Product-runtime regression gate: exact V8 generation must stay green.
 
 on:
   pull_request:
