@@ -3,13 +3,11 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-from app.class_groups import (
-    assignment_class_ids,
-    class_required_weekly_periods,
-)
+from ortools.sat.python import cp_model
+
+from app.class_groups import assignment_class_ids, class_required_weekly_periods
 from app.models import SolveRequest
 from app.policy import daily_subject_limit, subject_code
-from ortools.sat.python import cp_model
 
 
 HARD_BALANCE_PRIORITY = 20_000
@@ -75,8 +73,6 @@ def _preferred_balanced_loads(
         return result
 
     latest_values = payload.policy.class_day.latest_period_by_day if payload.policy else []
-    # Prefer longer days in the middle of the week. This reproduces the natural
-    # school shape without fixing any concrete subject or teacher placement.
     preferred_days = [day for day in (1, 2, 3, 0, 4) if day < days]
     for day in preferred_days:
         if extra <= 0:
@@ -313,7 +309,11 @@ def add_policy_constraints(
                 model.add(sum(late_slots) <= len(late_slots) * afternoon)
                 model.add_hint(
                     afternoon,
-                    1 if any(period >= afternoon_start for period in preferred_periods) else 0,
+                    1
+                    if any(
+                        period >= afternoon_start for period in preferred_periods
+                    )
+                    else 0,
                 )
                 day_weight = (
                     policy.quality.afternoon_day_weights[day]
