@@ -72,7 +72,12 @@ def validate_policy_schedule(
             teacher_periods[(lesson.teacher_id, lesson.day)].add(period)
             for class_id in lesson_class_ids(lesson):
                 class_periods[(class_id, lesson.day)].add(period)
-                class_subject_periods[(class_id, code, lesson.day)].add(period)
+                # Atomic partial-split rotations intentionally occupy two periods
+                # in one day (for example the accepted CJ/M swap). They are a
+                # different scheduling construct from repeated ordinary lessons,
+                # so the generic per-day subject cap must not count them.
+                if assignment.rotation_key is None:
+                    class_subject_periods[(class_id, code, lesson.day)].add(period)
 
     for (class_id, day), occupied in sorted(class_periods.items()):
         if not class_day_pattern_allowed(payload, occupied):
