@@ -78,8 +78,6 @@ def add_policy_constraints(
         tuple[str, str, int, int], list[cp_model.IntVar]
     ] = defaultdict(list)
 
-    assignment_by_id = {assignment.id: assignment for assignment in payload.assignments}
-
     for assignment in payload.assignments:
         code = subject_code(payload, assignment.subject_id)
         for block in blocks_by_assignment[assignment.id]:
@@ -94,9 +92,13 @@ def add_policy_constraints(
                         class_sources[(class_id, candidate.day, occupied_period)].append(
                             variable
                         )
-                        class_subject_sources[
-                            (class_id, code, candidate.day, occupied_period)
-                        ].append(variable)
+                        # Partial-split rotations (for example the accepted CJ/M
+                        # swap) are atomic multi-period constructs. The ordinary
+                        # per-day subject cap applies only to non-rotation lessons.
+                        if assignment.rotation_key is None:
+                            class_subject_sources[
+                                (class_id, code, candidate.day, occupied_period)
+                            ].append(variable)
 
                 late_weight = policy.quality.subject_late_weights.get(code, 0)
                 afternoon_bonus = policy.quality.subject_afternoon_bonuses.get(code, 0)
@@ -147,7 +149,7 @@ def add_policy_constraints(
                 model.add_allowed_assignments(occupancy, allowed)
 
     # Per-class/day subject frequency limits. Occupancy is counted once even when
-    # multiple split groups of the same subject run in parallel.
+    # multiple split groups of the same ordinary subject run in parallel.
     codes_with_limits = sorted(
         {
             code
