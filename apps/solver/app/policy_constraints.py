@@ -5,7 +5,7 @@ from typing import Any
 
 from ortools.sat.python import cp_model
 
-from app.class_groups import assignment_class_ids
+from app.class_groups import assignment_class_ids, class_required_weekly_periods
 from app.models import SolveRequest
 from app.policy import daily_subject_limit, subject_code
 
@@ -39,14 +39,11 @@ def _allowed_class_day_patterns(payload: SolveRequest, day: int) -> list[list[in
     afternoon_start = policy.teacher_afternoon_break.afternoon_start_period
     allowed: list[list[int]] = []
 
-    # Compact non-afternoon prefixes. Empty is kept for small/special classes;
-    # regular full-week classes are still forced into period zero by main.py.
     maximum_prefix = min(periods, latest + 1, afternoon_start)
     for length in range(maximum_prefix + 1):
         occupied = set(range(length))
         allowed.append([1 if period in occupied else 0 for period in range(periods)])
 
-    # Explicit lunch/afternoon patterns supplied by the school policy.
     for pattern in policy.class_day.allowed_afternoon_patterns:
         if any(period >= periods or period > latest for period in pattern):
             continue
@@ -92,9 +89,6 @@ def add_policy_constraints(
                         class_sources[(class_id, candidate.day, occupied_period)].append(
                             variable
                         )
-                        # Partial-split rotations (for example the accepted CJ/M
-                        # swap) are atomic multi-period constructs. The ordinary
-                        # per-day subject cap applies only to non-rotation lessons.
                         if assignment.rotation_key is None:
                             class_subject_sources[
                                 (class_id, code, candidate.day, occupied_period)
@@ -131,6 +125,12 @@ def add_policy_constraints(
             for class_id in assignment_class_ids(assignment)
         }
     )
+    required_by_class = class_required_weekly_periods(payload.assignments)
+    regular_class_ids = {
+        class_id
+        for class_id, weekly_periods in required_by_class.items()
+        if weekly_periods >= len(payload.periods_per_day)
+    }
 
     class_occupancy: dict[tuple[str, int], list[cp_model.IntVar]] = {}
     for class_id in class_ids:
@@ -144,12 +144,11 @@ def add_policy_constraints(
                 for period in range(periods)
             ]
             class_occupancy[(class_id, day)] = occupancy
-            allowed = _allowed_class_day_patterns(payload, day)
-            if allowed:
-                model.add_allowed_assignments(occupancy, allowed)
+            if class_id in regular_class_ids:
+                allowed = _allowed_class_day_patterns(payload, day)
+                if allowed:
+                    model.add_allowed_assignments(occupancy, allowed)
 
-    # Per-class/day subject frequency limits. Occupancy is counted once even when
-    # multiple split groups of the same ordinary subject run in parallel.
     codes_with_limits = sorted(
         {
             code
@@ -183,9 +182,6 @@ def add_policy_constraints(
                 ]
                 model.add(sum(subject_occupancy) <= limit)
 
-    # Teacher break applies only on a day that actually contains afternoon
-    # teaching. A teacher can therefore teach 1.–6. straight when there is no
-    # 7th/8th period — the accepted Kadleček pattern depends on this distinction.
     break_policy = policy.teacher_afternoon_break
     if break_policy.enabled:
         teacher_ids = sorted({assignment.teacher_id for assignment in payload.assignments})
@@ -222,9 +218,7 @@ def add_policy_constraints(
                     afternoon
                 )
 
-    # Generic class balance / afternoon minimization. This replaces the old
-    # school-specific constants when an explicit policy is present.
-    for class_id in class_ids:
+    for class_id in sorted(regular_class_ids):
         day_loads: list[cp_model.IntVar] = []
         for day, periods in enumerate(payload.periods_per_day):
             occupancy = class_occupancy[(class_id, day)]
