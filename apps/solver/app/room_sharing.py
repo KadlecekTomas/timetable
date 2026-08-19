@@ -37,6 +37,13 @@ def room_share_block_pairs(assignments: list[Assignment]) -> list[tuple[str, str
         shared = shared_room_block_durations(group)
         leader = group[0]
         for follower in group[1:]:
+            # A room-share pair means both lessons must run in the same room at the
+            # same time. One teacher cannot teach both lessons simultaneously, so a
+            # same-teacher pair is an invalid co-teaching constraint. Ignore that
+            # derived room-share link and let the normal teacher/room constraints
+            # place the lessons independently instead of making the whole model UNSAT.
+            if leader.teacher_id == follower.teacher_id:
+                continue
             for index in range(len(shared)):
                 pairs.append((f"{leader.id}:{index}", f"{follower.id}:{index}"))
     return pairs
