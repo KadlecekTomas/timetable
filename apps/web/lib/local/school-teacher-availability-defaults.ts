@@ -74,6 +74,7 @@ export const SCHOOL_TEACHER_AVAILABILITY_DEFAULTS: readonly SchoolTeacherAvailab
     { surname: "Pokorná", firstName: "Jaroslava", unavailableDays: ["FRI"] },
     { surname: "Šárová", firstName: "Eliška", unavailableDays: ["MON", "FRI"] },
     { surname: "Šobotník", firstName: "Jan", unavailableDays: ["MON"] },
+    { surname: "Špánková", unavailableDays: ["MON", "FRI"] },
     {
       surname: "Vašáková",
       firstName: "Nikola",

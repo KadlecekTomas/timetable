@@ -23,27 +23,23 @@ const staffingPlan: StaffingPlan = {
       id: "spankova",
       firstName: "",
       lastName: "Špánková",
-      targetWeeklyLoad: 6,
-      baseWeeklyLoad: 6,
+      targetWeeklyLoad: 12,
+      baseWeeklyLoad: 12,
       subjectLoads: [
-        { id: "spankova-jaz2", subjectCode: "JAZ2", weeklyPeriods: 6 },
+        { id: "spankova-jaz2", subjectCode: "JAZ2", weeklyPeriods: 12 },
       ],
-      unavailableDays: [],
+      unavailableDays: ["MON", "FRI"],
       unavailablePeriods: [],
     },
   ],
 };
 
-function assignment(
-  id: string,
-  classId: string,
-  additionalClassIds: string[],
-): LocalAssignment {
+function assignment(id: string, classId: string): LocalAssignment {
   return {
     id,
     assignmentCode: id,
     classId,
-    additionalClassIds,
+    additionalClassIds: [],
     subjectId: "subject:JAZ2",
     teacherId: "teacher:spankova",
     group: "GROUP_2",
@@ -54,42 +50,50 @@ function assignment(
     requiredRoomTypeId: null,
     maxPerDay: null,
     minDayGap: null,
-    parallelKey: id === "spanish-8" ? "language-8" : "language-9b",
+    parallelKey: `parallel:${id}`,
     rotationKey: null,
     rotationLeg: null,
     rotationPlacement: null,
   };
 }
 
-test("Špánková Spanish is fixed Tue-Wed-Thu second period and German follow-up is preferred", () => {
+const assignments = [
+  assignment("spanish-8a", "class:8-A"),
+  assignment("spanish-8b", "class:8-B"),
+  assignment("spanish-8c", "class:8-C"),
+  assignment("german-9b", "class:9-B"),
+];
+
+test("Špánková gets nine fixed Spanish lessons Tue-Wed-Thu periods 2-4 and German period 5 preference", () => {
   const result = schoolSchedulingPreferences({
-    assignments: [
-      assignment("spanish-8", "class:8-A", ["class:8-B", "class:8-C"]),
-      assignment("german-9b", "class:9-B", []),
-    ],
+    assignments,
     subjects,
     staffingPlan,
     existingFixedLessons: [],
   });
 
   assert.deepEqual(result.warnings, []);
+  assert.equal(result.fixedLessons.length, 9);
   assert.deepEqual(
     result.fixedLessons.map((lesson) => [
+      lesson.assignmentId,
       lesson.blockIndex,
       lesson.dayOfWeek,
       lesson.startPeriod,
     ]),
     [
-      [0, 1, 1],
-      [1, 2, 1],
-      [2, 3, 1],
+      ["spanish-8a", 0, 1, 1],
+      ["spanish-8b", 0, 1, 2],
+      ["spanish-8c", 0, 1, 3],
+      ["spanish-8b", 1, 2, 1],
+      ["spanish-8c", 1, 2, 2],
+      ["spanish-8a", 1, 2, 3],
+      ["spanish-8c", 2, 3, 1],
+      ["spanish-8a", 2, 3, 2],
+      ["spanish-8b", 2, 3, 3],
     ],
   );
-  assert.equal(
-    result.fixedLessons.every((lesson) => lesson.locked),
-    true,
-  );
-
+  assert.equal(result.fixedLessons.every((lesson) => lesson.locked), true);
   assert.deepEqual(
     result.availability.map((rule) => [
       rule.dayOfWeek,
@@ -97,33 +101,25 @@ test("Špánková Spanish is fixed Tue-Wed-Thu second period and German follow-u
       rule.weight,
     ]),
     [
-      [1, 2, 100],
-      [1, 3, 15],
-      [1, 4, 5],
-      [2, 2, 100],
-      [2, 3, 15],
-      [2, 4, 5],
-      [3, 2, 100],
-      [3, 3, 15],
-      [3, 4, 5],
+      [1, 4, 200],
+      [2, 4, 200],
+      [3, 4, 200],
     ],
   );
 });
 
-test("existing manual fixed lesson wins over the school default for the same block", () => {
+test("existing manual fixed lesson wins over the school default for the same Spanish block", () => {
   const result = schoolSchedulingPreferences({
-    assignments: [
-      assignment("spanish-8", "class:8-A", ["class:8-B", "class:8-C"]),
-    ],
+    assignments,
     subjects,
     staffingPlan,
     existingFixedLessons: [
       {
         id: "manual",
-        assignmentId: "spanish-8",
+        assignmentId: "spanish-8b",
         blockIndex: 1,
-        dayOfWeek: 4,
-        startPeriod: 3,
+        dayOfWeek: 2,
+        startPeriod: 5,
         duration: 1,
         roomId: null,
         locked: true,
@@ -131,8 +127,12 @@ test("existing manual fixed lesson wins over the school default for the same blo
     ],
   });
 
-  assert.deepEqual(
-    result.fixedLessons.map((lesson) => lesson.blockIndex),
-    [0, 2],
+  assert.equal(result.fixedLessons.length, 8);
+  assert.equal(
+    result.fixedLessons.some(
+      (lesson) =>
+        lesson.assignmentId === "spanish-8b" && lesson.blockIndex === 1,
+    ),
+    false,
   );
 });

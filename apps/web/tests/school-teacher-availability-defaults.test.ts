@@ -38,6 +38,7 @@ function plan(): StaffingPlan {
       teacher("pokorna", "Pokorná", "Jaroslava"),
       teacher("sarova", "Šárová", "Eliška"),
       teacher("sobotnik", "Šobotník", "Jan"),
+      teacher("spankova", "Špánková"),
       teacher("vasakova", "Vašáková", "Nikola"),
       teacher("vavrincova", "Vavřincová", "Anna"),
       teacher("vosykova", "Vosyková", "Božena"),
@@ -67,7 +68,7 @@ test("school defaults match all teachers by surname without requiring first name
 
   const applied = applySchoolTeacherAvailabilityDefaults(input);
 
-  assert.equal(applied.matchedSurnames.length, 18);
+  assert.equal(applied.matchedSurnames.length, 19);
   assert.deepEqual(applied.unmatchedSurnames, []);
   assert.deepEqual(applied.ambiguousSurnames, []);
 
@@ -80,6 +81,10 @@ test("school defaults match all teachers by surname without requiring first name
     applied.plan.teachers.find((item) => item.id === "kvapilova")!
       .unavailableDays,
     [],
+  );
+  assert.deepEqual(
+    applied.plan.teachers.find((item) => item.id === "spankova")!.unavailableDays,
+    ["MON", "FRI"],
   );
   assert.deepEqual(unavailable(applied.plan, "kvapilova"), [
     ["THU", 3],

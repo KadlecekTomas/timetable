@@ -39,9 +39,9 @@ function teacher(
     id,
     firstName,
     lastName,
-    targetWeeklyLoad: 6,
-    baseWeeklyLoad: 6,
-    subjectLoads: [{ id: `${id}:jaz2`, subjectCode: "JAZ2", weeklyPeriods: 6 }],
+    targetWeeklyLoad: 12,
+    baseWeeklyLoad: 12,
+    subjectLoads: [{ id: `${id}:jaz2`, subjectCode: "JAZ2", weeklyPeriods: 12 }],
     unavailableDays: [],
     unavailablePeriods: [],
   };
@@ -88,10 +88,9 @@ test("prepared solver project contains Špánková fixed Spanish and German foll
       { id: "9b", code: "9.B", grade: 9, profile: "SPORTS" },
     ],
     rows: [
-      languageRow("language-8", "8.A", "prikrylova", "spankova", [
-        "8.B",
-        "8.C",
-      ]),
+      languageRow("language-8a", "8.A", "prikrylova", "spankova"),
+      languageRow("language-8b", "8.B", "prikrylova", "spankova"),
+      languageRow("language-8c", "8.C", "prikrylova", "spankova"),
       languageRow("language-9b", "9.B", "spankova", "prikrylova"),
     ],
   };
@@ -104,27 +103,36 @@ test("prepared solver project contains Špánková fixed Spanish and German foll
   });
 
   assert.deepEqual(result.blockers, []);
-  const spanishAssignment = result.project.assignments.find(
-    (assignment) =>
-      assignment.teacherId === "teacher:spankova" &&
-      assignment.classId === "class:8-A" &&
-      assignment.additionalClassIds.includes("class:8-B") &&
-      assignment.additionalClassIds.includes("class:8-C"),
+  const spanishAssignments = result.project.assignments
+    .filter(
+      (assignment) =>
+        assignment.teacherId === "teacher:spankova" &&
+        ["class:8-A", "class:8-B", "class:8-C"].includes(assignment.classId),
+    )
+    .sort((left, right) => left.classId.localeCompare(right.classId));
+  assert.equal(spanishAssignments.length, 3);
+  assert.equal(
+    spanishAssignments.every((assignment) => assignment.additionalClassIds.length === 0),
+    true,
   );
-  assert.ok(spanishAssignment);
 
+  assert.equal(result.project.fixedLessons.length, 9);
   assert.deepEqual(
-    result.project.fixedLessons
-      .filter((lesson) => lesson.assignmentId === spanishAssignment.id)
-      .map((lesson) => [
-        lesson.blockIndex,
-        lesson.dayOfWeek,
-        lesson.startPeriod,
-      ]),
+    result.project.fixedLessons.map((lesson) => [
+      lesson.blockIndex,
+      lesson.dayOfWeek,
+      lesson.startPeriod,
+    ]),
     [
       [0, 1, 1],
+      [0, 1, 2],
+      [0, 1, 3],
       [1, 2, 1],
+      [1, 2, 2],
+      [1, 2, 3],
       [2, 3, 1],
+      [2, 3, 2],
+      [2, 3, 3],
     ],
   );
 
@@ -134,15 +142,12 @@ test("prepared solver project contains Špánková fixed Spanish and German foll
       rule.entityId === "teacher:spankova" &&
       rule.kind === "PREFERRED",
   );
-  assert.equal(preferences.length, 9);
   assert.deepEqual(
-    preferences
-      .filter((rule) => rule.weight === 100)
-      .map((rule) => [rule.dayOfWeek, rule.period]),
+    preferences.map((rule) => [rule.dayOfWeek, rule.period, rule.weight]),
     [
-      [1, 2],
-      [2, 2],
-      [3, 2],
+      [1, 4, 200],
+      [2, 4, 200],
+      [3, 4, 200],
     ],
   );
 });
