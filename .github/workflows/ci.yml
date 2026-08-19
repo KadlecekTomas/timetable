@@ -70,7 +70,8 @@ jobs:
           cat /tmp/full-school-solver.log || true
           exit 1
       - name: Solve exact anonymized full-school input
-        run: node --import tsx apps/web/integration/exact-full-school-solver.ts
+        run: node --import tsx integration/exact-full-school-solver.ts
+        working-directory: apps/web
       - name: Show solver diagnostics
         if: failure()
         run: cat /tmp/full-school-solver.log || true
