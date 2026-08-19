@@ -48,13 +48,6 @@ def install_policy_adapter() -> None:
             finally:
                 _CURRENT_PAYLOAD.reset(token)
 
-        # Finding a valid full-school timetable is the first priority. The legacy
-        # objective contains thousands of teacher/class-gap and preference terms;
-        # on the real school input CP-SAT could spend more than five minutes before
-        # returning any candidate. Policy requests therefore solve feasibility
-        # first: all hard V8 constraints remain active, while cosmetic objectives
-        # are temporarily neutralized. Once we have a reliably fast valid baseline,
-        # quality can be improved in a bounded second-stage optimizer.
         original_time_limit = payload.time_limit_seconds
         original_weights = payload.weights.model_copy(deep=True)
         original_quality = payload.policy.quality.model_copy(deep=True)
@@ -71,8 +64,6 @@ def install_policy_adapter() -> None:
             payload.weights.late_period = 0
             payload.weights.rotation_spread = 0
 
-            # Keep class_daily_balance_weight: policy_constraints uses its V8
-            # priority threshold to add the hard max-one-period daily spread.
             payload.policy.quality.class_afternoon_weight = 0
             payload.policy.quality.afternoon_day_weights = [
                 0 for _unused in payload.policy.quality.afternoon_day_weights
@@ -192,7 +183,6 @@ def install_policy_adapter() -> None:
     ) -> None:
         payload = _CURRENT_PAYLOAD.get()
         if payload is not None and payload.policy is not None:
-            # Exact compact/lunch patterns are imposed by add_policy_constraints.
             return
         original_forbid_class_gaps(
             model,
@@ -204,7 +194,6 @@ def install_policy_adapter() -> None:
     def school_quality_with_policy(**kwargs: Any) -> None:
         payload = kwargs.get("payload")
         if payload is not None and payload.policy is not None:
-            # Replaced by the generic weights in SolverPolicy.quality.
             return
         original_school_quality(**kwargs)
 
@@ -229,6 +218,7 @@ def install_policy_adapter() -> None:
         ignored_legacy_codes = {
             "LUNCH_BREAK_CROSSED",
             "CLASS_HAS_INTERNAL_GAP",
+            "CONSECUTIVE_CLASS_AFTERNOONS",
         }
         if not payload.policy.class_day.require_first_period:
             ignored_legacy_codes.add("CLASS_DOES_NOT_START_AT_EIGHT")
@@ -244,8 +234,6 @@ def install_policy_adapter() -> None:
     rotations._add_school_quality_policy = school_quality_with_policy
     solver_main.add_rotation_constraints = add_rotation_constraints_with_policy
 
-    # main.py, scoring.py and runtime diagnostics import validation through
-    # different module references. Keep all of them on the same policy-aware path.
     solver_main.validate_schedule = validate_schedule_with_policy
     validator.validate_schedule = validate_schedule_with_policy
     scoring.validate_schedule = validate_schedule_with_policy
