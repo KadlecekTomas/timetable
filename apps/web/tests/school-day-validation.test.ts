@@ -132,3 +132,69 @@ test("validator rejects consecutive class afternoons", () => {
     true,
   );
 });
+
+test("validator enforces teacher break, TV daily limit, and nonconsecutive history", () => {
+  const { snapshot, lessons } = fixture();
+  const breakLessons = lessons.filter(
+    (lesson) => lesson.day === 0 && [3, 4, 5].includes(lesson.period),
+  );
+  for (const lesson of breakLessons) {
+    lesson.teacher_id = "shared-teacher";
+    snapshot.assignments.find(
+      (assignment) => assignment.id === lesson.assignment_id,
+    )!.teacher_id = "shared-teacher";
+  }
+
+  const historyLessons = lessons.filter(
+    (lesson) => lesson.day === 1 && [1, 2].includes(lesson.period),
+  );
+  snapshot.subjects.push({
+    id: "subject-history",
+    code: "DEJ",
+    name: "Dějepis",
+  });
+  for (const lesson of historyLessons) {
+    lesson.subject_id = "subject-history";
+    snapshot.assignments.find(
+      (assignment) => assignment.id === lesson.assignment_id,
+    )!.subject_id = "subject-history";
+  }
+
+  const tvLessons = lessons.filter(
+    (lesson) => lesson.day === 2 && [0, 2, 4].includes(lesson.period),
+  );
+  const tvAssignmentIds = new Set(
+    tvLessons.map((lesson) => lesson.assignment_id),
+  );
+  for (const lesson of tvLessons) {
+    lesson.assignment_id = "tv-daily-limit";
+    lesson.block_id = `tv-daily-limit:${lesson.period / 2}`;
+    lesson.subject_id = "subject-tv";
+  }
+  snapshot.subjects.push({
+    id: "subject-tv",
+    code: "TV",
+    name: "Tělesná výchova",
+  });
+  snapshot.assignments = snapshot.assignments.filter(
+    (assignment) => !tvAssignmentIds.has(assignment.id),
+  );
+  snapshot.assignments.push({
+    id: "tv-daily-limit",
+    teacher_id: tvLessons[0]!.teacher_id,
+    class_id: "9a",
+    subject_id: "subject-tv",
+    group: "WHOLE",
+    weekly_periods: 3,
+    lesson_shape: "SINGLE",
+    double_periods_count: 0,
+    max_per_day: 2,
+  });
+
+  const issueCodes = new Set(
+    validateSchedule(snapshot, lessons).map((issue) => issue.code),
+  );
+  assert.equal(issueCodes.has("TEACHER_BREAK_MISSING"), true);
+  assert.equal(issueCodes.has("CONSECUTIVE_HISTORY_LESSONS"), true);
+  assert.equal(issueCodes.has("MAX_PER_DAY_EXCEEDED"), true);
+});

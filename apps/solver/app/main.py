@@ -30,7 +30,12 @@ from app.room_sharing import (
     room_share_block_pairs,
 )
 from app.rotations import add_rotation_constraints
-from app.school_day import crosses_lunch_break
+from app.school_day import (
+    HISTORY_SUBJECT_CODE,
+    TEACHER_BREAK_PERIODS,
+    crosses_lunch_break,
+    is_forbidden_friday_lesson,
+)
 from app.scoring import score_schedule
 from app.validator import validate_schedule
 
@@ -176,6 +181,8 @@ def _candidate_keys(
             continue
         for period in range(0, periods - block.duration + 1):
             if crosses_lunch_break(period, block.duration):
+                continue
+            if is_forbidden_friday_lesson(day, period, block.duration):
                 continue
             if fixed and period != fixed.period:
                 continue
@@ -517,7 +524,13 @@ def solve(payload: SolveRequest) -> SolveResponse:
     class_group_2_slots: dict[tuple[str, int, int], list[cp_model.IntVar]] = defaultdict(list)
     class_group_3_slots: dict[tuple[str, int, int], list[cp_model.IntVar]] = defaultdict(list)
     class_all_slots: dict[tuple[str, int, int], list[cp_model.IntVar]] = defaultdict(list)
+    history_class_slots: dict[tuple[str, int, int], list[cp_model.IntVar]] = defaultdict(list)
     objective_terms: list[cp_model.LinearExpr] = []
+    history_subject_ids = {
+        subject.id
+        for subject in payload.subjects
+        if subject.code.strip().upper() == HISTORY_SUBJECT_CODE
+    }
 
     for block in blocks:
         candidates: list[tuple[CandidateKey, cp_model.IntVar]] = []
@@ -552,6 +565,10 @@ def solve(payload: SolveRequest) -> SolveResponse:
                 ].append(variable)
                 for class_id in assignment_class_ids(block.assignment):
                     class_all_slots[(class_id, candidate.day, period)].append(variable)
+                    if block.assignment.subject_id in history_subject_ids:
+                        history_class_slots[(class_id, candidate.day, period)].append(
+                            variable
+                        )
                     if block.assignment.group == TeachingGroup.WHOLE:
                         class_whole_slots[(class_id, candidate.day, period)].append(variable)
                     elif block.assignment.group == TeachingGroup.GROUP_1:
@@ -568,6 +585,17 @@ def solve(payload: SolveRequest) -> SolveResponse:
 
     for slot_variables in teacher_slots.values():
         model.add(sum(slot_variables) <= 1)
+    for teacher_id in sorted(
+        {assignment.teacher_id for assignment in payload.assignments}
+    ):
+        for day, periods in enumerate(payload.periods_per_day):
+            break_slots = [
+                variable
+                for period in TEACHER_BREAK_PERIODS
+                if period < periods
+                for variable in teacher_slots.get((teacher_id, day, period), [])
+            ]
+            model.add(sum(break_slots) <= 2)
     for slot_variables in room_slots.values():
         model.add(sum(slot_variables) <= 1)
 
@@ -585,6 +613,22 @@ def solve(payload: SolveRequest) -> SolveResponse:
             class_group_3_slots.get(key, []),
         ):
             model.add(sum([*whole, *group_slots]) <= 1)
+
+    history_class_ids = {
+        class_id for class_id, _day, _period in history_class_slots
+    }
+    for class_id in sorted(history_class_ids):
+        for day, periods in enumerate(payload.periods_per_day):
+            occupancy = _occupancy_variables(
+                model,
+                history_class_slots,
+                class_id,
+                day,
+                periods,
+                "history",
+            )
+            for period in range(periods - 1):
+                model.add(occupancy[period] + occupancy[period + 1] <= 1)
 
     required_periods_by_class = class_required_weekly_periods(payload.assignments)
     if len(payload.periods_per_day) >= 5:

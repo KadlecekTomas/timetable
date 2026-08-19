@@ -97,6 +97,18 @@ Blok délky 2 je ve stejný den, v navazujících periodách a ve stejné učebn
 
 Pevně určená hodina je vždy na přesném místě, nebo je model označen jako neřešitelný.
 
+### C8 — Přestávka učitele
+
+Učitel nesmí v jednom dni učit současně 4., 5. a 6. vyučovací hodinu. Libovolná jedna volná hodina z této trojice podmínku splní.
+
+### C9 — Pátek bez odpolední výuky
+
+V pátek nesmí žádný výukový blok zasáhnout 7. ani pozdější vyučovací hodinu.
+
+### C10 — Dějepis bez dvojhodiny
+
+Dvě hodiny dějepisu stejné třídy mohou být ve stejný den pouze tehdy, když nejsou bezprostředně po sobě.
+
 ## D. Optimalizace
 
 ### D1 — Mezery učitelů
