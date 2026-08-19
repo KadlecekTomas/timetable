@@ -104,7 +104,12 @@ function policyIssues(
       add(teacherPeriods, `${lesson.teacher_id}:${lesson.day}`, period);
       for (const classId of lessonClassIds(lesson)) {
         add(classPeriods, `${classId}:${lesson.day}`, period);
-        add(classSubjectPeriods, `${classId}:${code}:${lesson.day}`, period);
+        // Atomic CJ/M rotations intentionally occupy two periods on the same day.
+        // They must not be mistaken for repeated ordinary lessons when applying
+        // the generic per-day subject cap.
+        if (assignment.rotation_key == null) {
+          add(classSubjectPeriods, `${classId}:${code}:${lesson.day}`, period);
+        }
       }
     }
   }
