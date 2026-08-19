@@ -78,22 +78,22 @@ Docker Compose spouští pouze web a solver. Žádná databáze ani worker nejso
 
 ## Vývoj bez Dockeru
 
-Web:
+Pro lokální vývoj stačí z kořene repozitáře:
 
 ```bash
 npm install
-SOLVER_URL=http://127.0.0.1:8000 npm run dev
+npm run dev
 ```
 
-Solver v druhém terminálu:
+`npm run dev` automaticky:
 
-```bash
-cd apps/solver
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
+- připraví `apps/solver/.venv`, pokud ještě neexistuje;
+- doinstaluje runtime závislosti solveru, pokud chybí;
+- spustí FastAPI solver na `http://127.0.0.1:8000`;
+- počká na `/health`;
+- spustí Next.js web na `http://localhost:3000` s korektní adresou solveru.
+
+Pokud solver na portu 8000 už běží, vývojový skript jej znovu nespouští a použije existující instanci. Vyžaduje Python 3.11+ dostupný jako `python3` nebo přes proměnnou `PYTHON`.
 
 ## Struktura repozitáře
 

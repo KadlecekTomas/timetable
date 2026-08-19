@@ -1,4 +1,4 @@
-const LOCAL_SOLVER_URL = "http://solver:8000";
+const LOCAL_SOLVER_URL = "http://127.0.0.1:8000";
 const VERCEL_SOLVER_URL = "https://timetable-web-ny6g.vercel.app/solver";
 
 type SolverEnvironment = Readonly<Record<string, string | undefined>>;

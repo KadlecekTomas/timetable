@@ -7,7 +7,7 @@
     "apps/web"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace @timetable/web",
+    "dev": "node scripts/dev.mjs",
     "build": "npm run build --workspace @timetable/web",
     "lint": "npm run lint --workspace @timetable/web",
     "typecheck": "npm run typecheck --workspace @timetable/web",
