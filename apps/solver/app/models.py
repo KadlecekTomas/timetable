@@ -82,6 +82,7 @@ class Assignment(BaseModel):
     max_per_day: int | None = Field(default=None, ge=1, le=12)
     min_day_gap: int | None = Field(default=None, ge=0, le=6)
     parallel_key: str | None = None
+    room_share_key: str | None = None
     rotation_key: str | None = None
     rotation_leg: int | None = Field(default=None, ge=1, le=2)
     rotation_placement: RotationPlacement | None = None
@@ -207,6 +208,38 @@ class SolveRequest(BaseModel):
             if key in fixed_keys:
                 raise ValueError(f"Block {item.assignment_id}:{item.block_index} is fixed more than once")
             fixed_keys.add(key)
+
+        room_shares: dict[str, list[Assignment]] = {}
+        for assignment in self.assignments:
+            if assignment.room_share_key:
+                room_shares.setdefault(assignment.room_share_key, []).append(assignment)
+        for room_share_key, assignments in room_shares.items():
+            if len(assignments) != 2:
+                raise ValueError(
+                    f"Room share {room_share_key} must contain exactly two assignments"
+                )
+            if len({assignment.subject_id for assignment in assignments}) != 1:
+                raise ValueError(
+                    f"Room share {room_share_key} must contain the same subject"
+                )
+            room_requirements = {
+                (assignment.required_room_id, assignment.required_room_type_id)
+                for assignment in assignments
+            }
+            if len(room_requirements) != 1 or room_requirements == {(None, None)}:
+                raise ValueError(
+                    f"Room share {room_share_key} must use the same required room or room type"
+                )
+            durations = [assignment.block_durations() for assignment in assignments]
+            shared_blocks = 0
+            for index in range(min(len(items) for items in durations)):
+                if len({items[index] for items in durations}) != 1:
+                    break
+                shared_blocks += 1
+            if shared_blocks == 0:
+                raise ValueError(
+                    f"Room share {room_share_key} has no compatible shared block"
+                )
 
         rotations: dict[str, list[Assignment]] = {}
         for assignment in self.assignments:

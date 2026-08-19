@@ -107,6 +107,7 @@ export interface LocalAssignment {
   maxPerDay: number | null;
   minDayGap: number | null;
   parallelKey: string | null;
+  roomShareKey?: string | null;
   rotationKey: string | null;
   rotationLeg: number | null;
   rotationPlacement: "ADJACENT" | "SAME_DAY" | "FLEXIBLE" | null;
@@ -330,6 +331,7 @@ function normalizeStoredProject(project: LocalProject): LocalProject {
     assignments: project.assignments.map((assignment) => ({
       ...assignment,
       parallelKey: assignment.parallelKey ?? null,
+      roomShareKey: assignment.roomShareKey ?? null,
       rotationKey: assignment.rotationKey ?? null,
       rotationLeg: assignment.rotationLeg ?? null,
       rotationPlacement: assignment.rotationPlacement ?? null,
@@ -493,6 +495,7 @@ function projectSnapshot(
       max_per_day: assignment.maxPerDay,
       min_day_gap: assignment.minDayGap,
       parallel_key: assignment.parallelKey,
+      room_share_key: assignment.roomShareKey ?? null,
       rotation_key: assignment.rotationKey,
       rotation_leg: assignment.rotationLeg,
       rotation_placement: assignment.rotationPlacement,
@@ -771,6 +774,7 @@ async function createResource(
         maxPerDay: nullableNumber(body, "maxPerDay"),
         minDayGap: nullableNumber(body, "minDayGap"),
         parallelKey: stringField(body, "parallelKey") || null,
+        roomShareKey: stringField(body, "roomShareKey") || null,
         rotationKey: stringField(body, "rotationKey") || null,
         rotationLeg: [1, 2].includes(Number(body.rotationLeg))
           ? Number(body.rotationLeg)

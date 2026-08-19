@@ -173,6 +173,49 @@ function assignmentShape(
   };
 }
 
+function applySharedSportsClassRooms(
+  assignments: LocalAssignment[],
+  subjectIdByCode: Map<string, string>,
+  warnings: string[],
+): void {
+  const physicalEducationSubjectId = subjectIdByCode.get(
+    PHYSICAL_EDUCATION_SUBJECT_CODE,
+  );
+  if (!physicalEducationSubjectId) return;
+
+  const sharedGroups = ["GROUP_1", "GROUP_2"] as const;
+  let paired = 0;
+  for (const group of sharedGroups) {
+    const eighth = assignments.find(
+      (assignment) =>
+        assignment.subjectId === physicalEducationSubjectId &&
+        assignment.classId === "class:8-B" &&
+        assignment.group === group,
+    );
+    const ninth = assignments.find(
+      (assignment) =>
+        assignment.subjectId === physicalEducationSubjectId &&
+        assignment.classId === "class:9-B" &&
+        assignment.group === group,
+    );
+    if (!eighth || !ninth) continue;
+    const roomShareKey = `school:tv:8-b:9-b:${group.toLowerCase()}`;
+    eighth.roomShareKey = roomShareKey;
+    ninth.roomShareKey = roomShareKey;
+    paired += 1;
+  }
+
+  if (paired === 2) {
+    warnings.push(
+      "8.B + 9.B: čtyři společné hodiny TV jsou naplánované jako co-teaching ve dvou sdílených sportovních prostorech; pátá hodina 8.B zůstává samostatně.",
+    );
+  } else if (paired > 0) {
+    warnings.push(
+      "8.B + 9.B: podařilo se propojit jen část společné TV. Zkontrolujte rozdělení skupin obou tříd.",
+    );
+  }
+}
+
 export function buildSchoolProjectForGeneration({
   existingProject,
   staffingPlan,
@@ -336,6 +379,7 @@ export function buildSchoolProjectForGeneration({
       group,
       ...assignmentShape(row, additionalClassIds, subjectCode, weeklyPeriods),
       parallelKey,
+      roomShareKey: null,
       rotationKey,
       rotationLeg,
       rotationPlacement: rotationKey
@@ -561,6 +605,8 @@ export function buildSchoolProjectForGeneration({
       );
     }
   }
+
+  applySharedSportsClassRooms(assignments, subjectIdByCode, warnings);
 
   for (const teacher of staffingPlan.teachers) {
     const assigned = teachingPlan.rows.reduce(

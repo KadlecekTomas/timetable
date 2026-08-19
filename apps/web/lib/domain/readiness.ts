@@ -4,6 +4,11 @@ import type {
   ReadinessReport,
   SnapshotAssignment,
 } from "./contracts";
+import {
+  roomShareAssignmentGroups,
+  sharedRoomBlockDurations,
+  sharedRoomPeriodDiscount,
+} from "./room-sharing";
 
 function issue(
   code: string,
@@ -295,6 +300,30 @@ export function evaluateReadiness(
     }
   }
 
+  for (const group of roomShareAssignmentGroups(snapshot.assignments)) {
+    if (group.assignments.length !== 2) {
+      add(
+        issue(
+          "ROOM_SHARE_GROUP_INVALID",
+          "ERROR",
+          `Sdílený prostor ${group.key} musí spojovat právě dvě výukové vazby.`,
+          group.assignments.map((assignment) => assignment.id),
+        ),
+      );
+      continue;
+    }
+    if (sharedRoomBlockDurations(group.assignments).length === 0) {
+      add(
+        issue(
+          "ROOM_SHARE_SHAPE_MISMATCH",
+          "ERROR",
+          `Sdílený prostor ${group.key} nemá žádný společný kompatibilní blok.`,
+          group.assignments.map((assignment) => assignment.id),
+        ),
+      );
+    }
+  }
+
   const peSubjectIds = new Set(
     snapshot.subjects
       .filter((subject) => subject.code.trim().toUpperCase() === "TV")
@@ -351,10 +380,11 @@ export function evaluateReadiness(
         }
       }
     }
-    const requiredPeRoomPeriods = peAssignments.reduce(
-      (total, assignment) => total + assignment.weekly_periods,
-      0,
-    );
+    const requiredPeRoomPeriods =
+      peAssignments.reduce(
+        (total, assignment) => total + assignment.weekly_periods,
+        0,
+      ) - sharedRoomPeriodDiscount(peAssignments);
     const reserve = availablePeRoomPeriods - requiredPeRoomPeriods;
     if (reserve < 0) {
       add(

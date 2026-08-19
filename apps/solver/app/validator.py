@@ -14,6 +14,12 @@ from app.models import (
     TeachingGroup,
     ValidationIssue,
 )
+from app.room_sharing import (
+    room_share_assignment_groups,
+    room_share_block_pair_key,
+    room_share_block_pairs,
+    shared_room_block_durations,
+)
 from app.rotations import validate_rotation_schedule
 from app.school_day import crosses_lunch_break
 
@@ -32,6 +38,10 @@ def _fixed_by_block(payload: SolveRequest) -> dict[str, FixedLesson]:
 def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     assignments = {assignment.id: assignment for assignment in payload.assignments}
+    shared_room_pairs = {
+        room_share_block_pair_key(left, right)
+        for left, right in room_share_block_pairs(payload.assignments)
+    }
     rooms = {room.id: room for room in payload.rooms}
     fixed = _fixed_by_block(payload)
 
@@ -233,7 +243,13 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
             if lesson.room_id:
                 room_key = (lesson.room_id, lesson.day, period)
                 conflicting_room_lesson = room_slots.get(room_key)
-                if conflicting_room_lesson:
+                if (
+                    conflicting_room_lesson
+                    and room_share_block_pair_key(
+                        conflicting_room_lesson.block_id, lesson.block_id
+                    )
+                    not in shared_room_pairs
+                ):
                     issues.append(
                         ValidationIssue(
                             code="ROOM_COLLISION",
@@ -249,7 +265,7 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
                             period=period,
                         )
                     )
-                else:
+                elif conflicting_room_lesson is None:
                     room_slots[room_key] = lesson
 
             for class_id in lesson_class_ids(lesson):
@@ -308,6 +324,48 @@ def validate_schedule(payload: SolveRequest, lessons: list[ScheduledLesson]) -> 
     lessons_by_assignment: dict[str, list[ScheduledLesson]] = defaultdict(list)
     for lesson in lessons:
         lessons_by_assignment[lesson.assignment_id].append(lesson)
+    for _key, group in room_share_assignment_groups(payload.assignments):
+        if len(group) != 2:
+            continue
+        shared_durations = shared_room_block_durations(group)
+        left_assignment, right_assignment = group
+        for index in range(len(shared_durations)):
+            left = next(
+                (
+                    lesson
+                    for lesson in lessons_by_assignment[left_assignment.id]
+                    if lesson.block_id == f"{left_assignment.id}:{index}"
+                ),
+                None,
+            )
+            right = next(
+                (
+                    lesson
+                    for lesson in lessons_by_assignment[right_assignment.id]
+                    if lesson.block_id == f"{right_assignment.id}:{index}"
+                ),
+                None,
+            )
+            if left is None or right is None:
+                continue
+            if (
+                left.day != right.day
+                or left.period != right.period
+                or left.duration != right.duration
+                or left.room_id != right.room_id
+            ):
+                issues.append(
+                    ValidationIssue(
+                        code="ROOM_SHARE_DESYNCHRONIZED",
+                        message=(
+                            "Co-teaching ve sdíleném prostoru musí probíhat současně a ve stejné místnosti."
+                        ),
+                        entity_ids=[left.block_id, right.block_id],
+                        day=left.day,
+                        period=left.period,
+                    )
+                )
+
     for parallel_group in parallel_assignment_groups(payload.assignments):
         grouped_lessons = [
             sorted(lessons_by_assignment[item.id], key=lambda lesson: lesson.block_id)

@@ -284,3 +284,86 @@ test("shared split language creates two assignments for all participating classe
     assert.equal(assignment.weeklyPeriods, 3);
   }
 });
+
+test("8.B and 9.B physical education groups share rooms for their four common hours", () => {
+  const staffingPlan: StaffingPlan = {
+    version: 1,
+    updatedAt: "test",
+    teachers: [
+      teacher("8b-one", "TV", 5),
+      teacher("8b-two", "TV", 5),
+      teacher("8b-three", "TV", 5),
+      teacher("9b-one", "TV", 4),
+      teacher("9b-two", "TV", 4),
+    ],
+  };
+  const teachingPlan: TeachingPlan = {
+    version: 1,
+    updatedAt: "test",
+    classes: [
+      { id: "8b", code: "8.B", grade: 8, profile: "SPORTS" },
+      { id: "9b", code: "9.B", grade: 9, profile: "SPORTS" },
+    ],
+    rows: [
+      row({
+        id: "tv-8b",
+        classCode: "8.B",
+        subjectCode: "TV",
+        weeklyPeriods: 5,
+        lessonShape: "MIXED",
+        doublePeriodsCount: 2,
+        organization: "SPLIT",
+        primaryTeacherId: "8b-one",
+        secondaryTeacherId: "8b-two",
+        tertiaryTeacherId: "8b-three",
+        splitGroupCount: 3,
+      }),
+      row({
+        id: "tv-9b",
+        classCode: "9.B",
+        subjectCode: "TV",
+        weeklyPeriods: 4,
+        lessonShape: "DOUBLE",
+        doublePeriodsCount: 2,
+        organization: "SPLIT",
+        primaryTeacherId: "9b-one",
+        secondaryTeacherId: "9b-two",
+        splitGroupCount: 2,
+      }),
+    ],
+  };
+
+  const result = buildSchoolProjectForGeneration({
+    existingProject: project(),
+    staffingPlan,
+    teachingPlan,
+    forceReplaceGeneratedData: false,
+  });
+  assert.deepEqual(result.blockers, []);
+
+  const tv8b = result.project.assignments.filter(
+    (assignment) => assignment.classId === "class:8-B",
+  );
+  const tv9b = result.project.assignments.filter(
+    (assignment) => assignment.classId === "class:9-B",
+  );
+  assert.equal(tv8b.length, 3);
+  assert.equal(tv9b.length, 2);
+  assert.equal(
+    tv8b.find((item) => item.group === "GROUP_1")?.roomShareKey,
+    tv9b.find((item) => item.group === "GROUP_1")?.roomShareKey,
+  );
+  assert.equal(
+    tv8b.find((item) => item.group === "GROUP_2")?.roomShareKey,
+    tv9b.find((item) => item.group === "GROUP_2")?.roomShareKey,
+  );
+  assert.equal(
+    tv8b.find((item) => item.group === "GROUP_3")?.roomShareKey ?? null,
+    null,
+  );
+  assert.ok(
+    result.warnings.some((warning) =>
+      warning.includes("čtyři společné hodiny TV"),
+    ),
+  );
+});
