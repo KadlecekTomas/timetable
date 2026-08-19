@@ -68,7 +68,9 @@ function preparationLabel(state: PreparedInputState): string {
   return "Čeká na přípravu";
 }
 
-function peSlotSignature(slots: PhysicalEducationExternalOccupancySlot[]): string {
+function peSlotSignature(
+  slots: PhysicalEducationExternalOccupancySlot[],
+): string {
   return [...slots]
     .sort(
       (left, right) =>
@@ -80,9 +82,9 @@ function peSlotSignature(slots: PhysicalEducationExternalOccupancySlot[]): strin
 
 export default function HomePage() {
   const [state, setState] = useState<DashboardState | null>(null);
-  const [peSlots, setPeSlots] = useState<PhysicalEducationExternalOccupancySlot[]>(
-    [],
-  );
+  const [peSlots, setPeSlots] = useState<
+    PhysicalEducationExternalOccupancySlot[]
+  >([]);
   const [error, setError] = useState<string | null>(null);
   const context = `schoolYearId=${encodeURIComponent(LOCAL_SCHOOL_YEAR_ID)}`;
 
@@ -329,11 +331,16 @@ export default function HomePage() {
           title="TV kapacita 1. stupně"
           href={`/pe-capacity?${context}`}
           action="Zkontrolovat TV kapacitu"
-          status={usesRecommendedPeProfile ? "Doporučený profil" : "Zkontrolovat"}
+          status={
+            usesRecommendedPeProfile ? "Doporučený profil" : "Zkontrolovat"
+          }
           tone={usesRecommendedPeProfile ? "success" : "warning"}
           values={[
             ["Rezervované časové sloty", peSlots.length],
-            ["Profil", usesRecommendedPeProfile ? "2026/2027" : "Původní / vlastní"],
+            [
+              "Profil",
+              usesRecommendedPeProfile ? "2026/2027" : "Původní / vlastní",
+            ],
             ["Úterý – základní kapacita", "3 prostory"],
             ["Čtvrtek – základní kapacita", "5 prostorů"],
           ]}
