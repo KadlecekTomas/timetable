@@ -5,7 +5,10 @@ from typing import Any
 
 from ortools.sat.python import cp_model
 
-from app.class_groups import assignment_class_ids, class_required_weekly_periods
+from app.class_groups import (
+    assignment_class_ids,
+    class_required_weekly_periods,
+)
 from app.models import SolveRequest
 from app.policy import daily_subject_limit, subject_code
 
