@@ -41,6 +41,132 @@ class AvailabilityKind(StrEnum):
     DISCOURAGED = "DISCOURAGED"
 
 
+class SubjectWindowRule(BaseModel):
+    subject_codes: list[str] = Field(min_length=1)
+    periods: list[int] = Field(min_length=1)
+    days: list[int] | None = None
+
+    @model_validator(mode="after")
+    def validate_window(self) -> "SubjectWindowRule":
+        self.subject_codes = sorted(
+            {code.strip().upper() for code in self.subject_codes if code.strip()}
+        )
+        if not self.subject_codes:
+            raise ValueError("subject_codes must contain at least one code")
+        if any(period < 0 or period > 15 for period in self.periods):
+            raise ValueError("policy periods must be between 0 and 15")
+        self.periods = sorted(set(self.periods))
+        if self.days is not None:
+            if any(day < 0 or day > 6 for day in self.days):
+                raise ValueError("policy days must be between 0 and 6")
+            self.days = sorted(set(self.days))
+        return self
+
+
+class SubjectDailyLimit(BaseModel):
+    subject_codes: list[str] = Field(min_length=1)
+    max_periods_per_day: int = Field(ge=1, le=12)
+
+    @model_validator(mode="after")
+    def normalize_codes(self) -> "SubjectDailyLimit":
+        self.subject_codes = sorted(
+            {code.strip().upper() for code in self.subject_codes if code.strip()}
+        )
+        if not self.subject_codes:
+            raise ValueError("subject_codes must contain at least one code")
+        return self
+
+
+class ClassDayPolicy(BaseModel):
+    require_first_period: bool = True
+    allowed_afternoon_patterns: list[list[int]] = Field(default_factory=list)
+    latest_period_by_day: list[int | None] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_patterns(self) -> "ClassDayPolicy":
+        normalized: list[list[int]] = []
+        for pattern in self.allowed_afternoon_patterns:
+            if any(period < 0 or period > 15 for period in pattern):
+                raise ValueError("afternoon pattern periods must be between 0 and 15")
+            item = sorted(set(pattern))
+            if item and item not in normalized:
+                normalized.append(item)
+        self.allowed_afternoon_patterns = normalized
+        if any(
+            period is not None and (period < 0 or period > 15)
+            for period in self.latest_period_by_day
+        ):
+            raise ValueError("latest_period_by_day values must be null or 0..15")
+        return self
+
+
+class TeacherAfternoonBreakPolicy(BaseModel):
+    enabled: bool = False
+    afternoon_start_period: int = Field(default=6, ge=0, le=15)
+    break_periods: list[int] = Field(default_factory=list)
+    minimum_free_periods: int = Field(default=1, ge=1, le=12)
+
+    @model_validator(mode="after")
+    def validate_break(self) -> "TeacherAfternoonBreakPolicy":
+        if any(period < 0 or period > 15 for period in self.break_periods):
+            raise ValueError("teacher break periods must be between 0 and 15")
+        self.break_periods = sorted(set(self.break_periods))
+        if self.enabled and not self.break_periods:
+            raise ValueError("enabled teacher afternoon break requires break_periods")
+        if self.enabled and self.minimum_free_periods > len(self.break_periods):
+            raise ValueError("minimum_free_periods cannot exceed break_periods")
+        return self
+
+
+class QualityPolicy(BaseModel):
+    class_daily_balance_weight: int = Field(default=0, ge=0, le=1_000_000)
+    class_afternoon_weight: int = Field(default=0, ge=0, le=1_000_000)
+    afternoon_day_weights: list[int] = Field(default_factory=list)
+    subject_late_weights: dict[str, int] = Field(default_factory=dict)
+    subject_afternoon_bonuses: dict[str, int] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def normalize_quality(self) -> "QualityPolicy":
+        if any(weight < 0 or weight > 1_000_000 for weight in self.afternoon_day_weights):
+            raise ValueError("afternoon_day_weights must be between 0 and 1000000")
+        self.subject_late_weights = {
+            code.strip().upper(): weight
+            for code, weight in self.subject_late_weights.items()
+            if code.strip()
+        }
+        self.subject_afternoon_bonuses = {
+            code.strip().upper(): weight
+            for code, weight in self.subject_afternoon_bonuses.items()
+            if code.strip()
+        }
+        if any(
+            weight < 0 or weight > 1_000_000
+            for weight in [
+                *self.subject_late_weights.values(),
+                *self.subject_afternoon_bonuses.values(),
+            ]
+        ):
+            raise ValueError("subject policy weights must be between 0 and 1000000")
+        return self
+
+
+class SolverPolicy(BaseModel):
+    version: str = "1"
+    forbidden_subject_windows: list[SubjectWindowRule] = Field(default_factory=list)
+    subject_daily_limits: list[SubjectDailyLimit] = Field(default_factory=list)
+    class_day: ClassDayPolicy = Field(default_factory=ClassDayPolicy)
+    teacher_afternoon_break: TeacherAfternoonBreakPolicy = Field(
+        default_factory=TeacherAfternoonBreakPolicy
+    )
+    quality: QualityPolicy = Field(default_factory=QualityPolicy)
+
+    @model_validator(mode="after")
+    def validate_version(self) -> "SolverPolicy":
+        if self.version != "1":
+            raise ValueError("Unsupported solver policy version")
+        return self
+
+
 class Subject(BaseModel):
     id: str
     code: str
@@ -169,6 +295,7 @@ class SolveRequest(BaseModel):
     availability: list[AvailabilityRule] = Field(default_factory=list)
     fixed_lessons: list[FixedLesson] = Field(default_factory=list)
     locked_lessons: list[FixedLesson] = Field(default_factory=list)
+    policy: SolverPolicy | None = None
     weights: SolverWeights = Field(default_factory=SolverWeights)
     random_seed: int = 1
     time_limit_seconds: int = Field(default=30, ge=1, le=1800)
