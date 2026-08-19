@@ -26,7 +26,9 @@ import {
 
 const dayNames = ["Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek"];
 
-function slotSignature(slots: PhysicalEducationExternalOccupancySlot[]): string {
+function slotSignature(
+  slots: PhysicalEducationExternalOccupancySlot[],
+): string {
   return [...slots]
     .sort(
       (left, right) =>
@@ -136,7 +138,9 @@ export default function PeCapacityPage() {
   }
 
   function useRecommendedProfile() {
-    void persistSlots(schoolRecommendedPhysicalEducationExternalOccupancySlots());
+    void persistSlots(
+      schoolRecommendedPhysicalEducationExternalOccupancySlots(),
+    );
   }
 
   function restoreOriginalSchoolPlan() {
@@ -314,10 +318,13 @@ export default function PeCapacityPage() {
 
       <section className="flex flex-col justify-between gap-4 rounded-xl border border-border bg-surface p-5 sm:flex-row sm:items-center">
         <div>
-          <h2 className="font-semibold text-text-primary">Kapacita je uložená</h2>
+          <h2 className="font-semibold text-text-primary">
+            Kapacita je uložená
+          </h2>
           <p className="mt-1 text-sm text-text-secondary">
             Další změny učitelů nebo výukového plánu nevadí. Po změně vstupů
-            připravte data znovu a generátor vždy načte toto aktuální nastavení TV.
+            připravte data znovu a generátor vždy načte toto aktuální nastavení
+            TV.
           </p>
         </div>
         <Button asChild>
