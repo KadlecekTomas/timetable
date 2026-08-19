@@ -101,9 +101,6 @@ function policyIssues(
       add(teacherPeriods, `${lesson.teacher_id}:${lesson.day}`, period);
       for (const classId of lessonClassIds(lesson)) {
         add(classPeriods, `${classId}:${lesson.day}`, period);
-        // Atomic CJ/M rotations intentionally occupy two periods on the same day.
-        // They must not be mistaken for repeated ordinary lessons when applying
-        // the generic per-day subject cap.
         if (assignment.rotation_key == null) {
           add(classSubjectPeriods, `${classId}:${code}:${lesson.day}`, period);
         }
@@ -111,10 +108,25 @@ function policyIssues(
     }
   }
 
+  const classWeeklyOccupancy = new Map<string, number>();
+  for (const [key, values] of classPeriods) {
+    const separator = key.lastIndexOf(":");
+    const classId = key.slice(0, separator);
+    classWeeklyOccupancy.set(
+      classId,
+      (classWeeklyOccupancy.get(classId) ?? 0) + values.size,
+    );
+  }
+
   for (const [key, values] of classPeriods) {
     const separator = key.lastIndexOf(":");
     const classId = key.slice(0, separator);
     const day = Number(key.slice(separator + 1));
+    if (
+      (classWeeklyOccupancy.get(classId) ?? 0) < snapshot.periods_per_day.length
+    ) {
+      continue;
+    }
     if (classDayPatternAllowed(snapshot, values)) continue;
     issues.push({
       code: "POLICY_CLASS_DAY_PATTERN",
