@@ -1,0 +1,305 @@
+name: Patch Spankova 12h
+
+on:
+  push:
+    branches: [agent/local-deep-solve-school-pe-defaults]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/local-deep-solve-school-pe-defaults
+          fetch-depth: 0
+      - name: Patch school scheduling model
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # Keep Špánková's JAZ2 rows separate instead of merging them across grade.
+          path = Path("apps/web/lib/local/teaching-plan-school-v3.ts")
+          text = path.read_text()
+          text = text.replace(
+              'import type { StaffingPlan } from "./staffing-plan-school-v2";',
+              'import { loadStaffingPlan, type StaffingPlan } from "./staffing-plan-school-v2";',
+          )
+          text = text.replace(
+              'const SECOND_FOREIGN_LANGUAGE_CODE = "JAZ2";\n',
+              'const SECOND_FOREIGN_LANGUAGE_CODE = "JAZ2";\nconst SPANKOVA_SURNAME = "spankova";\n',
+              1,
+          )
+          marker = 'let migratingTeachingPlan = false;\n'
+          helper = '''let migratingTeachingPlan = false;\n\nfunction normalizedPersonToken(value: string): string {\n  return value\n    .normalize("NFKD")\n    .replace(/[\\u0300-\\u036f]/g, "")\n    .replace(/[^a-zA-Z]/g, "")\n    .toLocaleLowerCase("cs-CZ");\n}\n\nfunction separateSecondLanguageTeacherIds(\n  staffingPlan: StaffingPlan,\n): Set<string> {\n  return new Set(\n    staffingPlan.teachers\n      .filter(\n        (teacher) =>\n          normalizedPersonToken(teacher.lastName) === SPANKOVA_SURNAME,\n      )\n      .map((teacher) => teacher.id),\n  );\n}\n'''
+          if marker not in text:
+              raise SystemExit("migration marker not found")
+          text = text.replace(marker, helper, 1)
+
+          old = '''export function combineSecondForeignLanguageByGrade(\n  plan: TeachingPlan,\n): TeachingPlan {'''
+          new = '''export function combineSecondForeignLanguageByGrade(\n  plan: TeachingPlan,\n  separateTeacherIds: ReadonlySet<string> = new Set(),\n): TeachingPlan {'''
+          if old not in text:
+              raise SystemExit("combine signature not found")
+          text = text.replace(old, new, 1)
+
+          old = '''    const targets = rowClassCodes(row);\n    const grade = classGradeFromCode(row.classCode);\n    const eligible =\n      row.subjectCode === SECOND_FOREIGN_LANGUAGE_CODE &&\n      row.organization === "SPLIT" &&'''
+          new = '''    const targets = rowClassCodes(row);\n    const grade = classGradeFromCode(row.classCode);\n    const rowTeacherIds = [\n      row.primaryTeacherId,\n      row.secondaryTeacherId,\n      row.tertiaryTeacherId ?? "",\n    ].filter(Boolean);\n    const keepSeparate = rowTeacherIds.some((teacherId) =>\n      separateTeacherIds.has(teacherId),\n    );\n    const eligible =\n      !keepSeparate &&\n      row.subjectCode === SECOND_FOREIGN_LANGUAGE_CODE &&\n      row.organization === "SPLIT" &&'''
+          if old not in text:
+              raise SystemExit("eligible block not found")
+          text = text.replace(old, new, 1)
+
+          old = '''export function enforceCurrentSchoolTeachingStructure(\n  plan: TeachingPlan,\n): TeachingPlan {\n  if (!isCurrentSchoolPlan(plan)) return plan;\n  return enforceRequiredLessonBlocks(\n    combineSecondForeignLanguageByGrade(\n      enforceMandatorySchoolSplits(removeUnavailableElectives(plan)),\n    ),\n  );\n}'''
+          new = '''export function enforceCurrentSchoolTeachingStructure(\n  plan: TeachingPlan,\n  separateTeacherIds: ReadonlySet<string> = new Set(),\n): TeachingPlan {\n  if (!isCurrentSchoolPlan(plan)) return plan;\n  return enforceRequiredLessonBlocks(\n    combineSecondForeignLanguageByGrade(\n      enforceMandatorySchoolSplits(removeUnavailableElectives(plan)),\n      separateTeacherIds,\n    ),\n  );\n}'''
+          if old not in text:
+              raise SystemExit("enforce structure block not found")
+          text = text.replace(old, new, 1)
+
+          old = '''export function applySchoolOperationalRules(\n  plan: TeachingPlan,\n  staffingPlan: StaffingPlan,\n  allocationDraft: StaffingAllocationDraft | null = null,\n): TeachingPlan {\n  const structured = enforceCurrentSchoolTeachingStructure(plan);\n  return enforceCurrentSchoolTeachingStructure(\n    base.applySchoolOperationalRules(structured, staffingPlan, allocationDraft),\n  );\n}'''
+          new = '''export function applySchoolOperationalRules(\n  plan: TeachingPlan,\n  staffingPlan: StaffingPlan,\n  allocationDraft: StaffingAllocationDraft | null = null,\n): TeachingPlan {\n  const separateTeacherIds = separateSecondLanguageTeacherIds(staffingPlan);\n  const structured = enforceCurrentSchoolTeachingStructure(\n    plan,\n    separateTeacherIds,\n  );\n  return enforceCurrentSchoolTeachingStructure(\n    base.applySchoolOperationalRules(structured, staffingPlan, allocationDraft),\n    separateTeacherIds,\n  );\n}'''
+          if old not in text:
+              raise SystemExit("operational rules block not found")
+          text = text.replace(old, new, 1)
+
+          old = '''export function createDefaultSchoolTeachingPlan(\n  curriculum: SchoolCurriculum,\n  staffingPlan: StaffingPlan,\n  allocationDraft: StaffingAllocationDraft | null,\n): TeachingPlan {\n  return enforceCurrentSchoolTeachingStructure(\n    base.createDefaultSchoolTeachingPlan(\n      curriculum,\n      staffingPlan,\n      allocationDraft,\n    ),\n  );\n}'''
+          new = '''export function createDefaultSchoolTeachingPlan(\n  curriculum: SchoolCurriculum,\n  staffingPlan: StaffingPlan,\n  allocationDraft: StaffingAllocationDraft | null,\n): TeachingPlan {\n  const separateTeacherIds = separateSecondLanguageTeacherIds(staffingPlan);\n  return enforceCurrentSchoolTeachingStructure(\n    base.createDefaultSchoolTeachingPlan(\n      curriculum,\n      staffingPlan,\n      allocationDraft,\n    ),\n    separateTeacherIds,\n  );\n}'''
+          if old not in text:
+              raise SystemExit("default plan block not found")
+          text = text.replace(old, new, 1)
+
+          old = '''export function loadTeachingPlan(): TeachingPlan {\n  const loaded = applyStoredSplitPeriods(base.loadTeachingPlan());\n  const enforced = enforceCurrentSchoolTeachingStructure(loaded);'''
+          new = '''export function loadTeachingPlan(): TeachingPlan {\n  const staffingPlan = loadStaffingPlan();\n  const separateTeacherIds = separateSecondLanguageTeacherIds(staffingPlan);\n  const loaded = applyStoredSplitPeriods(base.loadTeachingPlan());\n  const enforced = enforceCurrentSchoolTeachingStructure(\n    loaded,\n    separateTeacherIds,\n  );'''
+          if old not in text:
+              raise SystemExit("load plan start not found")
+          text = text.replace(old, new, 1)
+          text = text.replace(
+              '      return enforceCurrentSchoolTeachingStructure(saved);',
+              '      return enforceCurrentSchoolTeachingStructure(\n        saved,\n        separateTeacherIds,\n      );',
+              1,
+          )
+
+          old = '''export function saveTeachingPlan(plan: TeachingPlan): TeachingPlan {\n  const enforced = enforceCurrentSchoolTeachingStructure(plan);\n  writeStoredSplitPeriods(enforced);\n  const saved = applyStoredSplitPeriods(base.saveTeachingPlan(enforced));\n  return enforceCurrentSchoolTeachingStructure(saved);\n}'''
+          new = '''export function saveTeachingPlan(plan: TeachingPlan): TeachingPlan {\n  const staffingPlan = loadStaffingPlan();\n  const separateTeacherIds = separateSecondLanguageTeacherIds(staffingPlan);\n  const enforced = enforceCurrentSchoolTeachingStructure(\n    plan,\n    separateTeacherIds,\n  );\n  writeStoredSplitPeriods(enforced);\n  const saved = applyStoredSplitPeriods(base.saveTeachingPlan(enforced));\n  return enforceCurrentSchoolTeachingStructure(saved, separateTeacherIds);\n}'''
+          if old not in text:
+              raise SystemExit("save plan block not found")
+          text = text.replace(old, new, 1)
+
+          old = '''  const enforced = enforceCurrentSchoolTeachingStructure(plan);\n  const sameTeacherPrefixes = enforced.rows'''
+          new = '''  const separateTeacherIds = separateSecondLanguageTeacherIds(staffingPlan);\n  const enforced = enforceCurrentSchoolTeachingStructure(\n    plan,\n    separateTeacherIds,\n  );\n  const sameTeacherPrefixes = enforced.rows'''
+          if old not in text:
+              raise SystemExit("validation enforce block not found")
+          text = text.replace(old, new, 1)
+          path.write_text(text)
+
+          # Špánková is only available Tue/Wed/Thu.
+          path = Path("apps/web/lib/local/school-teacher-availability-defaults.ts")
+          text = path.read_text()
+          anchor = '    { surname: "Šobotník", firstName: "Jan", unavailableDays: ["MON"] },\n'
+          replacement = anchor + '    { surname: "Špánková", unavailableDays: ["MON", "FRI"] },\n'
+          if anchor not in text:
+              raise SystemExit("teacher default anchor not found")
+          text = text.replace(anchor, replacement, 1)
+          path.write_text(text)
+
+          # Update teacher availability regression fixture/count.
+          path = Path("apps/web/tests/school-teacher-availability-defaults.test.ts")
+          text = path.read_text()
+          anchor = '      teacher("sobotnik", "Šobotník", "Jan"),\n'
+          if anchor not in text:
+              raise SystemExit("availability fixture anchor not found")
+          text = text.replace(anchor, anchor + '      teacher("spankova", "Špánková"),\n', 1)
+          text = text.replace('assert.equal(applied.matchedSurnames.length, 18);', 'assert.equal(applied.matchedSurnames.length, 19);', 1)
+          anchor = '''  assert.deepEqual(\n    applied.plan.teachers.find((item) => item.id === "kvapilova")!\n      .unavailableDays,\n    [],\n  );\n'''
+          addition = anchor + '''  assert.deepEqual(\n    applied.plan.teachers.find((item) => item.id === "spankova")!.unavailableDays,\n    ["MON", "FRI"],\n  );\n'''
+          if anchor not in text:
+              raise SystemExit("availability assertion anchor not found")
+          text = text.replace(anchor, addition, 1)
+          path.write_text(text)
+
+          # Replace unit regression with the real 12-hour scenario.
+          Path("apps/web/tests/school-scheduling-preferences.test.ts").write_text(r'''import assert from "node:assert/strict";
+import test from "node:test";
+
+import { schoolSchedulingPreferences } from "../lib/local/school-scheduling-preferences";
+import type { LocalAssignment, LocalSubject } from "../lib/local/api";
+import type { StaffingPlan } from "../lib/local/staffing-plan";
+
+const subjects: LocalSubject[] = [
+  {
+    id: "subject:JAZ2",
+    code: "JAZ2",
+    name: "Druhý cizí jazyk",
+    colorToken: null,
+    defaultRoomTypeId: null,
+  },
+];
+
+const staffingPlan: StaffingPlan = {
+  version: 1,
+  updatedAt: "test",
+  teachers: [
+    {
+      id: "spankova",
+      firstName: "",
+      lastName: "Špánková",
+      targetWeeklyLoad: 12,
+      baseWeeklyLoad: 12,
+      subjectLoads: [
+        { id: "spankova-jaz2", subjectCode: "JAZ2", weeklyPeriods: 12 },
+      ],
+      unavailableDays: ["MON", "FRI"],
+      unavailablePeriods: [],
+    },
+  ],
+};
+
+function assignment(id: string, classId: string): LocalAssignment {
+  return {
+    id,
+    assignmentCode: id,
+    classId,
+    additionalClassIds: [],
+    subjectId: "subject:JAZ2",
+    teacherId: "teacher:spankova",
+    group: "GROUP_2",
+    weeklyPeriods: 3,
+    lessonShape: "SINGLE",
+    doublePeriodsCount: 0,
+    requiredRoomId: null,
+    requiredRoomTypeId: null,
+    maxPerDay: null,
+    minDayGap: null,
+    parallelKey: `parallel:${id}`,
+    rotationKey: null,
+    rotationLeg: null,
+    rotationPlacement: null,
+  };
+}
+
+const assignments = [
+  assignment("spanish-8a", "class:8-A"),
+  assignment("spanish-8b", "class:8-B"),
+  assignment("spanish-8c", "class:8-C"),
+  assignment("german-9b", "class:9-B"),
+];
+
+test("Špánková gets nine fixed Spanish lessons Tue-Wed-Thu periods 2-4 and German period 5 preference", () => {
+  const result = schoolSchedulingPreferences({
+    assignments,
+    subjects,
+    staffingPlan,
+    existingFixedLessons: [],
+  });
+
+  assert.deepEqual(result.warnings, []);
+  assert.equal(result.fixedLessons.length, 9);
+  assert.deepEqual(
+    result.fixedLessons.map((lesson) => [
+      lesson.assignmentId,
+      lesson.blockIndex,
+      lesson.dayOfWeek,
+      lesson.startPeriod,
+    ]),
+    [
+      ["spanish-8a", 0, 1, 1],
+      ["spanish-8b", 0, 1, 2],
+      ["spanish-8c", 0, 1, 3],
+      ["spanish-8b", 1, 2, 1],
+      ["spanish-8c", 1, 2, 2],
+      ["spanish-8a", 1, 2, 3],
+      ["spanish-8c", 2, 3, 1],
+      ["spanish-8a", 2, 3, 2],
+      ["spanish-8b", 2, 3, 3],
+    ],
+  );
+  assert.equal(result.fixedLessons.every((lesson) => lesson.locked), true);
+  assert.deepEqual(
+    result.availability.map((rule) => [
+      rule.dayOfWeek,
+      rule.period,
+      rule.weight,
+    ]),
+    [
+      [1, 4, 200],
+      [2, 4, 200],
+      [3, 4, 200],
+    ],
+  );
+});
+
+test("existing manual fixed lesson wins over the school default for the same Spanish block", () => {
+  const result = schoolSchedulingPreferences({
+    assignments,
+    subjects,
+    staffingPlan,
+    existingFixedLessons: [
+      {
+        id: "manual",
+        assignmentId: "spanish-8b",
+        blockIndex: 1,
+        dayOfWeek: 2,
+        startPeriod: 5,
+        duration: 1,
+        roomId: null,
+        locked: true,
+      },
+    ],
+  });
+
+  assert.equal(result.fixedLessons.length, 8);
+  assert.equal(
+    result.fixedLessons.some(
+      (lesson) =>
+        lesson.assignmentId === "spanish-8b" && lesson.blockIndex === 1,
+    ),
+    false,
+  );
+});
+''')
+
+          # Replace generation regression with separate 8.A/8.B/8.C rows.
+          path = Path("apps/web/tests/school-scheduling-preferences-generation.test.ts")
+          text = path.read_text()
+          text = text.replace('    targetWeeklyLoad: 6,\n    baseWeeklyLoad: 6,\n    subjectLoads: [{ id: `${id}:jaz2`, subjectCode: "JAZ2", weeklyPeriods: 6 }],', '    targetWeeklyLoad: 12,\n    baseWeeklyLoad: 12,\n    subjectLoads: [{ id: `${id}:jaz2`, subjectCode: "JAZ2", weeklyPeriods: 12 }],')
+          start = text.index('  const teachingPlan: TeachingPlan = {')
+          end = text.index('\n\n  const result = buildSchoolProjectForGeneration', start)
+          replacement = '''  const teachingPlan: TeachingPlan = {\n    version: 1,\n    updatedAt: "test",\n    classes: [\n      { id: "8a", code: "8.A", grade: 8, profile: "REGULAR" },\n      { id: "8b", code: "8.B", grade: 8, profile: "SPORTS" },\n      { id: "8c", code: "8.C", grade: 8, profile: "REGULAR" },\n      { id: "9b", code: "9.B", grade: 9, profile: "SPORTS" },\n    ],\n    rows: [\n      languageRow("language-8a", "8.A", "prikrylova", "spankova"),\n      languageRow("language-8b", "8.B", "prikrylova", "spankova"),\n      languageRow("language-8c", "8.C", "prikrylova", "spankova"),\n      languageRow("language-9b", "9.B", "spankova", "prikrylova"),\n    ],\n  };'''
+          text = text[:start] + replacement + text[end:]
+          start = text.index('  const spanishAssignment = result.project.assignments.find(')
+          end = text.index('\n});', start)
+          replacement = '''  const spanishAssignments = result.project.assignments\n    .filter(\n      (assignment) =>\n        assignment.teacherId === "teacher:spankova" &&\n        ["class:8-A", "class:8-B", "class:8-C"].includes(assignment.classId),\n    )\n    .sort((left, right) => left.classId.localeCompare(right.classId));\n  assert.equal(spanishAssignments.length, 3);\n  assert.equal(\n    spanishAssignments.every((assignment) => assignment.additionalClassIds.length === 0),\n    true,\n  );\n\n  assert.equal(result.project.fixedLessons.length, 9);\n  assert.deepEqual(\n    result.project.fixedLessons.map((lesson) => [\n      lesson.blockIndex,\n      lesson.dayOfWeek,\n      lesson.startPeriod,\n    ]),\n    [\n      [0, 1, 1],\n      [0, 1, 2],\n      [0, 1, 3],\n      [1, 2, 1],\n      [1, 2, 2],\n      [1, 2, 3],\n      [2, 3, 1],\n      [2, 3, 2],\n      [2, 3, 3],\n    ],\n  );\n\n  const preferences = result.project.availability.filter(\n    (rule) =>\n      rule.entityType === "TEACHER" &&\n      rule.entityId === "teacher:spankova" &&\n      rule.kind === "PREFERRED",\n  );\n  assert.deepEqual(\n    preferences.map((rule) => [rule.dayOfWeek, rule.period, rule.weight]),\n    [\n      [1, 4, 200],\n      [2, 4, 200],\n      [3, 4, 200],\n    ],\n  );'''
+          text = text[:start] + replacement + text[end:]
+          path.write_text(text)
+
+          # Update the browser proof to a real 12-hour weekly schedule.
+          path = Path("apps/web/e2e/school-scheduling-policy.spec.ts")
+          text = path.read_text()
+          text = text.replace('targetWeeklyLoad: 6,\n            baseWeeklyLoad: 6,', 'targetWeeklyLoad: 12,\n            baseWeeklyLoad: 12,')
+          text = text.replace('weeklyPeriods: 6,', 'weeklyPeriods: 12,')
+          text = text.replace('  expect(spankovaLessons).toHaveLength(6);', '  expect(spankovaLessons).toHaveLength(12);')
+          old = '''  const spanish = spankovaLessons\n    .filter((lesson) => {\n      const assignment = assignmentById.get(lesson.assignment_id);\n      return (\n        assignment !== undefined &&\n        assignment.classId === classIdByCode.get("8.A") &&\n        assignment.additionalClassIds.includes(classIdByCode.get("8.B")!) &&\n        assignment.additionalClassIds.includes(classIdByCode.get("8.C")!)\n      );\n    })\n    .sort((left, right) => left.day - right.day);\n  expect(\n    spanish.map((lesson) => [lesson.day, lesson.period, lesson.locked]),\n  ).toEqual([\n    [1, 1, true],\n    [2, 1, true],\n    [3, 1, true],\n  ]);'''
+          new = '''  const spanish = spankovaLessons\n    .filter((lesson) => {\n      const assignment = assignmentById.get(lesson.assignment_id);\n      return (\n        assignment !== undefined &&\n        ["8.A", "8.B", "8.C"].some(\n          (classCode) => assignment.classId === classIdByCode.get(classCode),\n        )\n      );\n    })\n    .sort((left, right) => left.day - right.day || left.period - right.period);\n  expect(spanish).toHaveLength(9);\n  for (const day of [1, 2, 3]) {\n    const daily = spanish.filter((lesson) => lesson.day === day);\n    expect(daily.map((lesson) => lesson.period).sort()).toEqual([1, 2, 3]);\n    expect(\n      new Set(\n        daily.map((lesson) => assignmentById.get(lesson.assignment_id)?.classId),\n      ).size,\n    ).toBe(3);\n    expect(daily.every((lesson) => lesson.locked)).toBe(true);\n  }'''
+          if old not in text:
+              raise SystemExit("browser Spanish assertion block not found")
+          text = text.replace(old, new, 1)
+          old = '''  expect(german).toHaveLength(3);\n  expect(german.map((lesson) => [lesson.day, lesson.period])).toEqual([\n    [1, 2],\n    [2, 2],\n    [3, 2],\n  ]);'''
+          new = '''  expect(german).toHaveLength(3);\n  expect(german.map((lesson) => [lesson.day, lesson.period])).toEqual([\n    [1, 4],\n    [2, 4],\n    [3, 4],\n  ]);\n  expect(\n    spankovaLessons.every((lesson) => [1, 2, 3].includes(lesson.day)),\n  ).toBe(true);'''
+          if old not in text:
+              raise SystemExit("browser German assertion block not found")
+          text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/lib/local/teaching-plan-school-v3.ts \
+                  apps/web/lib/local/school-teacher-availability-defaults.ts \
+                  apps/web/tests/school-teacher-availability-defaults.test.ts \
+                  apps/web/tests/school-scheduling-preferences.test.ts \
+                  apps/web/tests/school-scheduling-preferences-generation.test.ts \
+                  apps/web/e2e/school-scheduling-policy.spec.ts
+          git commit -m "Use the real twelve-hour Spankova schedule"
+          git push origin HEAD:agent/local-deep-solve-school-pe-defaults
