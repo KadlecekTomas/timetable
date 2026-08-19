@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   web:
@@ -140,42 +140,3 @@ jobs:
             apps/web/playwright-report
             apps/web/test-results
           if-no-files-found: ignore
-
-  patch-spankova-12h:
-    if: github.head_ref == 'agent/local-deep-solve-school-pe-defaults'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: agent/local-deep-solve-school-pe-defaults
-          fetch-depth: 0
-      - name: Apply prepared core patch
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          source = Path('.github/workflows/patch-spankova-12h.yml').read_text()
-          start_marker = "          python - <<'PY'\n"
-          end_marker = "\n          PY\n\n          git config"
-          start = source.index(start_marker) + len(start_marker)
-          end = source.index(end_marker, start)
-          raw = source[start:end]
-          script = "\n".join(
-              line[10:] if line.startswith("          ") else line
-              for line in raw.splitlines()
-          )
-          browser_marker = "# Update the browser proof to a real 12-hour weekly schedule."
-          script = script.split(browser_marker, 1)[0]
-          exec(compile(script, 'patch-spankova-12h', 'exec'), {})
-          PY
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/web/lib/local/teaching-plan-school-v3.ts \
-                  apps/web/lib/local/school-teacher-availability-defaults.ts \
-                  apps/web/tests/school-teacher-availability-defaults.test.ts \
-                  apps/web/tests/school-scheduling-preferences.test.ts \
-                  apps/web/tests/school-scheduling-preferences-generation.test.ts
-          git commit -m "Use the real twelve-hour Spankova schedule"
-          git push origin HEAD:agent/local-deep-solve-school-pe-defaults
