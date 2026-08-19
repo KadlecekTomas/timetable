@@ -3,7 +3,10 @@ import test from "node:test";
 
 import type { LocalProject } from "../lib/local/api";
 import { buildSchoolProjectForGeneration } from "../lib/local/school-project-generation";
-import type { StaffingPlan, StaffingTeacher } from "../lib/local/staffing-plan";
+import type {
+  StaffingPlan,
+  StaffingTeacher,
+} from "../lib/local/staffing-plan";
 import type { TeachingPlan, TeachingPlanRow } from "../lib/local/teaching-plan";
 import { enforceCurrentSchoolTeachingStructure } from "../lib/local/teaching-plan-school-v3";
 
@@ -202,7 +205,8 @@ test("Kadleček receives the exact accepted V5/V8 INF pattern", () => {
       weeklyPeriods: 1,
       lessonShape: "SEPARATE" as const,
       doublePeriodsCount: 0,
-      organization: classCode === "8.B" ? ("WHOLE" as const) : ("SPLIT" as const),
+      organization:
+        classCode === "8.B" ? ("WHOLE" as const) : ("SPLIT" as const),
       primaryTeacherId: "kadlecek",
       secondaryTeacherId: classCode === "8.B" ? "" : "vasakova",
       splitGroupCount: 2 as const,
