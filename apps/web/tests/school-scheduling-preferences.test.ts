@@ -104,9 +104,9 @@ test("Špánková gets nine fixed Spanish lessons Tue-Wed-Thu periods 2-4 and Ge
       rule.weight,
     ]),
     [
-      [1, 4, 200],
-      [2, 4, 200],
-      [3, 4, 200],
+      [1, 4, 100],
+      [2, 4, 100],
+      [3, 4, 100],
     ],
   );
 });
