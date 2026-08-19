@@ -23,6 +23,12 @@ import {
   type LocalProject,
 } from "@/lib/local/api";
 import {
+  loadPhysicalEducationExternalOccupancy,
+  schoolRecommendedPhysicalEducationExternalOccupancySlots,
+  subscribePhysicalEducationExternalOccupancy,
+  type PhysicalEducationExternalOccupancySlot,
+} from "@/lib/local/physical-education-external-occupancy";
+import {
   preparedInputState,
   type PreparedInputState,
 } from "@/lib/local/school-input-state";
@@ -62,8 +68,21 @@ function preparationLabel(state: PreparedInputState): string {
   return "Čeká na přípravu";
 }
 
+function peSlotSignature(slots: PhysicalEducationExternalOccupancySlot[]): string {
+  return [...slots]
+    .sort(
+      (left, right) =>
+        left.dayOfWeek - right.dayOfWeek || left.period - right.period,
+    )
+    .map((slot) => `${slot.dayOfWeek}:${slot.period}:${slot.occupiedSpaces}`)
+    .join("|");
+}
+
 export default function HomePage() {
   const [state, setState] = useState<DashboardState | null>(null);
+  const [peSlots, setPeSlots] = useState<PhysicalEducationExternalOccupancySlot[]>(
+    [],
+  );
   const [error, setError] = useState<string | null>(null);
   const context = `schoolYearId=${encodeURIComponent(LOCAL_SCHOOL_YEAR_ID)}`;
 
@@ -71,6 +90,7 @@ export default function HomePage() {
     try {
       const staffing = loadStaffingPlan();
       const teaching = loadTeachingPlan();
+      setPeSlots(loadPhysicalEducationExternalOccupancy().slots);
       const [project, readinessResponse] = await Promise.all([
         getLocalProject(),
         localApiFetch(`/api/school-years/${LOCAL_SCHOOL_YEAR_ID}/readiness`, {
@@ -102,12 +122,16 @@ export default function HomePage() {
     const unsubscribeProject = subscribeLocalProject(() => void load());
     const unsubscribeStaffing = subscribeStaffingPlan(() => void load());
     const unsubscribeTeaching = subscribeTeachingPlan(() => void load());
+    const unsubscribePe = subscribePhysicalEducationExternalOccupancy(
+      () => void load(),
+    );
     const onFocus = () => void load();
     window.addEventListener("focus", onFocus);
     return () => {
       unsubscribeProject();
       unsubscribeStaffing();
       unsubscribeTeaching();
+      unsubscribePe();
       window.removeEventListener("focus", onFocus);
     };
   }, [load]);
@@ -122,6 +146,12 @@ export default function HomePage() {
     () => validateTeachingPlan(teaching, staffing),
     [teaching, staffing],
   );
+  const recommendedPeProfile = useMemo(
+    () => schoolRecommendedPhysicalEducationExternalOccupancySlots(),
+    [],
+  );
+  const usesRecommendedPeProfile =
+    peSlotSignature(peSlots) === peSlotSignature(recommendedPeProfile);
   const overloaded = staffing.teachers.filter(
     (teacher) => teacher.targetWeeklyLoad > MAX_WEEKLY_TEACHER_LOAD,
   );
@@ -148,19 +178,24 @@ export default function HomePage() {
         ? { label: "Opravit úvazky", href: `/staffing?${context}` }
         : coverage.summary.missingTeacherHours > 0
           ? { label: "Doplnit pokrytí", href: `/coverage?${context}` }
-          : state?.prepared !== "CURRENT"
+          : !usesRecommendedPeProfile
             ? {
-                label: "Připravit data pro rozvrh",
-                href: `/generate?${context}`,
+                label: "Zkontrolovat TV kapacitu",
+                href: `/pe-capacity?${context}`,
               }
-            : { label: "Vytvořit rozvrh", href: `/generate?${context}` };
+            : state?.prepared !== "CURRENT"
+              ? {
+                  label: "Připravit data pro rozvrh",
+                  href: `/generate?${context}`,
+                }
+              : { label: "Vytvořit rozvrh", href: `/generate?${context}` };
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Přehled"
         title="Příprava školního rozvrhu"
-        description="Nejdřív zkontrolujte úvazky a pokrytí výuky. Rozvrh vytvořte až po odstranění blokujících problémů."
+        description="Nejdřív zkontrolujte úvazky, pokrytí výuky a reálnou kapacitu TV prostorů. Rozvrh vytvořte až po odstranění blokujících problémů."
         actions={
           <Button asChild>
             <Link href={cta.href}>
@@ -291,6 +326,20 @@ export default function HomePage() {
         />
         <WorkflowCard
           step="4"
+          title="TV kapacita 1. stupně"
+          href={`/pe-capacity?${context}`}
+          action="Zkontrolovat TV kapacitu"
+          status={usesRecommendedPeProfile ? "Doporučený profil" : "Zkontrolovat"}
+          tone={usesRecommendedPeProfile ? "success" : "warning"}
+          values={[
+            ["Rezervované časové sloty", peSlots.length],
+            ["Profil", usesRecommendedPeProfile ? "2026/2027" : "Původní / vlastní"],
+            ["Úterý – základní kapacita", "3 prostory"],
+            ["Čtvrtek – základní kapacita", "5 prostorů"],
+          ]}
+        />
+        <WorkflowCard
+          step="5"
           title="Data pro generátor"
           href={`/generate?${context}`}
           action={
