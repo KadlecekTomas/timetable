@@ -249,10 +249,8 @@ export async function currentSchoolV8WorkbookBytes(): Promise<Uint8Array> {
     const rows = CURRENT_SCHOOL_V8_MATRIX[classCode] ?? [];
     sheet.getCell(position.row, position.column).value = classCode;
     sheet.getCell(position.row + 1, position.column).value = "Předměty";
-    sheet.getCell(position.row + 1, position.column + 1).value =
-      "Učitel/učitelka";
-    sheet.getCell(position.row + 1, position.column + 2).value =
-      "Časová dotace";
+    sheet.getCell(position.row + 1, position.column + 1).value = "Učitel/učitelka";
+    sheet.getCell(position.row + 1, position.column + 2).value = "Časová dotace";
     rows.forEach(([subject, teacher, periods], index) => {
       sheet.getCell(position.row + 2 + index, position.column).value = subject;
       sheet.getCell(position.row + 2 + index, position.column + 1).value = teacher;
