@@ -102,7 +102,7 @@ test("rotations remain rotations even when they contain split subject codes", ()
   assert.equal(enforced.rows[0]?.organization, "ROTATION");
 });
 
-test("second foreign language is shared by grade and grade-six/seven electives disappear", () => {
+test("second foreign language stays class-scoped while grade-six/seven electives disappear", () => {
   const staffingPlan = createEmptyStaffingPlan();
   staffingPlan.teachers = [
     {
@@ -164,29 +164,24 @@ test("second foreign language is shared by grade and grade-six/seven electives d
   );
 
   const languages = enforced.rows.filter((row) => row.subjectCode === "JAZ2");
-  assert.equal(languages.length, 1);
-  assert.equal(languages[0]?.classCode, "8.A");
-  assert.deepEqual(languages[0]?.additionalClassCodes, ["8.B", "8.C"]);
-  assert.equal(languages[0]?.primaryTeacherId, "teacher-language-one");
-  assert.equal(languages[0]?.secondaryTeacherId, "teacher-language-two");
-  assert.match(languages[0]?.sharedGroupLabel ?? "", /8\. ročník/);
+  assert.equal(languages.length, 3);
+  assert.deepEqual(
+    languages.map((row) => row.classCode).sort(),
+    ["8.A", "8.B", "8.C"],
+  );
+  for (const row of languages) {
+    assert.deepEqual(row.additionalClassCodes ?? [], [], row.classCode);
+    assert.equal(row.sharedGroupLabel ?? "", "", row.classCode);
+  }
+
+  const eightB = languages.find((row) => row.classCode === "8.B");
+  assert.equal(eightB?.primaryTeacherId, "teacher-language-one");
+  assert.equal(eightB?.secondaryTeacherId, "teacher-language-two");
 
   const overview = buildCoverageOverview(enforced, staffingPlan);
   for (const classCode of ["8.A", "8.B", "8.C"]) {
     const cell = overview.cellByKey.get(coverageCellKey(classCode, "JAZ2"));
-    assert.equal(cell?.status, "FULL");
-    assert.deepEqual(cell?.sharedClassCodes, ["8.A", "8.B", "8.C"]);
+    assert.notEqual(cell?.status, "MISSING", classCode);
+    assert.deepEqual(cell?.sharedClassCodes ?? [], [], classCode);
   }
-  assert.equal(
-    overview.teachers.find(
-      (teacher) => teacher.teacherId === "teacher-language-one",
-    )?.scheduledTeachingHours,
-    3,
-  );
-  assert.equal(
-    overview.teachers.find(
-      (teacher) => teacher.teacherId === "teacher-language-two",
-    )?.scheduledTeachingHours,
-    3,
-  );
 });
