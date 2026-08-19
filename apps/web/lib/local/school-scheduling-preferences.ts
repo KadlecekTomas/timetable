@@ -242,7 +242,9 @@ export function schoolSchedulingPreferences({
       label: "Špánková",
     });
   } else {
-    warnings.push("Špánková: učitel nebyl nalezen; pevný rozpis JAZ2 nebyl vložen.");
+    warnings.push(
+      "Špánková: učitel nebyl nalezen; pevný rozpis JAZ2 nebyl vložen.",
+    );
   }
 
   const kadlecek = staffingPlan.teachers.find(
@@ -261,7 +263,9 @@ export function schoolSchedulingPreferences({
       label: "Kadleček",
     });
   } else {
-    warnings.push("Kadleček: učitel nebyl nalezen; pevný rozpis INF nebyl vložen.");
+    warnings.push(
+      "Kadleček: učitel nebyl nalezen; pevný rozpis INF nebyl vložen.",
+    );
   }
 
   return { fixedLessons, availability: [], warnings };
