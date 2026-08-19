@@ -223,13 +223,28 @@ def add_policy_constraints(
                     afternoon
                 )
 
+    hard_balance = policy.quality.class_daily_balance_weight >= HARD_BALANCE_PRIORITY
+    number_of_days = len(payload.periods_per_day)
+
     for class_id in sorted(regular_class_ids):
+        weekly_required = required_by_class[class_id]
+        balanced_low = weekly_required // number_of_days
+        balanced_high = (weekly_required + number_of_days - 1) // number_of_days
         day_loads: list[cp_model.IntVar] = []
+
         for day, periods in enumerate(payload.periods_per_day):
             occupancy = class_occupancy[(class_id, day)]
             load = model.new_int_var(0, periods, f"policy_load_{class_id}_{day}")
             model.add(load == sum(occupancy))
             day_loads.append(load)
+
+            if hard_balance:
+                # Strong propagation: instead of asking CP-SAT to discover that a
+                # balanced 33-hour week means 6-7 lessons every day, state that
+                # bound directly. Combined with Monday/Friday max 6 this forces
+                # the accepted V8 pattern 6-7-7-7-6 immediately.
+                model.add(load >= balanced_low)
+                model.add(load <= balanced_high)
 
             afternoon_start = break_policy.afternoon_start_period
             late_slots = occupancy[afternoon_start:]
@@ -249,6 +264,10 @@ def add_policy_constraints(
                     objective_terms.append(afternoon * total_weight)
 
         if len(day_loads) >= 2 and policy.quality.class_daily_balance_weight:
+            if hard_balance:
+                # The direct day bounds already guarantee spread <= 1 and are much
+                # easier for presolve than max/min equality auxiliaries.
+                continue
             max_load = model.new_int_var(
                 0,
                 max(payload.periods_per_day),
@@ -267,8 +286,6 @@ def add_policy_constraints(
                 f"policy_load_spread_{class_id}",
             )
             model.add(spread == max_load - min_load)
-            if policy.quality.class_daily_balance_weight >= HARD_BALANCE_PRIORITY:
-                model.add(spread <= 1)
             objective_terms.append(
                 spread * policy.quality.class_daily_balance_weight
             )
