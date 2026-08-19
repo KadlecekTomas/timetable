@@ -15,6 +15,7 @@
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "paths": {
+      "@/lib/domain/scoring": ["./lib/domain/scoring-policy"],
       "@/lib/domain/validation": ["./lib/domain/validation-policy"],
       "@/lib/local/api": ["./lib/local/api-school"],
       "@/lib/local/staffing-plan": ["./lib/local/staffing-plan-school-v2"],
