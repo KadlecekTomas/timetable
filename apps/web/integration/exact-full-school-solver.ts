@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 
-import type {
-  CanonicalSnapshot,
-  ScheduledLesson,
-} from "../lib/domain/contracts";
-import { validateSchedule } from "../lib/domain/validation";
+import type { ScheduledLesson } from "../lib/domain/contracts";
+import { validateSchedule } from "../lib/domain/validation-policy";
 import { analyzeStaffingWorkbook } from "../lib/import/staffing-workbook-school-v2";
 import type { LocalProject } from "../lib/local/api";
 import {
@@ -13,19 +10,11 @@ import {
 } from "../lib/local/physical-education-external-occupancy";
 import { createDefaultSchoolCurriculum } from "../lib/local/school-default-data";
 import { buildSchoolProjectForGeneration } from "../lib/local/school-project-generation";
+import { CURRENT_SCHOOL_SOLVER_POLICY } from "../lib/local/school-solver-policy";
 import { staffingExactUnavailableAvailability } from "../lib/local/staffing-exact-availability";
+import { buildSolverSnapshot } from "../lib/local/solver-snapshot";
 import { createDefaultSchoolTeachingPlan } from "../lib/local/teaching-plan-school-v3";
-import { exactUploadedWorkbookBytes } from "../test-support/exact-uploaded-excel-fixture";
-
-const weights = {
-  teacher_gap: 20,
-  class_gap: 25,
-  discouraged_slot: 8,
-  preferred_slot_bonus: 3,
-  same_day_concentration: 6,
-  late_period: 1,
-  rotation_spread: 75,
-};
+import { currentSchoolV8WorkbookBytes } from "../test-support/current-school-v8-workbook-fixture";
 
 function emptyProject(): LocalProject {
   return {
@@ -51,92 +40,53 @@ function emptyProject(): LocalProject {
   };
 }
 
-function snapshot(project: LocalProject): CanonicalSnapshot {
-  return {
-    contract_version: "1.0",
-    school_year: {
-      id: project.id,
-      label: project.label,
-      version: project.version,
-    },
-    periods_per_day: project.periodsPerDay,
-    teachers: project.teachers.map((teacher) => ({
-      id: teacher.id,
-      code: teacher.code,
-      first_name: teacher.firstName,
-      last_name: teacher.lastName,
-      target_weekly_load: teacher.targetWeeklyLoad,
-      min_weekly_load: teacher.minWeeklyLoad,
-      max_weekly_load: teacher.maxWeeklyLoad,
-    })),
-    classes: project.classes.map((schoolClass) => ({
-      id: schoolClass.id,
-      code: schoolClass.code,
-      name: schoolClass.name,
-      grade: schoolClass.grade,
-      profile: schoolClass.profile,
-    })),
-    subjects: project.subjects.map((subject) => ({
-      id: subject.id,
-      code: subject.code,
-      name: subject.name,
-      color_token: subject.colorToken,
-      default_room_type_id: subject.defaultRoomTypeId,
-    })),
-    rooms: project.rooms.map((room) => ({
-      id: room.id,
-      code: room.code,
-      name: room.name,
-      room_type_id: room.roomTypeId,
-    })),
-    assignments: project.assignments.map((assignment) => ({
-      id: assignment.id,
-      code: assignment.assignmentCode,
-      teacher_id: assignment.teacherId,
-      class_id: assignment.classId,
-      additional_class_ids: assignment.additionalClassIds,
-      subject_id: assignment.subjectId,
-      group: assignment.group,
-      weekly_periods: assignment.weeklyPeriods,
-      lesson_shape: assignment.lessonShape,
-      double_periods_count: assignment.doublePeriodsCount,
-      required_room_id: assignment.requiredRoomId,
-      required_room_type_id: assignment.requiredRoomTypeId,
-      max_per_day: assignment.maxPerDay,
-      min_day_gap: assignment.minDayGap,
-      parallel_key: assignment.parallelKey,
-      room_share_key: assignment.roomShareKey ?? null,
-      rotation_key: assignment.rotationKey,
-      rotation_leg: assignment.rotationLeg,
-      rotation_placement: assignment.rotationPlacement,
-    })),
-    availability: project.availability.map((rule) => ({
-      entity_type: rule.entityType,
-      entity_id: rule.entityId,
-      day: rule.dayOfWeek,
-      period: rule.period,
-      kind: rule.kind,
-      weight: rule.weight,
-      reason: rule.reason,
-    })),
-    fixed_lessons: project.fixedLessons.map((fixedLesson) => ({
-      assignment_id: fixedLesson.assignmentId,
-      block_index: fixedLesson.blockIndex,
-      day: fixedLesson.dayOfWeek,
-      period: fixedLesson.startPeriod,
-      room_id: fixedLesson.roomId,
-      locked: fixedLesson.locked,
-    })),
-    locked_lessons: [],
-    weights,
-    random_seed: 1,
-    time_limit_seconds: 600,
-  };
+function classDailyLoads(
+  project: LocalProject,
+  lessons: ScheduledLesson[],
+  classCode: string,
+): number[] {
+  const classId = project.classes.find((item) => item.code === classCode)?.id;
+  assert.ok(classId, `Missing class ${classCode}`);
+  return project.periodsPerDay.map((_periods, day) => {
+    const occupied = new Set<number>();
+    for (const lesson of lessons) {
+      if (lesson.day !== day) continue;
+      if (
+        lesson.class_id !== classId &&
+        !(lesson.additional_class_ids ?? []).includes(classId)
+      ) {
+        continue;
+      }
+      for (
+        let period = lesson.period;
+        period < lesson.period + lesson.duration;
+        period += 1
+      ) {
+        occupied.add(period);
+      }
+    }
+    return occupied.size;
+  });
+}
+
+function fixedCountForTeacher(project: LocalProject, surname: string): number {
+  const teacherId = project.teachers.find(
+    (teacher) => teacher.lastName === surname,
+  )?.id;
+  assert.ok(teacherId, `Missing teacher ${surname}`);
+  const assignmentIds = new Set(
+    project.assignments
+      .filter((assignment) => assignment.teacherId === teacherId)
+      .map((assignment) => assignment.id),
+  );
+  return project.fixedLessons.filter((lesson) =>
+    assignmentIds.has(lesson.assignmentId),
+  ).length;
 }
 
 async function main() {
   const analysis = await analyzeStaffingWorkbook(
-    await exactUploadedWorkbookBytes(),
+    await currentSchoolV8WorkbookBytes(),
   );
   assert.equal(analysis.valid, true);
   assert.ok("allocationDraft" in analysis && analysis.allocationDraft);
@@ -146,6 +96,21 @@ async function main() {
     analysis.plan,
     analysis.allocationDraft,
   );
+  assert.equal(
+    teachingPlan.rows.find(
+      (row) => row.classCode === "8.A" && row.subjectCode === "VV",
+    )?.weeklyPeriods,
+    1,
+    "8.A VV must come from the new one-period allocation",
+  );
+  assert.equal(
+    teachingPlan.rows.find(
+      (row) => row.classCode === "8.C" && row.subjectCode === "VV",
+    )?.weeklyPeriods,
+    1,
+    "8.C VV must come from the new one-period allocation",
+  );
+
   const generated = buildSchoolProjectForGeneration({
     existingProject: emptyProject(),
     staffingPlan: analysis.plan,
@@ -164,7 +129,25 @@ async function main() {
     ),
   );
 
-  const request = snapshot(generated.project);
+  assert.equal(
+    fixedCountForTeacher(generated.project, "Kadleček"),
+    13,
+    "Kadleček must keep all 13 accepted fixed INF slots",
+  );
+  assert.equal(
+    fixedCountForTeacher(generated.project, "Špánková"),
+    12,
+    "Špánková must keep all 12 accepted fixed JAZ2 slots",
+  );
+
+  const request = buildSolverSnapshot({
+    project: generated.project,
+    policy: CURRENT_SCHOOL_SOLVER_POLICY,
+    timeLimitSeconds: 600,
+    randomSeed: 1,
+  });
+  assert.equal(request.policy?.version, "1");
+
   const solverUrl = process.env.SOLVER_URL ?? "http://127.0.0.1:8000";
   const startedAt = Date.now();
   const response = await fetch(`${solverUrl}/solve`, {
@@ -177,7 +160,7 @@ async function main() {
   assert.equal(
     response.ok,
     true,
-    `Solver returned HTTP ${response.status}: ${responseText}`,
+    `Policy-aware solver returned HTTP ${response.status}: ${responseText}`,
   );
 
   const result = JSON.parse(responseText) as {
@@ -191,9 +174,20 @@ async function main() {
     `Only ${result.lessons.length} lessons`,
   );
 
+  assert.deepEqual(
+    classDailyLoads(generated.project, result.lessons, "8.A"),
+    [6, 7, 7, 7, 6],
+    "8.A must reproduce the accepted V8 day balance",
+  );
+  assert.deepEqual(
+    classDailyLoads(generated.project, result.lessons, "8.C"),
+    [6, 7, 7, 7, 6],
+    "8.C must reproduce the accepted V8 day balance",
+  );
+
   const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
   console.log(
-    `Exact full-school solver regression passed: ${result.status}, ${result.lessons.length} lessons, ${elapsedSeconds}s.`,
+    `Exact current-school V8 policy regression passed: ${result.status}, ${result.lessons.length} lessons, ${elapsedSeconds}s.`,
   );
 }
 
