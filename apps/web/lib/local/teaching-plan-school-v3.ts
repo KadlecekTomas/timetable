@@ -4,7 +4,7 @@ import {
   SCHOOL_SPLIT_SUBJECT_CODES,
 } from "./school-default-data";
 import type { SchoolCurriculum } from "./school-curriculum";
-import type { StaffingPlan } from "./staffing-plan-school-v2";
+import { loadStaffingPlan, type StaffingPlan } from "./staffing-plan-school-v2";
 import { SCHOOL_CLASS_CODES } from "./teaching-plan-school";
 import {
   classGradeFromCode,
@@ -27,6 +27,9 @@ const ELECTIVE_SUBJECT_CODE = "VOL";
 const ELECTIVE_EXCLUDED_GRADES = new Set([6, 7]);
 const SPLIT_PERIODS_STORAGE_KEY = "rozvrhar:teaching-plan-split-periods:v1";
 const DOUBLE_BLOCK_SUBJECT_CODES = new Set(["TV", "VV"]);
+const PHYSICAL_EDUCATION_SUBJECT_CODE = "TV";
+const PRIKRYLOVA_SURNAME = "prikrylova";
+const WHOLE_CLASS_PHYSICAL_EDUCATION_CLASSES = new Set(["9.A", "9.C"]);
 
 let migratingTeachingPlan = false;
 
@@ -39,6 +42,55 @@ function isCurrentSchoolPlan(plan: TeachingPlan): boolean {
     classCodes.size >= 10 &&
     [...classCodes].every((classCode) => allowedCodes.has(classCode))
   );
+}
+
+function normalizedPersonToken(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z]/g, "")
+    .toLocaleLowerCase("cs-CZ");
+}
+
+function prikrylovaTeacherId(staffingPlan: StaffingPlan): string {
+  return (
+    staffingPlan.teachers.find(
+      (teacher) =>
+        normalizedPersonToken(teacher.lastName) === PRIKRYLOVA_SURNAME,
+    )?.id ?? ""
+  );
+}
+
+function enforcePhysicalEducationStaffing(
+  plan: TeachingPlan,
+  staffingPlan: StaffingPlan,
+): TeachingPlan {
+  if (!isCurrentSchoolPlan(plan)) return plan;
+  const teacherId = prikrylovaTeacherId(staffingPlan);
+  return {
+    ...plan,
+    rows: plan.rows.map((row) => {
+      if (
+        row.subjectCode !== PHYSICAL_EDUCATION_SUBJECT_CODE ||
+        !WHOLE_CLASS_PHYSICAL_EDUCATION_CLASSES.has(
+          normalizeClassCode(row.classCode),
+        )
+      ) {
+        return row;
+      }
+      return {
+        ...row,
+        organization: "WHOLE" as const,
+        splitWeeklyPeriods: undefined,
+        primaryTeacherId: teacherId || row.primaryTeacherId,
+        secondaryTeacherId: "",
+        tertiaryTeacherId: "",
+        splitGroupCount: 2,
+        additionalClassCodes: [],
+        sharedGroupLabel: "",
+      };
+    }),
+  };
 }
 
 export function isSameTeacherPartialSplit(row: TeachingPlanRow): boolean {
@@ -204,6 +256,24 @@ export function enforceMandatorySchoolSplits(plan: TeachingPlan): TeachingPlan {
         !SCHOOL_SPLIT_SUBJECT_CODES.has(row.subjectCode)
       ) {
         return row;
+      }
+
+      if (
+        row.subjectCode === PHYSICAL_EDUCATION_SUBJECT_CODE &&
+        WHOLE_CLASS_PHYSICAL_EDUCATION_CLASSES.has(
+          normalizeClassCode(row.classCode),
+        )
+      ) {
+        return {
+          ...row,
+          organization: "WHOLE" as const,
+          splitWeeklyPeriods: undefined,
+          secondaryTeacherId: "",
+          tertiaryTeacherId: "",
+          splitGroupCount: 2,
+          additionalClassCodes: [],
+          sharedGroupLabel: "",
+        };
       }
 
       if (
@@ -374,8 +444,15 @@ export function applySchoolOperationalRules(
   allocationDraft: StaffingAllocationDraft | null = null,
 ): TeachingPlan {
   const structured = enforceCurrentSchoolTeachingStructure(plan);
-  return enforceCurrentSchoolTeachingStructure(
-    base.applySchoolOperationalRules(structured, staffingPlan, allocationDraft),
+  return enforcePhysicalEducationStaffing(
+    enforceCurrentSchoolTeachingStructure(
+      base.applySchoolOperationalRules(
+        structured,
+        staffingPlan,
+        allocationDraft,
+      ),
+    ),
+    staffingPlan,
   );
 }
 
@@ -384,18 +461,25 @@ export function createDefaultSchoolTeachingPlan(
   staffingPlan: StaffingPlan,
   allocationDraft: StaffingAllocationDraft | null,
 ): TeachingPlan {
-  return enforceCurrentSchoolTeachingStructure(
-    base.createDefaultSchoolTeachingPlan(
-      curriculum,
-      staffingPlan,
-      allocationDraft,
+  return enforcePhysicalEducationStaffing(
+    enforceCurrentSchoolTeachingStructure(
+      base.createDefaultSchoolTeachingPlan(
+        curriculum,
+        staffingPlan,
+        allocationDraft,
+      ),
     ),
+    staffingPlan,
   );
 }
 
 export function loadTeachingPlan(): TeachingPlan {
+  const staffingPlan = loadStaffingPlan();
   const loaded = applyStoredSplitPeriods(base.loadTeachingPlan());
-  const enforced = enforceCurrentSchoolTeachingStructure(loaded);
+  const enforced = enforcePhysicalEducationStaffing(
+    enforceCurrentSchoolTeachingStructure(loaded),
+    staffingPlan,
+  );
   if (
     typeof window !== "undefined" &&
     !migratingTeachingPlan &&
@@ -405,7 +489,10 @@ export function loadTeachingPlan(): TeachingPlan {
     try {
       writeStoredSplitPeriods(enforced);
       const saved = applyStoredSplitPeriods(base.saveTeachingPlan(enforced));
-      return enforceCurrentSchoolTeachingStructure(saved);
+      return enforcePhysicalEducationStaffing(
+        enforceCurrentSchoolTeachingStructure(saved),
+        staffingPlan,
+      );
     } finally {
       migratingTeachingPlan = false;
     }
@@ -414,10 +501,17 @@ export function loadTeachingPlan(): TeachingPlan {
 }
 
 export function saveTeachingPlan(plan: TeachingPlan): TeachingPlan {
-  const enforced = enforceCurrentSchoolTeachingStructure(plan);
+  const staffingPlan = loadStaffingPlan();
+  const enforced = enforcePhysicalEducationStaffing(
+    enforceCurrentSchoolTeachingStructure(plan),
+    staffingPlan,
+  );
   writeStoredSplitPeriods(enforced);
   const saved = applyStoredSplitPeriods(base.saveTeachingPlan(enforced));
-  return enforceCurrentSchoolTeachingStructure(saved);
+  return enforcePhysicalEducationStaffing(
+    enforceCurrentSchoolTeachingStructure(saved),
+    staffingPlan,
+  );
 }
 
 export function rowTeacherPeriods(
@@ -452,7 +546,10 @@ export function validateTeachingPlan(
   staffingPlan: StaffingPlan,
   allocationDraft: StaffingAllocationDraft | null | undefined = undefined,
 ): string[] {
-  const enforced = enforceCurrentSchoolTeachingStructure(plan);
+  const enforced = enforcePhysicalEducationStaffing(
+    enforceCurrentSchoolTeachingStructure(plan),
+    staffingPlan,
+  );
   const sameTeacherPrefixes = enforced.rows
     .filter(isSameTeacherPartialSplit)
     .map((row) => `${row.classCode} ${row.subjectCode}:`);
