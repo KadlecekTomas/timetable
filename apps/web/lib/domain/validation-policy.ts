@@ -87,10 +87,7 @@ function policyIssues(
     }
 
     const latest = policy.class_day.latest_period_by_day[lesson.day];
-    if (
-      latest != null &&
-      lesson.period + lesson.duration - 1 > latest
-    ) {
+    if (latest != null && lesson.period + lesson.duration - 1 > latest) {
       issues.push({
         code: "POLICY_DAY_BOUNDARY",
         message: "Výuka přesahuje poslední povolenou hodinu daného dne.",
@@ -135,7 +132,11 @@ function policyIssues(
       const separator = key.lastIndexOf(":");
       const teacherId = key.slice(0, separator);
       const day = Number(key.slice(separator + 1));
-      if (![...values].some((period) => period >= breakPolicy.afternoon_start_period)) {
+      if (
+        ![...values].some(
+          (period) => period >= breakPolicy.afternoon_start_period,
+        )
+      ) {
         continue;
       }
       const free = breakPolicy.break_periods.filter(
