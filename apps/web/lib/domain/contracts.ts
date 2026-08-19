@@ -89,33 +89,28 @@ export interface SnapshotFixedLesson {
   locked?: boolean;
 }
 
-/** Generic hard window rule. Periods and days are zero-based. */
 export interface SolverSubjectWindowRule {
   subject_codes: string[];
   periods: number[];
   days?: number[] | null;
 }
 
-/** Maximum number of physical periods of the subject a class may receive per day. */
 export interface SolverSubjectDailyLimit {
   subject_codes: string[];
   max_periods_per_day: number;
 }
 
 export interface SolverClassDayPolicy {
-  /** Require teaching to start in period zero on every school day with a normal weekly load. */
   require_first_period: boolean;
-  /** Exact occupied-period patterns that count as a valid class afternoon day. */
   allowed_afternoon_patterns: number[][];
-  /** Last allowed occupied period per day; null means the normal day boundary. */
   latest_period_by_day: Array<number | null>;
+  /** Null disables the hard balance bound; 1 means daily loads differ by at most one lesson. */
+  max_daily_load_spread?: number | null;
 }
 
 export interface SolverTeacherAfternoonBreakPolicy {
   enabled: boolean;
-  /** First period treated as afternoon, zero-based. */
   afternoon_start_period: number;
-  /** Teacher must have at least this many free slots in the listed periods on an afternoon day. */
   break_periods: number[];
   minimum_free_periods: number;
 }
@@ -123,16 +118,11 @@ export interface SolverTeacherAfternoonBreakPolicy {
 export interface SolverQualityPolicy {
   class_daily_balance_weight: number;
   class_afternoon_weight: number;
-  /** Extra penalty per afternoon day, indexed by weekday. */
   afternoon_day_weights: number[];
   subject_late_weights: Record<string, number>;
   subject_afternoon_bonuses: Record<string, number>;
 }
 
-/**
- * Versioned, school-neutral policy transported with the immutable solver snapshot.
- * School presets may contain names/fixed lessons, but the solver itself only sees this structure.
- */
 export interface SolverPolicy {
   version: "1";
   forbidden_subject_windows: SolverSubjectWindowRule[];
