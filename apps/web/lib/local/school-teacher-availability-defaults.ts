@@ -41,7 +41,9 @@ function fromPeriod(
   );
 }
 
-function samePeriodsEveryDay(...oneBasedPeriods: number[]): StaffingUnavailablePeriod[] {
+function samePeriodsEveryDay(
+  ...oneBasedPeriods: number[]
+): StaffingUnavailablePeriod[] {
   return (Object.keys(DAY_ORDER) as StaffingDayCode[]).flatMap((day) =>
     periods(day, ...oneBasedPeriods),
   );
@@ -87,10 +89,7 @@ export const SCHOOL_TEACHER_AVAILABILITY_DEFAULTS: readonly SchoolTeacherAvailab
     { surname: "Pokorná", firstName: "Jaroslava", unavailableDays: ["FRI"] },
     {
       surname: "Schoberová",
-      unavailablePeriods: [
-        ...periods("MON", 7, 8),
-        ...periods("THU", 7, 8),
-      ],
+      unavailablePeriods: [...periods("MON", 7, 8), ...periods("THU", 7, 8)],
     },
     {
       surname: "Slončíková",
