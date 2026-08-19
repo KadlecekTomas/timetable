@@ -160,7 +160,9 @@ export function scoreSchedule(
   const classOccupancy = occupancy(lessons, "class");
   const classIds = [
     ...new Set(
-      [...classOccupancy.keys()].map((key) => key.slice(0, key.lastIndexOf(":"))),
+      [...classOccupancy.keys()].map((key) =>
+        key.slice(0, key.lastIndexOf(":")),
+      ),
     ),
   ].sort();
   for (const classId of classIds) {
