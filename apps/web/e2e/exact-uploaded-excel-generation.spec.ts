@@ -33,9 +33,7 @@ test("exact anonymized uploaded Excel imports through UI and produces a solver t
   expect(pageErrors).toEqual([]);
 
   await page.goto("/pe-capacity?schoolYearId=local-school-year");
-  await page
-    .getByRole("button", { name: "Použít doporučený profil" })
-    .click();
+  await page.getByRole("button", { name: "Použít doporučený profil" }).click();
   await expect(
     page.getByText(/Aktivní profil:\s*doporučený 2026\/2027/),
   ).toBeVisible();
