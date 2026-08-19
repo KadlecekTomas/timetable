@@ -26,6 +26,11 @@ export const CURRENT_SCHOOL_SOLVER_POLICY: SolverPolicy = {
       ],
       periods: [6, 7],
     },
+    {
+      subject_codes: ["TV"],
+      periods: [0, 1, 2, 3, 4, 5, 6, 7],
+      days: [0],
+    },
   ],
   subject_daily_limits: [
     {
