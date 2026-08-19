@@ -32,9 +32,7 @@ let migratingTeachingPlan = false;
 
 function isCurrentSchoolPlan(plan: TeachingPlan): boolean {
   const allowedCodes = new Set<string>(SCHOOL_CLASS_CODES);
-  const classCodes = new Set(
-    plan.classes.map((schoolClass) => schoolClass.code),
-  );
+  const classCodes = new Set(plan.classes.map((schoolClass) => schoolClass.code));
   return (
     classCodes.size >= 10 &&
     [...classCodes].every((classCode) => allowedCodes.has(classCode))
@@ -103,10 +101,7 @@ function writeStoredSplitPeriods(plan: TeachingPlan): void {
         : [],
     ),
   );
-  window.localStorage.setItem(
-    SPLIT_PERIODS_STORAGE_KEY,
-    JSON.stringify(stored),
-  );
+  window.localStorage.setItem(SPLIT_PERIODS_STORAGE_KEY, JSON.stringify(stored));
 }
 
 function sortedClassCodes(codes: string[]): string[] {
@@ -277,11 +272,7 @@ export function createDefaultSchoolTeachingPlan(
   allocationDraft: StaffingAllocationDraft | null,
 ): TeachingPlan {
   return enforceCurrentSchoolTeachingStructure(
-    base.createDefaultSchoolTeachingPlan(
-      curriculum,
-      staffingPlan,
-      allocationDraft,
-    ),
+    base.createDefaultSchoolTeachingPlan(curriculum, staffingPlan, allocationDraft),
   );
 }
 
