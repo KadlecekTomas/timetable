@@ -71,7 +71,7 @@ function lessonSlots(lessons: ScheduledLesson[]): string[] {
     .sort();
 }
 
-test("shared second language can be prepared, solved and opened as a valid timetable", async ({
+test("class-scoped second language can be prepared, solved and opened as a valid timetable", async ({
   page,
 }) => {
   test.setTimeout(180_000);
@@ -112,13 +112,13 @@ test("shared second language can be prepared, solved and opened as a valid timet
             id: "teacher-language-one",
             firstName: "Jana",
             lastName: "Němcová",
-            targetWeeklyLoad: 3,
-            baseWeeklyLoad: 3,
+            targetWeeklyLoad: 9,
+            baseWeeklyLoad: 9,
             subjectLoads: [
               {
                 id: "load-language-one",
                 subjectCode: "JAZ2",
-                weeklyPeriods: 3,
+                weeklyPeriods: 9,
               },
             ],
             unavailableDays: [],
@@ -127,13 +127,13 @@ test("shared second language can be prepared, solved and opened as a valid timet
             id: "teacher-language-two",
             firstName: "Petr",
             lastName: "Francouz",
-            targetWeeklyLoad: 3,
-            baseWeeklyLoad: 3,
+            targetWeeklyLoad: 9,
+            baseWeeklyLoad: 9,
             subjectLoads: [
               {
                 id: "load-language-two",
                 subjectCode: "JAZ2",
-                weeklyPeriods: 3,
+                weeklyPeriods: 9,
               },
             ],
             unavailableDays: [],
@@ -178,7 +178,8 @@ test("shared second language can be prepared, solved and opened as a valid timet
             organization: "SPLIT",
             rotationPlacement: "SAME_DAY",
             primaryTeacherId: "teacher-language-one",
-            secondaryTeacherId: "",
+            secondaryTeacherId: "teacher-language-two",
+            splitGroupCount: 2,
           })),
         ],
       }),
@@ -193,13 +194,11 @@ test("shared second language can be prepared, solved and opened as a valid timet
   for (const classCode of ["8.A", "8.B", "8.C"]) {
     await expect(
       page.getByTestId(`coverage-${classCode}-JAZ2`),
-    ).toHaveAttribute("data-shared", "true");
+    ).toHaveAttribute("data-status", "FULL");
+    await expect(
+      page.getByTestId(`coverage-${classCode}-JAZ2`),
+    ).toHaveAttribute("data-shared", "false");
   }
-
-  await page.getByRole("button", { name: "Doplnit vše automaticky" }).click();
-  await expect(
-    page.getByText("Všechny hodiny mají potřebné učitele"),
-  ).toBeVisible();
 
   await page.goto("/generate?schoolYearId=local-school-year");
   await page
@@ -207,7 +206,7 @@ test("shared second language can be prepared, solved and opened as a valid timet
     .click();
   await expect(
     page.getByText(
-      /Připraveno: 2 učitelé, 13 tříd, 1 předmět a 2 výukové vazby\./,
+      /Připraveno: 2 učitelé, 13 tříd, 1 předmět a 6 výukových vazeb\./,
     ),
   ).toBeVisible();
   await expect(
@@ -228,17 +227,20 @@ test("shared second language can be prepared, solved and opened as a valid timet
   expect(prepared.subjects.some((subject) => subject.code === "VOL")).toBe(
     false,
   );
-  expect(languageAssignments).toHaveLength(2);
-  expect(
-    languageAssignments.map((assignment) => assignment.group).sort(),
-  ).toEqual(["GROUP_1", "GROUP_2"]);
-  for (const assignment of languageAssignments) {
-    expect(assignment.classId).toBe(classIdByCode.get("8.A"));
-    expect(assignment.additionalClassIds).toEqual([
-      classIdByCode.get("8.B"),
-      classIdByCode.get("8.C"),
+  expect(languageAssignments).toHaveLength(6);
+  for (const classCode of ["8.A", "8.B", "8.C"]) {
+    const classAssignments = languageAssignments.filter(
+      (assignment) => assignment.classId === classIdByCode.get(classCode),
+    );
+    expect(classAssignments).toHaveLength(2);
+    expect(classAssignments.map((assignment) => assignment.group).sort()).toEqual([
+      "GROUP_1",
+      "GROUP_2",
     ]);
-    expect(assignment.weeklyPeriods).toBe(3);
+    for (const assignment of classAssignments) {
+      expect(assignment.additionalClassIds).toEqual([]);
+      expect(assignment.weeklyPeriods).toBe(3);
+    }
   }
 
   await page.getByLabel("Časový limit výpočtu").selectOption("30");
@@ -261,30 +263,31 @@ test("shared second language can be prepared, solved and opened as a valid timet
   );
   expect(version).toBeDefined();
   expect(validateSchedule(version!.snapshot, version!.lessons)).toEqual([]);
-  expect(version!.lessons).toHaveLength(6);
+  expect(version!.lessons).toHaveLength(18);
 
   const assignmentById = new Map(
     generated.assignments.map((assignment) => [assignment.id, assignment]),
   );
-  const lessonsByGroup = new Map<string, ScheduledLesson[]>();
-  for (const lesson of version!.lessons) {
-    const assignment = assignmentById.get(lesson.assignment_id);
-    expect(assignment).toBeDefined();
-    expect(subjectCodeById.get(lesson.subject_id)).toBe("JAZ2");
-    expect(lesson.class_id).toBe(classIdByCode.get("8.A"));
-    expect(lesson.additional_class_ids).toEqual([
-      classIdByCode.get("8.B"),
-      classIdByCode.get("8.C"),
-    ]);
-    lessonsByGroup.set(assignment!.group, [
-      ...(lessonsByGroup.get(assignment!.group) ?? []),
-      lesson,
-    ]);
+  for (const classCode of ["8.A", "8.B", "8.C"]) {
+    const classId = classIdByCode.get(classCode);
+    const lessonsByGroup = new Map<string, ScheduledLesson[]>();
+    for (const lesson of version!.lessons.filter(
+      (item) => item.class_id === classId,
+    )) {
+      const assignment = assignmentById.get(lesson.assignment_id);
+      expect(assignment).toBeDefined();
+      expect(subjectCodeById.get(lesson.subject_id)).toBe("JAZ2");
+      expect(lesson.additional_class_ids).toEqual([]);
+      lessonsByGroup.set(assignment!.group, [
+        ...(lessonsByGroup.get(assignment!.group) ?? []),
+        lesson,
+      ]);
+    }
+    expect(lessonSlots(lessonsByGroup.get("GROUP_1") ?? [])).toEqual(
+      lessonSlots(lessonsByGroup.get("GROUP_2") ?? []),
+    );
   }
 
-  expect(lessonSlots(lessonsByGroup.get("GROUP_1") ?? [])).toEqual(
-    lessonSlots(lessonsByGroup.get("GROUP_2") ?? []),
-  );
   const languageTeacherIds = [
     ...new Set(languageAssignments.map((assignment) => assignment.teacherId)),
   ];
@@ -294,7 +297,7 @@ test("shared second language can be prepared, solved and opened as a valid timet
       version!.lessons
         .filter((lesson) => lesson.teacher_id === teacherId)
         .reduce((sum, lesson) => sum + lesson.duration, 0),
-    ).toBe(3);
+    ).toBe(9);
   }
 
   expect(pageErrors).toEqual([]);
