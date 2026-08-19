@@ -1,13 +1,15 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
+import net from "node:net";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const solverDir = path.join(repoRoot, "apps", "solver");
-const solverHealthUrl = "http://127.0.0.1:8000/health";
-const solverUrl = "http://127.0.0.1:8000";
+const webPort = 3000;
+const solverPortStart = 8000;
+const solverPortEnd = 8010;
 const venvDir = path.join(solverDir, ".venv");
 const venvPython = path.join(
   venvDir,
@@ -98,9 +100,29 @@ function selectSupportedPython() {
   );
 }
 
-async function solverIsHealthy() {
+async function portIsAvailable(port) {
+  return await new Promise((resolve) => {
+    const server = net.createServer();
+    server.unref();
+    server.once("error", () => resolve(false));
+    server.listen({ host: "127.0.0.1", port }, () => {
+      server.close(() => resolve(true));
+    });
+  });
+}
+
+async function selectSolverPort() {
+  for (let port = solverPortStart; port <= solverPortEnd; port += 1) {
+    if (await portIsAvailable(port)) return port;
+  }
+  throw new Error(
+    `Pro solver není volný žádný port ${solverPortStart}–${solverPortEnd}. Ukončete staré lokální procesy a spusťte npm run dev znovu.`,
+  );
+}
+
+async function solverIsHealthy(port) {
   try {
-    const response = await fetch(solverHealthUrl, {
+    const response = await fetch(`http://127.0.0.1:${port}/health`, {
       signal: AbortSignal.timeout(1_500),
     });
     return response.ok;
@@ -149,7 +171,7 @@ async function ensureSolverEnvironment() {
   }
 }
 
-async function waitForSolver(child) {
+async function waitForSolver(child, port) {
   const deadline = Date.now() + 45_000;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) {
@@ -157,10 +179,12 @@ async function waitForSolver(child) {
         `Solver skončil s kódem ${child.exitCode} ještě před startem webu.`,
       );
     }
-    if (await solverIsHealthy()) return;
+    if (await solverIsHealthy(port)) return;
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  throw new Error("Solver se do 45 sekund nepodařilo spustit na portu 8000.");
+  throw new Error(
+    `Solver se do 45 sekund nepodařilo spustit na portu ${port}.`,
+  );
 }
 
 let solverProcess = null;
@@ -179,42 +203,52 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 }
 
 try {
-  if (await solverIsHealthy()) {
-    console.log("[dev] Solver už běží na http://127.0.0.1:8000.");
-  } else {
-    await ensureSolverEnvironment();
-    solverProcess = spawn(
-      venvPython,
-      [
-        "-m",
-        "uvicorn",
-        "app.runtime:app",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        "8000",
-      ],
-      {
-        cwd: solverDir,
-        env: {
-          ...process.env,
-          ALLOW_LONG_SOLVES: process.env.ALLOW_LONG_SOLVES ?? "1",
-        },
-        stdio: "inherit",
-      },
+  if (!(await portIsAvailable(webPort))) {
+    throw new Error(
+      `Port ${webPort} už používá jiný proces. Ukončete předchozí npm run dev (Ctrl+C) a spusťte příkaz znovu. Rozvrhář záměrně nespustí druhou starou/novou verzi vedle sebe.`,
     );
-    solverProcess.once("error", (error) => {
-      console.error("[dev] Solver se nepodařilo spustit:", error);
-      shutdown();
-    });
-    await waitForSolver(solverProcess);
-    console.log("[dev] Solver je připravený.");
   }
+
+  await ensureSolverEnvironment();
+  const solverPort = await selectSolverPort();
+  const solverUrl = `http://127.0.0.1:${solverPort}`;
+  if (solverPort !== solverPortStart) {
+    console.log(
+      `[dev] Port ${solverPortStart} už používá jiný proces. Spouštím aktuální solver na ${solverUrl}, aby se nepoužila stará verze solveru.`,
+    );
+  }
+
+  solverProcess = spawn(
+    venvPython,
+    [
+      "-m",
+      "uvicorn",
+      "app.runtime:app",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      String(solverPort),
+    ],
+    {
+      cwd: solverDir,
+      env: {
+        ...process.env,
+        ALLOW_LONG_SOLVES: process.env.ALLOW_LONG_SOLVES ?? "1",
+      },
+      stdio: "inherit",
+    },
+  );
+  solverProcess.once("error", (error) => {
+    console.error("[dev] Solver se nepodařilo spustit:", error);
+    shutdown();
+  });
+  await waitForSolver(solverProcess, solverPort);
+  console.log(`[dev] Solver je připravený na ${solverUrl}.`);
 
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
   webProcess = spawn(
     npmCommand,
-    ["run", "dev", "--workspace", "@timetable/web"],
+    ["run", "dev", "--workspace", "@timetable/web", "--", "--port", String(webPort)],
     {
       cwd: repoRoot,
       env: {

@@ -258,7 +258,7 @@ test("entire project survives backup, deletion and restore without a server data
     ),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "5. Rozvrh", exact: true }).click();
+  await page.getByRole("link", { name: "6. Rozvrh", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Kvalita návrhu" }),
   ).toBeVisible();

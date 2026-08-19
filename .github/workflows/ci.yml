@@ -39,6 +39,43 @@ jobs:
       - run: ruff check apps/solver
       - run: pytest apps/solver
 
+  full-school-solver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SOLVER_URL: http://127.0.0.1:8000
+      ALLOW_LONG_SOLVES: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: npm ci
+      - run: pip install "."
+        working-directory: apps/solver
+      - name: Start current solver runtime
+        shell: bash
+        run: |
+          nohup bash -c 'cd apps/solver && uvicorn app.runtime:app --host 127.0.0.1 --port 8000' > /tmp/full-school-solver.log 2>&1 &
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/full-school-solver.log || true
+          exit 1
+      - name: Solve exact anonymized full-school input
+        run: node --import tsx integration/exact-full-school-solver.ts
+        working-directory: apps/web
+      - name: Show solver diagnostics
+        if: failure()
+        run: cat /tmp/full-school-solver.log || true
+
   containers:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -68,7 +105,7 @@ jobs:
 
   local-first-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       SOLVER_URL: http://127.0.0.1:8000
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
@@ -91,7 +128,7 @@ jobs:
       - name: Start solver and web
         shell: bash
         run: |
-          nohup bash -c 'cd apps/solver && uvicorn app.main:app --host 127.0.0.1 --port 8000' > /tmp/solver.log 2>&1 &
+          nohup bash -c 'cd apps/solver && uvicorn app.runtime:app --host 127.0.0.1 --port 8000' > /tmp/solver.log 2>&1 &
           nohup npm run start --workspace @timetable/web > /tmp/web.log 2>&1 &
 
           for attempt in $(seq 1 90); do
@@ -108,6 +145,8 @@ jobs:
           exit 1
       - name: Run database-free browser workflows
         run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/local-first-backup.spec.ts e2e/project-share.spec.ts e2e/timetable-export.spec.ts e2e/staffing.spec.ts e2e/teaching-plan.spec.ts e2e/teaching-plan-import-review.spec.ts e2e/subject-rotation-and-sports.spec.ts e2e/auto-cover.spec.ts e2e/current-school-generation.spec.ts e2e/school-scheduling-policy.spec.ts e2e/coverage-overview.spec.ts e2e/actual-2027-workbook.spec.ts e2e/dashboard-workflow.spec.ts e2e/leadership-ux.spec.ts --retries=0
+      - name: Run exact uploaded full-school generation
+        run: npm run e2e --workspace @timetable/web -- e2e/exact-uploaded-excel-generation.spec.ts --retries=0
       - name: Upload detailed teaching-plan screenshots and Excel
         if: always()
         uses: actions/upload-artifact@v4
