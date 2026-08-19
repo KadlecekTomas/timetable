@@ -3,7 +3,9 @@ import {
   loadPhysicalEducationExternalOccupancy,
   physicalEducationExternalAvailability,
 } from "./physical-education-external-occupancy";
+import { createPolicyGenerationRun } from "./policy-generation";
 import { buildSchoolProjectForGeneration } from "./school-project-generation";
+import { CURRENT_SCHOOL_SOLVER_POLICY } from "./school-solver-policy";
 import { staffingExactUnavailableAvailability } from "./staffing-exact-availability";
 import {
   loadStaffingPlan,
@@ -237,6 +239,24 @@ export async function localApiFetch(
       warnings: result.warnings,
     });
   }
+
+  const generationMatch = path.match(
+    /^\/api\/school-years\/([^/]+)\/generation-runs$/,
+  );
+  if (generationMatch && method === "POST") {
+    const schoolYearId = decodeURIComponent(generationMatch[1]!);
+    if (schoolYearId !== base.LOCAL_SCHOOL_YEAR_ID) {
+      return responseWithJson(
+        { error: { message: "Školní rok neexistuje." } },
+        404,
+      );
+    }
+    return createPolicyGenerationRun({
+      init,
+      policy: CURRENT_SCHOOL_SOLVER_POLICY,
+    });
+  }
+
   const teacherMatch = path.match(/^\/api\/school-years\/[^/]+\/teachers$/);
   if (teacherMatch && method === "POST") {
     return base.localApiFetch(input, adjustedTeacherRequest(init));
