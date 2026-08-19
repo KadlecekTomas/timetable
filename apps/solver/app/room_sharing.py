@@ -13,6 +13,10 @@ def room_share_assignment_groups(
     return [
         (key, sorted(items, key=lambda item: item.id))
         for key, items in sorted(grouped.items())
+        # A room share is real co-teaching: all linked lessons run at the same time
+        # in the same room. If one teacher appears twice, that derived link is
+        # impossible by definition and must not be treated as a room-share group.
+        if len({item.teacher_id for item in items}) == len(items)
     ]
 
 
