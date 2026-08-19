@@ -233,10 +233,9 @@ test("class-scoped second language can be prepared, solved and opened as a valid
       (assignment) => assignment.classId === classIdByCode.get(classCode),
     );
     expect(classAssignments).toHaveLength(2);
-    expect(classAssignments.map((assignment) => assignment.group).sort()).toEqual([
-      "GROUP_1",
-      "GROUP_2",
-    ]);
+    expect(
+      classAssignments.map((assignment) => assignment.group).sort(),
+    ).toEqual(["GROUP_1", "GROUP_2"]);
     for (const assignment of classAssignments) {
       expect(assignment.additionalClassIds).toEqual([]);
       expect(assignment.weeklyPeriods).toBe(3);
