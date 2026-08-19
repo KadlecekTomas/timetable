@@ -10,6 +10,9 @@ from app.models import SolveRequest
 from app.policy import daily_subject_limit, subject_code
 
 
+HARD_BALANCE_PRIORITY = 20_000
+
+
 def _occupancy_bool(
     model: cp_model.CpModel,
     sources: list[cp_model.IntVar],
@@ -262,6 +265,8 @@ def add_policy_constraints(
                 f"policy_load_spread_{class_id}",
             )
             model.add(spread == max_load - min_load)
+            if policy.quality.class_daily_balance_weight >= HARD_BALANCE_PRIORITY:
+                model.add(spread <= 1)
             objective_terms.append(
                 spread * policy.quality.class_daily_balance_weight
             )
