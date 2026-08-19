@@ -19,6 +19,11 @@ export interface PhysicalEducationExternalOccupancyState {
   slots: PhysicalEducationExternalOccupancySlot[];
 }
 
+/**
+ * Původní provozní zadání 1. stupně. Je záměrně zachované jako samostatný
+ * preset, protože odpovídá původně zadané obsazenosti, ale u aktuálního
+ * rozvrhu 2. stupně je příliš těsné a vede k neproveditelnému modelu.
+ */
 export const SCHOOL_DEFAULT_PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_SLOTS = [
   { dayOfWeek: 1, period: 0, occupiedSpaces: 2 },
   { dayOfWeek: 1, period: 1, occupiedSpaces: 2 },
@@ -33,8 +38,34 @@ export const SCHOOL_DEFAULT_PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_SLOTS = [
   { dayOfWeek: 4, period: 1, occupiedSpaces: 2 },
 ] satisfies PhysicalEducationExternalOccupancySlot[];
 
+/**
+ * Doporučený provozní profil 2026/27. Zachovává všechny původní rezervace,
+ * ale v devíti kritických prostor-hodinách ponechá 1. stupni jeden prostor
+ * místo dvou. Tím zůstává blokace explicitní a současně má 2. stupeň
+ * kapacitu, se kterou byl pro aktuální školní model nalezen validní rozvrh.
+ */
+export const SCHOOL_RECOMMENDED_PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_SLOTS = [
+  { dayOfWeek: 1, period: 0, occupiedSpaces: 1 },
+  { dayOfWeek: 1, period: 1, occupiedSpaces: 1 },
+  { dayOfWeek: 1, period: 2, occupiedSpaces: 1 },
+  { dayOfWeek: 1, period: 3, occupiedSpaces: 1 },
+  { dayOfWeek: 1, period: 4, occupiedSpaces: 3 },
+  { dayOfWeek: 3, period: 0, occupiedSpaces: 1 },
+  { dayOfWeek: 3, period: 1, occupiedSpaces: 1 },
+  { dayOfWeek: 3, period: 2, occupiedSpaces: 1 },
+  { dayOfWeek: 3, period: 3, occupiedSpaces: 3 },
+  { dayOfWeek: 4, period: 0, occupiedSpaces: 1 },
+  { dayOfWeek: 4, period: 1, occupiedSpaces: 1 },
+] satisfies PhysicalEducationExternalOccupancySlot[];
+
 export function schoolDefaultPhysicalEducationExternalOccupancySlots(): PhysicalEducationExternalOccupancySlot[] {
   return SCHOOL_DEFAULT_PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_SLOTS.map(
+    (slot) => ({ ...slot }),
+  );
+}
+
+export function schoolRecommendedPhysicalEducationExternalOccupancySlots(): PhysicalEducationExternalOccupancySlot[] {
+  return SCHOOL_RECOMMENDED_PHYSICAL_EDUCATION_EXTERNAL_OCCUPANCY_SLOTS.map(
     (slot) => ({ ...slot }),
   );
 }

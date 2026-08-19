@@ -1,6 +1,8 @@
 "use client";
 
-import { RotateCcw } from "lucide-react";
+import { ArrowRight, RotateCcw, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
@@ -17,13 +19,28 @@ import {
   occupiedPhysicalEducationSpacesAt,
   savePhysicalEducationExternalOccupancy,
   schoolDefaultPhysicalEducationExternalOccupancySlots,
+  schoolRecommendedPhysicalEducationExternalOccupancySlots,
   subscribePhysicalEducationExternalOccupancy,
   type PhysicalEducationExternalOccupancySlot,
 } from "@/lib/local/physical-education-external-occupancy";
 
 const dayNames = ["Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek"];
 
+function slotSignature(
+  slots: PhysicalEducationExternalOccupancySlot[],
+): string {
+  return [...slots]
+    .sort(
+      (left, right) =>
+        left.dayOfWeek - right.dayOfWeek || left.period - right.period,
+    )
+    .map((slot) => `${slot.dayOfWeek}:${slot.period}:${slot.occupiedSpaces}`)
+    .join("|");
+}
+
 export default function PeCapacityPage() {
+  const searchParams = useSearchParams();
+  const schoolYearId = searchParams.get("schoolYearId") ?? "local-school-year";
   const [periodsPerDay, setPeriodsPerDay] = useState<number[]>([8, 8, 8, 8, 7]);
   const [slots, setSlots] = useState<PhysicalEducationExternalOccupancySlot[]>(
     [],
@@ -61,6 +78,20 @@ export default function PeCapacityPage() {
     () => slots.filter((slot) => slot.occupiedSpaces > 0).length,
     [slots],
   );
+  const recommended = useMemo(
+    () => schoolRecommendedPhysicalEducationExternalOccupancySlots(),
+    [],
+  );
+  const original = useMemo(
+    () => schoolDefaultPhysicalEducationExternalOccupancySlots(),
+    [],
+  );
+  const activeProfile = useMemo(() => {
+    const current = slotSignature(slots);
+    if (current === slotSignature(recommended)) return "RECOMMENDED";
+    if (current === slotSignature(original)) return "ORIGINAL";
+    return "CUSTOM";
+  }, [original, recommended, slots]);
 
   async function persistSlots(next: PhysicalEducationExternalOccupancySlot[]) {
     setBusy(true);
@@ -79,7 +110,7 @@ export default function PeCapacityPage() {
         await replaceLocalProjectAtomically(updated);
       }
       setMessage(
-        "Uloženo. Pokud jsou data pro generátor už připravená, omezení je aktivní okamžitě; při další přípravě se použije znovu.",
+        "Uloženo. Omezení se použije při dalším výpočtu; připravený projekt se aktualizoval okamžitě.",
       );
     } catch (cause) {
       setError(
@@ -106,7 +137,13 @@ export default function PeCapacityPage() {
     void persistSlots(next);
   }
 
-  function restoreSchoolDefaults() {
+  function useRecommendedProfile() {
+    void persistSlots(
+      schoolRecommendedPhysicalEducationExternalOccupancySlots(),
+    );
+  }
+
+  function restoreOriginalSchoolPlan() {
     void persistSlots(schoolDefaultPhysicalEducationExternalOccupancySlots());
   }
 
@@ -117,31 +154,55 @@ export default function PeCapacityPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="TV · kapacita"
+        eyebrow="Fáze 4 · TV kapacita"
         title="Obsazenost sportovních prostor 1. stupně"
-        description="Zadejte pouze počet sportovních prostorů, které v dané hodině zabere 1. stupeň. Konkrétní hala není důležitá — solver o stejný počet sníží dostupnou kapacitu pro TV."
+        description="Nastavte, kolik TV prostorů v jednotlivých hodinách skutečně zabere 1. stupeň. Změny se uloží lokálně a generátor je použije automaticky."
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={restoreSchoolDefaults}
-              disabled={busy}
+          <Button asChild>
+            <Link
+              href={`/generate?schoolYearId=${encodeURIComponent(schoolYearId)}`}
             >
-              <RotateCcw className="size-4" aria-hidden="true" />
-              Obnovit školní výchozí
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={clearAll}
-              disabled={busy || slots.length === 0}
-            >
-              Vynulovat
-            </Button>
-          </div>
+              Pokračovat na tvorbu rozvrhu
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          </Button>
         }
       />
+
+      <section className="rounded-xl border border-success-border bg-success-subtle p-5">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="size-5 text-success" aria-hidden="true" />
+              <h2 className="font-semibold text-text-primary">
+                Doporučený profil 2026/2027
+              </h2>
+            </div>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-text-secondary">
+              Pro aktuální školní model je původní rezervace 1. stupně příliš
+              těsná. Ověřený profil ponechá stejné rezervované časy, ale v
+              kritických 9 prostor-hodinách rezervuje 1 prostor místo 2. Všechny
+              hodnoty můžete kdykoliv ručně změnit podle skutečného provozu.
+            </p>
+            <p className="mt-2 text-xs font-medium text-text-muted">
+              Aktivní profil:{" "}
+              {activeProfile === "RECOMMENDED"
+                ? "doporučený 2026/2027"
+                : activeProfile === "ORIGINAL"
+                  ? "původní zadání 1. stupně"
+                  : "vlastní nastavení"}
+            </p>
+          </div>
+          <Button
+            type="button"
+            onClick={useRecommendedProfile}
+            disabled={busy || activeProfile === "RECOMMENDED"}
+          >
+            <Sparkles className="size-4" aria-hidden="true" />
+            Použít doporučený profil
+          </Button>
+        </div>
+      </section>
 
       <section className="rounded-xl border border-primary/30 bg-primary-subtle p-5">
         <p className="text-sm leading-6 text-text-secondary">
@@ -150,11 +211,28 @@ export default function PeCapacityPage() {
           použít maximálně <strong>3 paralelní TV kapacity</strong>. Je to tvrdé
           omezení, ne preference.
         </p>
-        <p className="mt-2 text-xs text-text-muted">
-          Školní výchozí profil je předvyplněný: Út 1.–4. hodina −2, Út 5.
-          hodina −3; Čt 1.–3. hodina −2, Čt 4. hodina −3; Pá 1.–2. hodina −2.
-          Aktivní externí omezení: {reservedSlotCount} časových slotů.
-        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={restoreOriginalSchoolPlan}
+            disabled={busy || activeProfile === "ORIGINAL"}
+          >
+            <RotateCcw className="size-4" aria-hidden="true" />
+            Obnovit původní zadání 1. stupně
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={clearAll}
+            disabled={busy || slots.length === 0}
+          >
+            Vynulovat rezervace
+          </Button>
+          <span className="text-xs text-text-muted">
+            Aktivní externí omezení: {reservedSlotCount} časových slotů.
+          </span>
+        </div>
       </section>
 
       {message ? (
@@ -236,6 +314,27 @@ export default function PeCapacityPage() {
             </article>
           );
         })}
+      </section>
+
+      <section className="flex flex-col justify-between gap-4 rounded-xl border border-border bg-surface p-5 sm:flex-row sm:items-center">
+        <div>
+          <h2 className="font-semibold text-text-primary">
+            Kapacita je uložená
+          </h2>
+          <p className="mt-1 text-sm text-text-secondary">
+            Další změny učitelů nebo výukového plánu nevadí. Po změně vstupů
+            připravte data znovu a generátor vždy načte toto aktuální nastavení
+            TV.
+          </p>
+        </div>
+        <Button asChild>
+          <Link
+            href={`/generate?schoolYearId=${encodeURIComponent(schoolYearId)}`}
+          >
+            Vytvořit rozvrh
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </Link>
+        </Button>
       </section>
     </div>
   );
