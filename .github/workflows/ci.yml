@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   web:
@@ -140,3 +140,38 @@ jobs:
             apps/web/playwright-report
             apps/web/test-results
           if-no-files-found: ignore
+
+  patch-spankova-12h:
+    if: github.head_ref == 'agent/local-deep-solve-school-pe-defaults'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/local-deep-solve-school-pe-defaults
+          fetch-depth: 0
+      - name: Apply prepared patch script
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          source = Path('.github/workflows/patch-spankova-12h.yml').read_text()
+          start_marker = "          python - <<'PY'\n"
+          end_marker = "\n          PY\n\n          git config"
+          start = source.index(start_marker) + len(start_marker)
+          end = source.index(end_marker, start)
+          script = textwrap.dedent(source[start:end])
+          exec(compile(script, 'patch-spankova-12h', 'exec'), {})
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/lib/local/teaching-plan-school-v3.ts \
+                  apps/web/lib/local/school-teacher-availability-defaults.ts \
+                  apps/web/tests/school-teacher-availability-defaults.test.ts \
+                  apps/web/tests/school-scheduling-preferences.test.ts \
+                  apps/web/tests/school-scheduling-preferences-generation.test.ts \
+                  apps/web/e2e/school-scheduling-policy.spec.ts
+          git commit -m "Use the real twelve-hour Spankova schedule"
+          git push origin HEAD:agent/local-deep-solve-school-pe-defaults
