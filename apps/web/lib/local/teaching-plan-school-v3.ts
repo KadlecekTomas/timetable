@@ -4,10 +4,7 @@ import {
   SCHOOL_SPLIT_SUBJECT_CODES,
 } from "./school-default-data";
 import type { SchoolCurriculum } from "./school-curriculum";
-import {
-  loadStaffingPlan,
-  type StaffingPlan,
-} from "./staffing-plan-school-v2";
+import { loadStaffingPlan, type StaffingPlan } from "./staffing-plan-school-v2";
 import { SCHOOL_CLASS_CODES } from "./teaching-plan-school";
 import {
   classGradeFromCode,
