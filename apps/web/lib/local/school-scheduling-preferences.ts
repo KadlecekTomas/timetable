@@ -10,17 +10,23 @@ type LocalFixedLesson = LocalProject["fixedLessons"][number];
 
 const SPANKOVA_SURNAME = "spankova";
 const SECOND_FOREIGN_LANGUAGE_CODE = "JAZ2";
-const EIGHTH_GRADE_CLASS_IDS = new Set(["class:8-A", "class:8-B", "class:8-C"]);
-const SPANISH_FIXED_SLOTS = [
-  { dayOfWeek: 1, startPeriod: 1 }, // Út 2. hodina
-  { dayOfWeek: 2, startPeriod: 1 }, // St 2. hodina
-  { dayOfWeek: 3, startPeriod: 1 }, // Čt 2. hodina
+const EIGHTH_GRADE_CLASS_IDS = ["class:8-A", "class:8-B", "class:8-C"] as const;
+const SPANISH_DAILY_ORDER = [
+  {
+    dayOfWeek: 1,
+    classIds: ["class:8-A", "class:8-B", "class:8-C"],
+  },
+  {
+    dayOfWeek: 2,
+    classIds: ["class:8-B", "class:8-C", "class:8-A"],
+  },
+  {
+    dayOfWeek: 3,
+    classIds: ["class:8-C", "class:8-A", "class:8-B"],
+  },
 ] as const;
-const GERMAN_FOLLOW_UP_PREFERENCES = [
-  { period: 2, weight: 100 }, // ideálně hned 3. hodinu
-  { period: 3, weight: 15 },
-  { period: 4, weight: 5 },
-] as const;
+const GERMAN_FOLLOW_UP_PERIOD = 4; // 5. vyučovací hodina
+const GERMAN_FOLLOW_UP_WEIGHT = 200;
 
 function normalizedPersonToken(value: string): string {
   return value
@@ -30,20 +36,18 @@ function normalizedPersonToken(value: string): string {
     .toLocaleLowerCase("cs-CZ");
 }
 
-function classIdsForAssignment(assignment: LocalAssignment): Set<string> {
-  return new Set([assignment.classId, ...assignment.additionalClassIds]);
-}
-
-function isEighthGradeSharedLanguage(assignment: LocalAssignment): boolean {
-  const ids = classIdsForAssignment(assignment);
-  return (
-    ids.size === EIGHTH_GRADE_CLASS_IDS.size &&
-    [...EIGHTH_GRADE_CLASS_IDS].every((classId) => ids.has(classId))
-  );
-}
-
 function subjectCodeById(subjects: LocalSubject[]): Map<string, string> {
   return new Map(subjects.map((subject) => [subject.id, subject.code]));
+}
+
+function isExpectedSeparateSpanishAssignment(
+  assignment: LocalAssignment,
+): boolean {
+  return (
+    EIGHTH_GRADE_CLASS_IDS.includes(
+      assignment.classId as (typeof EIGHTH_GRADE_CLASS_IDS)[number],
+    ) && assignment.additionalClassIds.length === 0
+  );
 }
 
 export interface SchoolSchedulingPreferencesResult {
@@ -54,8 +58,9 @@ export interface SchoolSchedulingPreferencesResult {
 
 /**
  * Current-school scheduling wishes that are not part of the curriculum itself.
- * Spanish for Špánková is a fixed operational requirement; German after it is
- * deliberately only preferred so it can move when another hard constraint wins.
+ * Špánková teaches Spanish as three separate 8th-grade class lessons on Tue/Wed/Thu
+ * in periods 2-4 (nine lessons total). Her three 9.B German lessons are deliberately
+ * only preferred in period 5 so the full-school model can move them if necessary.
  */
 export function schoolSchedulingPreferences({
   assignments,
@@ -83,16 +88,29 @@ export function schoolSchedulingPreferences({
       assignment.teacherId === teacherId &&
       subjectCodes.get(assignment.subjectId) === SECOND_FOREIGN_LANGUAGE_CODE,
   );
-  const spanish = languageAssignments.find(isEighthGradeSharedLanguage);
+  const spanishAssignments = languageAssignments.filter(
+    isExpectedSeparateSpanishAssignment,
+  );
+  const spanishByClassId = new Map(
+    spanishAssignments.map((assignment) => [assignment.classId, assignment]),
+  );
+  const german9b = languageAssignments.find(
+    (assignment) =>
+      assignment.classId === "class:9-B" &&
+      assignment.additionalClassIds.length === 0,
+  );
 
   const fixedLessons: LocalFixedLesson[] = [];
-  if (
-    !spanish ||
-    spanish.weeklyPeriods !== 3 ||
-    spanish.lessonShape !== "SINGLE"
-  ) {
+  const validSpanishAssignments = EIGHTH_GRADE_CLASS_IDS.every((classId) => {
+    const assignment = spanishByClassId.get(classId);
+    return (
+      assignment?.weeklyPeriods === 3 && assignment.lessonShape === "SINGLE"
+    );
+  });
+
+  if (!validSpanishAssignments) {
     warnings.push(
-      "Špánková: nebyla nalezena očekávaná společná ŠpJ výuka 8. ročníku 3 h týdně; pevné Út–St–Čt 2. hodiny nebyly automaticky vloženy.",
+      "Špánková: nebyly nalezeny tři samostatné ŠpJ vazby 8.A/8.B/8.C po 3 h týdně; pevný blok Út–St–Čt 2.–4. hodinu nebyl automaticky vložen.",
     );
   } else {
     const existingKeys = new Set(
@@ -100,34 +118,47 @@ export function schoolSchedulingPreferences({
         (lesson) => `${lesson.assignmentId}:${lesson.blockIndex}`,
       ),
     );
-    SPANISH_FIXED_SLOTS.forEach((slot, blockIndex) => {
-      if (existingKeys.has(`${spanish.id}:${blockIndex}`)) return;
-      fixedLessons.push({
-        id: `school-default:spankova-spj:${blockIndex}`,
-        assignmentId: spanish.id,
-        blockIndex,
-        dayOfWeek: slot.dayOfWeek,
-        startPeriod: slot.startPeriod,
-        duration: 1,
-        roomId: null,
-        locked: true,
+    SPANISH_DAILY_ORDER.forEach(({ dayOfWeek, classIds }, blockIndex) => {
+      classIds.forEach((classId, orderIndex) => {
+        const assignment = spanishByClassId.get(classId)!;
+        if (existingKeys.has(`${assignment.id}:${blockIndex}`)) return;
+        fixedLessons.push({
+          id: `school-default:spankova-spj:${dayOfWeek}:${classId}`,
+          assignmentId: assignment.id,
+          blockIndex,
+          dayOfWeek,
+          startPeriod: 1 + orderIndex,
+          duration: 1,
+          roomId: null,
+          locked: true,
+        });
       });
     });
   }
 
-  const availability: LocalAvailability[] = [1, 2, 3].flatMap((dayOfWeek) =>
-    GERMAN_FOLLOW_UP_PREFERENCES.map(({ period, weight }) => ({
-      id: `school-preference:spankova-follow-up:${dayOfWeek}:${period}`,
-      entityType: "TEACHER" as const,
-      entityId: teacherId,
-      dayOfWeek,
-      period,
-      kind: "PREFERRED" as const,
-      weight,
-      reason:
-        "Špánková: po ŠpJ preferovat navazující němčinu v Út/St/Čt bez zbytečné mezery",
-    })),
-  );
+  if (
+    !german9b ||
+    german9b.weeklyPeriods !== 3 ||
+    german9b.lessonShape !== "SINGLE"
+  ) {
+    warnings.push(
+      "Špánková: nebyla nalezena očekávaná NJ 9.B v dotaci 3 h týdně; preference navazující 5. hodiny nebyla vložena.",
+    );
+  }
+
+  const availability: LocalAvailability[] = german9b
+    ? [1, 2, 3].map((dayOfWeek) => ({
+        id: `school-preference:spankova-german-follow-up:${dayOfWeek}`,
+        entityType: "TEACHER" as const,
+        entityId: teacherId,
+        dayOfWeek,
+        period: GERMAN_FOLLOW_UP_PERIOD,
+        kind: "PREFERRED" as const,
+        weight: GERMAN_FOLLOW_UP_WEIGHT,
+        reason:
+          "Špánková: po třech ŠpJ preferovat NJ 9.B v 5. hodině v Út/St/Čt",
+      }))
+    : [];
 
   return { fixedLessons, availability, warnings };
 }
