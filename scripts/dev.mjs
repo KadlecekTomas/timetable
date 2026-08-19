@@ -223,7 +223,7 @@ try {
     [
       "-m",
       "uvicorn",
-      "app.runtime:app",
+      "app.product_runtime:app",
       "--host",
       "127.0.0.1",
       "--port",
@@ -243,7 +243,7 @@ try {
     shutdown();
   });
   await waitForSolver(solverProcess, solverPort);
-  console.log(`[dev] Solver je připravený na ${solverUrl}.`);
+  console.log(`[dev] Policy-aware solver je připravený na ${solverUrl}.`);
 
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
   webProcess = spawn(
