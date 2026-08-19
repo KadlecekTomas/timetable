@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const solverDir = path.join(repoRoot, "apps", "solver");
+const webPort = 3000;
 const solverPortStart = 8000;
 const solverPortEnd = 8010;
 const venvDir = path.join(solverDir, ".venv");
@@ -202,6 +203,12 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 }
 
 try {
+  if (!(await portIsAvailable(webPort))) {
+    throw new Error(
+      `Port ${webPort} už používá jiný proces. Ukončete předchozí npm run dev (Ctrl+C) a spusťte příkaz znovu. Rozvrhář záměrně nespustí druhou starou/novou verzi vedle sebe.`,
+    );
+  }
+
   await ensureSolverEnvironment();
   const solverPort = await selectSolverPort();
   const solverUrl = `http://127.0.0.1:${solverPort}`;
@@ -241,7 +248,7 @@ try {
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
   webProcess = spawn(
     npmCommand,
-    ["run", "dev", "--workspace", "@timetable/web"],
+    ["run", "dev", "--workspace", "@timetable/web", "--", "--port", String(webPort)],
     {
       cwd: repoRoot,
       env: {
