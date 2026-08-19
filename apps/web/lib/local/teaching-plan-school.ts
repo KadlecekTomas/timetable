@@ -12,6 +12,7 @@ export * from "./teaching-plan";
 declare module "./teaching-plan" {
   interface TeachingPlanRow {
     additionalClassCodes?: string[];
+    teacherClassCodes?: Record<string, string[]>;
     preferredStartPeriods?: number[];
     preferenceWeight?: number;
     sharedGroupLabel?: string;
@@ -22,6 +23,7 @@ const SHARED_METADATA_STORAGE_KEY = "rozvrhar:teaching-plan-shared:v1";
 
 interface SharedRowMetadata {
   additionalClassCodes: string[];
+  teacherClassCodes: Record<string, string[]>;
   preferredStartPeriods: number[];
   preferenceWeight: number;
   sharedGroupLabel: string;
@@ -129,8 +131,28 @@ function normalizedAdditionalClassCodes(row: TeachingPlanRow): string[] {
 }
 
 function rowMetadata(row: TeachingPlanRow): SharedRowMetadata {
+  const allClassCodes = new Set([
+    base.normalizeClassCode(row.classCode),
+    ...normalizedAdditionalClassCodes(row),
+  ]);
   return {
     additionalClassCodes: normalizedAdditionalClassCodes(row),
+    teacherClassCodes: Object.fromEntries(
+      Object.entries(row.teacherClassCodes ?? {}).flatMap(
+        ([teacherId, classCodes]) => {
+          const normalized = [
+            ...new Set(
+              classCodes
+                .map(base.normalizeClassCode)
+                .filter((classCode) => allClassCodes.has(classCode)),
+            ),
+          ];
+          return teacherId && normalized.length > 0
+            ? [[teacherId, normalized] as const]
+            : [];
+        },
+      ),
+    ),
     preferredStartPeriods: [
       ...new Set(
         (row.preferredStartPeriods ?? []).filter(
@@ -161,6 +183,7 @@ function applyMetadata(
         ? {
             ...row,
             additionalClassCodes: item.additionalClassCodes,
+            teacherClassCodes: item.teacherClassCodes ?? {},
             preferredStartPeriods: item.preferredStartPeriods,
             preferenceWeight: item.preferenceWeight,
             sharedGroupLabel: item.sharedGroupLabel,
@@ -179,6 +202,7 @@ function metadataForPlan(
       .filter(
         ([, metadata]) =>
           metadata.additionalClassCodes.length > 0 ||
+          Object.keys(metadata.teacherClassCodes).length > 0 ||
           metadata.preferredStartPeriods.length > 0 ||
           metadata.sharedGroupLabel,
       ),

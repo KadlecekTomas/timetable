@@ -247,38 +247,6 @@ function assertSchoolSchedulingInvariants(
         (classId) => classCodeById.get(classId) === classCode,
       ),
     );
-  const prikrylova = project.teachers.find(
-    (teacher) => normalizedCode(teacher.lastName) === "PRIKRYLOVA",
-  );
-  for (const classCode of ["9A", "9C"]) {
-    const classAssignments = tvAssignmentsForClass(classCode);
-    assert.ok(classAssignments.length > 0, `${classCode} has no TV assignment`);
-    assert.ok(
-      classAssignments.every((assignment) => assignment.group === "WHOLE"),
-      `${classCode} TV must be whole-class`,
-    );
-    assert.equal(
-      new Set(classAssignments.map((assignment) => assignment.teacherId)).size,
-      1,
-      `${classCode} TV must have one teacher`,
-    );
-    if (prikrylova) {
-      assert.ok(
-        classAssignments.every(
-          (assignment) => assignment.teacherId === prikrylova.id,
-        ),
-        `${classCode} TV must be taught by Přikrylová`,
-      );
-    }
-  }
-  for (const classCode of ["8A", "8B", "8C", "9B"]) {
-    const classAssignments = tvAssignmentsForClass(classCode);
-    assert.ok(classAssignments.length > 0, `${classCode} has no TV assignment`);
-    assert.ok(
-      classAssignments.every((assignment) => assignment.group !== "WHOLE"),
-      `${classCode} TV must stay split`,
-    );
-  }
   assert.equal(
     new Set(tvAssignmentsForClass("8B").map((assignment) => assignment.group))
       .size,
@@ -306,6 +274,86 @@ async function main() {
     analysis.plan,
     analysis.allocationDraft,
   );
+  const sourceTeacherIds = (classCode: string, subjectCode: string) =>
+    new Set(
+      analysis
+        .allocationDraft!.rows.filter(
+          (row) =>
+            normalizedCode(row.classCode) === normalizedCode(classCode) &&
+            row.subjectCode === subjectCode,
+        )
+        .flatMap((row) => row.teacherIds),
+    );
+  const teachingRow = (classCode: string, subjectCode: string) => {
+    const row = teachingPlan.rows.find(
+      (item) =>
+        normalizedCode(item.classCode) === normalizedCode(classCode) &&
+        item.subjectCode === subjectCode,
+    );
+    assert.ok(row, `${classCode} ${subjectCode} teaching row is missing`);
+    return row;
+  };
+  const teachingTeacherIdsForClass = (classCode: string, subjectCode: string) =>
+    new Set(
+      teachingPlan.rows
+        .filter(
+          (row) =>
+            row.subjectCode === subjectCode &&
+            [row.classCode, ...(row.additionalClassCodes ?? [])].some(
+              (target) => normalizedCode(target) === normalizedCode(classCode),
+            ),
+        )
+        .flatMap((row) =>
+          [
+            row.primaryTeacherId,
+            row.secondaryTeacherId,
+            row.tertiaryTeacherId ?? "",
+          ].filter((teacherId) => {
+            if (!teacherId) return false;
+            const teacherClassCodes = row.teacherClassCodes?.[teacherId];
+            return (
+              !teacherClassCodes ||
+              teacherClassCodes.some(
+                (target) =>
+                  normalizedCode(target) === normalizedCode(classCode),
+              )
+            );
+          }),
+        ),
+    );
+  const ninthGradeLanguageRows = teachingPlan.rows.filter(
+    (row) =>
+      row.subjectCode === "JAZ2" &&
+      [row.classCode, ...(row.additionalClassCodes ?? [])].some((classCode) =>
+        normalizedCode(classCode).startsWith("9"),
+      ),
+  );
+  assert.equal(ninthGradeLanguageRows.length, 1);
+  assert.equal(ninthGradeLanguageRows[0]?.organization, "SPLIT");
+  for (const classCode of ["9.A", "9.C"]) {
+    const expected = sourceTeacherIds(classCode, "JAZ2");
+    assert.equal(expected.size, 1, `${classCode} JAZ2 source staffing`);
+    assert.deepEqual(teachingTeacherIdsForClass(classCode, "JAZ2"), expected);
+  }
+  assert.deepEqual(
+    teachingTeacherIdsForClass("9.B", "JAZ2"),
+    sourceTeacherIds("9.B", "JAZ2"),
+    "9.B JAZ2 staffing was overwritten",
+  );
+  for (const classCode of ["9.A", "9.C"]) {
+    const expected = sourceTeacherIds(classCode, "TV");
+    const row = teachingRow(classCode, "TV");
+    assert.deepEqual(
+      teachingTeacherIdsForClass(classCode, "TV"),
+      expected,
+      `${classCode} TV staffing was overwritten`,
+    );
+    assert.equal(
+      row.organization,
+      expected.size > 1 ? "SPLIT" : "WHOLE",
+      `${classCode} TV organization no longer matches source staffing`,
+    );
+  }
   const expectedEightBGroupCount =
     teachingPlan.rows.find(
       (row) =>
@@ -318,6 +366,53 @@ async function main() {
     forceReplaceGeneratedData: false,
   });
   assert.deepEqual(generated.blockers, []);
+
+  const generatedAssignmentsFor = (classCode: string, subjectCode: string) => {
+    const subjectId = generated.project.subjects.find(
+      (subject) => subject.code === subjectCode,
+    )?.id;
+    const classId = generated.project.classes.find(
+      (schoolClass) =>
+        normalizedCode(schoolClass.code) === normalizedCode(classCode),
+    )?.id;
+    return generated.project.assignments.filter(
+      (assignment) =>
+        assignment.subjectId === subjectId &&
+        [assignment.classId, ...assignment.additionalClassIds].includes(
+          classId ?? "",
+        ),
+    );
+  };
+  for (const classCode of ["9.A", "9.B", "9.C"]) {
+    const assignments = generatedAssignmentsFor(classCode, "JAZ2");
+    assert.deepEqual(
+      new Set(assignments.map((assignment) => assignment.teacherId)),
+      new Set(
+        [...sourceTeacherIds(classCode, "JAZ2")].map(
+          (teacherId) => `teacher:${teacherId}`,
+        ),
+      ),
+      `${classCode} generated JAZ2 staffing`,
+    );
+  }
+  for (const classCode of ["9.A", "9.C"]) {
+    const assignments = generatedAssignmentsFor(classCode, "TV");
+    const row = teachingRow(classCode, "TV");
+    assert.deepEqual(
+      new Set(assignments.map((assignment) => assignment.teacherId)),
+      new Set(
+        [...sourceTeacherIds(classCode, "TV")].map(
+          (teacherId) => `teacher:${teacherId}`,
+        ),
+      ),
+      `${classCode} generated TV staffing`,
+    );
+    assert.equal(
+      assignments.every((assignment) => assignment.group === "WHOLE"),
+      row.organization === "WHOLE",
+      `${classCode} generated TV organization`,
+    );
+  }
 
   generated.project.availability.push(
     ...staffingExactUnavailableAvailability(generated.project, analysis.plan),

@@ -340,15 +340,22 @@ export function buildSchoolProjectForGeneration({
     rotationLeg: number | null = null,
     weeklyPeriods = row.weeklyPeriods,
   ) => {
-    const classId = classIdByCode.get(row.classCode);
+    const teacherClassCodes = row.teacherClassCodes?.[teacherPlanId];
+    const targetClassCodes =
+      teacherClassCodes && teacherClassCodes.length > 0
+        ? teacherClassCodes
+        : [row.classCode, ...(row.additionalClassCodes ?? [])];
+    const primaryClassCode = targetClassCodes[0] ?? row.classCode;
+    const classId = classIdByCode.get(primaryClassCode);
     const additionalClassIds = [
       ...new Set(
-        (row.additionalClassCodes ?? [])
+        targetClassCodes
+          .slice(1)
           .map((classCode) => {
             const additionalClassId = classIdByCode.get(classCode);
             if (!additionalClassId) {
               blockers.push(
-                `${row.classCode} ${subjectCode}: společná třída ${classCode} neexistuje.`,
+                `${primaryClassCode} ${subjectCode}: společná třída ${classCode} neexistuje.`,
               );
             }
             return additionalClassId ?? "";
@@ -362,17 +369,19 @@ export function buildSchoolProjectForGeneration({
     const subjectId = subjectIdByCode.get(subjectCode);
     const teacherId = teacherIdByPlanId.get(teacherPlanId);
     if (!classId)
-      blockers.push(`${row.classCode}: třída pro výukovou vazbu neexistuje.`);
+      blockers.push(
+        `${primaryClassCode}: třída pro výukovou vazbu neexistuje.`,
+      );
     if (!subjectId)
-      blockers.push(`${row.classCode}: předmět ${subjectCode} neexistuje.`);
+      blockers.push(`${primaryClassCode}: předmět ${subjectCode} neexistuje.`);
     if (!teacherId)
       blockers.push(
-        `${row.classCode} ${subjectCode}: výuková vazba nemá učitele.`,
+        `${primaryClassCode} ${subjectCode}: výuková vazba nemá učitele.`,
       );
     if (!classId || !subjectId || !teacherId) return;
     assignments.push({
       id: `assignment:${token(row.id)}-${suffix}`,
-      assignmentCode: `${token(row.classCode)}-${token(subjectCode)}-${token(row.id)}-${suffix}`,
+      assignmentCode: `${token(primaryClassCode)}-${token(subjectCode)}-${token(row.id)}-${suffix}`,
       classId,
       subjectId,
       teacherId,

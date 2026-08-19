@@ -17,13 +17,16 @@ function teacher(id: string, lastName: string) {
     lastName,
     targetWeeklyLoad: 20,
     baseWeeklyLoad: 20,
-    subjectLoads: [{ id: `${id}-tv`, subjectCode: "TV", weeklyPeriods: 20 }],
+    subjectLoads: [
+      { id: `${id}-tv`, subjectCode: "TV", weeklyPeriods: 10 },
+      { id: `${id}-jaz2`, subjectCode: "JAZ2", weeklyPeriods: 10 },
+    ],
     unavailableDays: [],
     unavailablePeriods: [],
   };
 }
 
-test("9.A and 9.C PE are whole-class with Přikrylová while 8th grade and 9.B stay split", () => {
+test("9.A and 9.C JAZ2 use only Přikrylová while shared organization and 9.B staffing stay intact", () => {
   const staffingPlan = createEmptyStaffingPlan();
   staffingPlan.teachers = [
     teacher("prikrylova", "Přikrylová"),
@@ -32,56 +35,67 @@ test("9.A and 9.C PE are whole-class with Přikrylová while 8th grade and 9.B s
   ];
 
   const plan = createEmptyTeachingPlan();
-  plan.rows = [
-    ...["8.A", "8.B", "8.C", "9.B"].map((classCode) => {
-      const row = createTeachingPlanRow(classCode, "TV");
-      row.weeklyPeriods = classCode === "8.B" ? 5 : 2;
-      row.organization = "SPLIT";
-      row.primaryTeacherId = "sobotnik";
-      row.secondaryTeacherId = "masek";
-      if (classCode === "8.B") {
-        row.splitGroupCount = 3;
-        row.tertiaryTeacherId = "prikrylova";
-      }
-      return row;
-    }),
-    ...["9.A", "9.C"].map((classCode) => {
-      const row = createTeachingPlanRow(classCode, "TV");
-      row.weeklyPeriods = 2;
-      row.organization = "SPLIT";
-      row.primaryTeacherId = "sobotnik";
-      row.secondaryTeacherId = "masek";
-      return row;
-    }),
-  ];
+  const language9A = createTeachingPlanRow("9.A", "JAZ2");
+  language9A.organization = "SPLIT";
+  language9A.primaryTeacherId = "sobotnik";
+  language9A.secondaryTeacherId = "masek";
+  const language9B = createTeachingPlanRow("9.B", "JAZ2");
+  language9B.organization = "SPLIT";
+  language9B.primaryTeacherId = "masek";
+  language9B.secondaryTeacherId = "prikrylova";
+  const language9C = createTeachingPlanRow("9.C", "JAZ2");
+  language9C.organization = "SPLIT";
+  language9C.primaryTeacherId = "sobotnik";
+  language9C.secondaryTeacherId = "masek";
+  plan.rows = [language9A, language9B, language9C];
 
   const enforced = applySchoolOperationalRules(plan, staffingPlan, null);
 
-  for (const classCode of ["9.A", "9.C"]) {
-    const row = enforced.rows.find(
-      (item) => item.classCode === classCode && item.subjectCode === "TV",
-    );
-    assert.equal(row?.organization, "WHOLE", classCode);
-    assert.equal(row?.primaryTeacherId, "prikrylova", classCode);
-    assert.equal(row?.secondaryTeacherId, "", classCode);
-    assert.equal(row?.tertiaryTeacherId, "", classCode);
-    assert.equal(row?.lessonShape, "DOUBLE", classCode);
-    assert.equal(row?.doublePeriodsCount, 1, classCode);
-  }
+  const row = enforced.rows.find((item) => item.subjectCode === "JAZ2");
+  assert.ok(row);
+  assert.equal(row.organization, "SPLIT");
+  assert.deepEqual(
+    [row.classCode, ...(row.additionalClassCodes ?? [])].sort(),
+    ["9.A", "9.B", "9.C"],
+  );
+  assert.deepEqual(row.teacherClassCodes?.prikrylova, ["9.A", "9.B", "9.C"]);
+  assert.deepEqual(row.teacherClassCodes?.masek, ["9.B"]);
+});
 
-  for (const classCode of ["8.A", "8.B", "8.C", "9.B"]) {
+test("9.A and 9.C PE keep source organization and teachers", () => {
+  const staffingPlan = createEmptyStaffingPlan();
+  staffingPlan.teachers = [
+    teacher("prikrylova", "Přikrylová"),
+    teacher("sobotnik", "Šobotník"),
+    teacher("masek", "Mašek"),
+  ];
+  const plan = createEmptyTeachingPlan();
+  plan.rows = [
+    ["9.A", "sobotnik", "masek"],
+    ["9.C", "masek", "sobotnik"],
+  ].map(([classCode, primaryTeacherId, secondaryTeacherId]) => {
+    const row = createTeachingPlanRow(classCode!, "TV");
+    row.weeklyPeriods = 2;
+    row.organization = "SPLIT";
+    row.primaryTeacherId = primaryTeacherId!;
+    row.secondaryTeacherId = secondaryTeacherId!;
+    return row;
+  });
+
+  const enforced = applySchoolOperationalRules(plan, staffingPlan, null);
+  for (const [classCode, primaryTeacherId, secondaryTeacherId] of [
+    ["9.A", "sobotnik", "masek"],
+    ["9.C", "masek", "sobotnik"],
+  ]) {
     const row = enforced.rows.find(
       (item) => item.classCode === classCode && item.subjectCode === "TV",
     );
     assert.equal(row?.organization, "SPLIT", classCode);
+    assert.equal(row?.primaryTeacherId, primaryTeacherId, classCode);
+    assert.equal(row?.secondaryTeacherId, secondaryTeacherId, classCode);
+    assert.equal(row?.lessonShape, "DOUBLE", classCode);
+    assert.equal(row?.doublePeriodsCount, 1, classCode);
   }
-
-  const eightB = enforced.rows.find(
-    (item) => item.classCode === "8.B" && item.subjectCode === "TV",
-  );
-  assert.equal(eightB?.splitGroupCount, 3);
-  assert.equal(eightB?.lessonShape, "MIXED");
-  assert.equal(eightB?.doublePeriodsCount, 2);
 });
 
 test("every generated PE assignment is capped at two periods per day", () => {
