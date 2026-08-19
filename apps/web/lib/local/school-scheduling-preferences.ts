@@ -10,6 +10,7 @@ type LocalFixedLesson = LocalProject["fixedLessons"][number];
 
 const SPANKOVA_SURNAME = "spankova";
 const SECOND_FOREIGN_LANGUAGE_CODE = "JAZ2";
+const PHYSICAL_EDUCATION_CODE = "TV";
 const EIGHTH_GRADE_CLASS_IDS = new Set(["class:8-A", "class:8-B", "class:8-C"]);
 const SPANISH_FIXED_SLOTS = [
   { dayOfWeek: 1, startPeriod: 1 }, // Út 2. hodina
@@ -56,6 +57,8 @@ export interface SchoolSchedulingPreferencesResult {
  * Current-school scheduling wishes that are not part of the curriculum itself.
  * Spanish for Špánková is a fixed operational requirement; German after it is
  * deliberately only preferred so it can move when another hard constraint wins.
+ * PE is additionally capped at two periods per assignment/day, so a group can
+ * never receive two double blocks (or a double plus a single) on the same day.
  */
 export function schoolSchedulingPreferences({
   assignments,
@@ -69,6 +72,14 @@ export function schoolSchedulingPreferences({
   existingFixedLessons: LocalFixedLesson[];
 }): SchoolSchedulingPreferencesResult {
   const warnings: string[] = [];
+  const subjectCodes = subjectCodeById(subjects);
+
+  for (const assignment of assignments) {
+    if (subjectCodes.get(assignment.subjectId) === PHYSICAL_EDUCATION_CODE) {
+      assignment.maxPerDay = 2;
+    }
+  }
+
   const spankova = staffingPlan.teachers.find(
     (teacher) => normalizedPersonToken(teacher.lastName) === SPANKOVA_SURNAME,
   );
@@ -77,7 +88,6 @@ export function schoolSchedulingPreferences({
   }
 
   const teacherId = `teacher:${spankova.id}`;
-  const subjectCodes = subjectCodeById(subjects);
   const languageAssignments = assignments.filter(
     (assignment) =>
       assignment.teacherId === teacherId &&
