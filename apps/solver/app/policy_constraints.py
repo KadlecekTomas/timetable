@@ -3,11 +3,10 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-from ortools.sat.python import cp_model
-
 from app.class_groups import assignment_class_ids, class_required_weekly_periods
 from app.models import SolveRequest
 from app.policy import daily_subject_limit, subject_code
+from ortools.sat.python import cp_model
 
 
 HARD_BALANCE_PRIORITY = 20_000
