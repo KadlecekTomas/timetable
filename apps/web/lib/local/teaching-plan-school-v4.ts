@@ -22,6 +22,7 @@ declare module "./teaching-plan" {
   }
 }
 
+const SECOND_FOREIGN_LANGUAGE_CODE = "JAZ2";
 const ELECTIVE_SUBJECT_CODE = "VOL";
 const ELECTIVE_EXCLUDED_GRADES = new Set([6, 7]);
 const SPLIT_PERIODS_STORAGE_KEY = "rozvrhar:teaching-plan-split-periods:v1";
@@ -197,6 +198,12 @@ export function enforceMandatorySchoolSplits(plan: TeachingPlan): TeachingPlan {
         row.organization === "ROTATION" ||
         !SCHOOL_SPLIT_SUBJECT_CODES.has(row.subjectCode)
       ) {
+        return row;
+      }
+
+      // JAZ2 organization comes directly from the staffing matrix. Some classes
+      // have one language/teacher while others are split between two languages.
+      if (row.subjectCode === SECOND_FOREIGN_LANGUAGE_CODE) {
         return row;
       }
 
