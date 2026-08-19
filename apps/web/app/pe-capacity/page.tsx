@@ -16,6 +16,7 @@ import {
   loadPhysicalEducationExternalOccupancy,
   occupiedPhysicalEducationSpacesAt,
   savePhysicalEducationExternalOccupancy,
+  schoolDefaultPhysicalEducationExternalOccupancySlots,
   subscribePhysicalEducationExternalOccupancy,
   type PhysicalEducationExternalOccupancySlot,
 } from "@/lib/local/physical-education-external-occupancy";
@@ -105,6 +106,10 @@ export default function PeCapacityPage() {
     void persistSlots(next);
   }
 
+  function restoreSchoolDefaults() {
+    void persistSlots(schoolDefaultPhysicalEducationExternalOccupancySlots());
+  }
+
   function clearAll() {
     void persistSlots([]);
   }
@@ -116,15 +121,25 @@ export default function PeCapacityPage() {
         title="Obsazenost sportovních prostor 1. stupně"
         description="Zadejte pouze počet sportovních prostorů, které v dané hodině zabere 1. stupeň. Konkrétní hala není důležitá — solver o stejný počet sníží dostupnou kapacitu pro TV."
         actions={
-          <Button
-            type="button"
-            variant="outline"
-            onClick={clearAll}
-            disabled={busy || slots.length === 0}
-          >
-            <RotateCcw className="size-4" aria-hidden="true" />
-            Vynulovat obsazenost
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={restoreSchoolDefaults}
+              disabled={busy}
+            >
+              <RotateCcw className="size-4" aria-hidden="true" />
+              Obnovit školní výchozí
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={clearAll}
+              disabled={busy || slots.length === 0}
+            >
+              Vynulovat
+            </Button>
+          </div>
         }
       />
 
@@ -136,6 +151,8 @@ export default function PeCapacityPage() {
           omezení, ne preference.
         </p>
         <p className="mt-2 text-xs text-text-muted">
+          Školní výchozí profil je předvyplněný: Út 1.–4. hodina −2, Út 5.
+          hodina −3; Čt 1.–3. hodina −2, Čt 4. hodina −3; Pá 1.–2. hodina −2.
           Aktivní externí omezení: {reservedSlotCount} časových slotů.
         </p>
       </section>

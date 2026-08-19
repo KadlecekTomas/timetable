@@ -4,6 +4,7 @@ import {
   clearStaffingAllocationDraft,
   saveStaffingAllocationDraft,
 } from "@/lib/local/staffing-allocation-draft";
+import { applySchoolTeacherAvailabilityDefaults } from "@/lib/local/school-teacher-availability-defaults";
 import {
   NON_TEACHING_SUBJECT_CODES,
   type StaffingSubjectLoad,
@@ -133,6 +134,17 @@ function moveSupplementalHoursOutOfReserve(
   return analysis;
 }
 
+function applySchoolAvailability<
+  T extends StaffingWorkbookAnalysis | LegacyStaffingPlanAnalysis,
+>(analysis: T): T {
+  analysis.plan = applySchoolTeacherAvailabilityDefaults(analysis.plan).plan;
+  analysis.summary.unavailableWholeDays = analysis.plan.teachers.reduce(
+    (total, teacher) => total + teacher.unavailableDays.length,
+    0,
+  );
+  return analysis;
+}
+
 function hasRecoverableLegacyDraft(
   analysis: LegacyStaffingPlanAnalysis,
 ): boolean {
@@ -150,12 +162,13 @@ export async function analyzeStaffingWorkbook(
   try {
     await workbook.xlsx.load(bytes as never);
   } catch {
-    return analyzeSchoolStaffingWorkbook(input);
+    return applySchoolAvailability(await analyzeSchoolStaffingWorkbook(input));
   }
 
   const legacy = analyzeLegacyStaffingPlan(workbook);
   if (legacy) {
     moveSupplementalHoursOutOfReserve(legacy, workbook);
+    applySchoolAvailability(legacy);
     const recoverable = hasRecoverableLegacyDraft(legacy);
     if (recoverable) {
       legacy.valid = true;
@@ -166,7 +179,9 @@ export async function analyzeStaffingWorkbook(
     return legacy;
   }
 
-  const analysis = await analyzeSchoolStaffingWorkbook(input);
+  const analysis = applySchoolAvailability(
+    await analyzeSchoolStaffingWorkbook(input),
+  );
   if (analysis.valid) clearStaffingAllocationDraft();
   return analysis;
 }

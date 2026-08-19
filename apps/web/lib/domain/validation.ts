@@ -13,6 +13,12 @@ import {
   parallelAssignmentGroups,
 } from "./class-groups";
 import {
+  roomShareAssignmentGroups,
+  roomShareBlockPairKey,
+  sharedRoomBlockDurations,
+  sharedRoomBlockPairs,
+} from "./room-sharing";
+import {
   crossesLunchBreak,
   MIN_LUNCH_BREAK_MINUTES,
   MORNING_PERIOD_LIMIT,
@@ -52,6 +58,7 @@ export function validateSchedule(
   const assignments = new Map(
     snapshot.assignments.map((assignment) => [assignment.id, assignment]),
   );
+  const sharedRoomPairs = sharedRoomBlockPairs(snapshot.assignments);
   const rooms = new Map(snapshot.rooms.map((room) => [room.id, room]));
   const fixed = fixedLessonsByBlock(snapshot);
   const expectedBlocks = new Map<
@@ -278,7 +285,12 @@ export function validateSchedule(
       if (lesson.room_id) {
         const roomKey = `${lesson.room_id}:${lesson.day}:${period}`;
         const roomConflict = roomSlots.get(roomKey);
-        if (roomConflict) {
+        if (
+          roomConflict &&
+          !sharedRoomPairs.has(
+            roomShareBlockPairKey(roomConflict.block_id, lesson.block_id),
+          )
+        ) {
           pushIssue(
             issues,
             "ROOM_COLLISION",
@@ -287,7 +299,7 @@ export function validateSchedule(
             lesson.day,
             period,
           );
-        } else {
+        } else if (!roomConflict) {
           roomSlots.set(roomKey, lesson);
         }
       }
@@ -340,6 +352,36 @@ export function validateSchedule(
       lesson,
     ]);
   }
+  for (const group of roomShareAssignmentGroups(snapshot.assignments)) {
+    if (group.assignments.length !== 2) continue;
+    const sharedDurations = sharedRoomBlockDurations(group.assignments);
+    const [leftAssignment, rightAssignment] = group.assignments;
+    for (let index = 0; index < sharedDurations.length; index += 1) {
+      const left = (lessonsByAssignment.get(leftAssignment!.id) ?? []).find(
+        (lesson) => lesson.block_id === `${leftAssignment!.id}:${index}`,
+      );
+      const right = (lessonsByAssignment.get(rightAssignment!.id) ?? []).find(
+        (lesson) => lesson.block_id === `${rightAssignment!.id}:${index}`,
+      );
+      if (!left || !right) continue;
+      if (
+        left.day !== right.day ||
+        left.period !== right.period ||
+        left.duration !== right.duration ||
+        left.room_id !== right.room_id
+      ) {
+        pushIssue(
+          issues,
+          "ROOM_SHARE_DESYNCHRONIZED",
+          "Co-teaching ve sdíleném prostoru musí probíhat současně a ve stejné místnosti.",
+          [left.block_id, right.block_id],
+          left.day,
+          left.period,
+        );
+      }
+    }
+  }
+
   for (const group of parallelAssignmentGroups(snapshot.assignments)) {
     const lessonGroups = group.map((assignment) =>
       [...(lessonsByAssignment.get(assignment.id) ?? [])].sort((a, b) =>

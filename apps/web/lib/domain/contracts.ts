@@ -64,6 +64,7 @@ export interface SnapshotAssignment {
   max_per_day?: number | null;
   min_day_gap?: number | null;
   parallel_key?: string | null;
+  room_share_key?: string | null;
   rotation_key?: string | null;
   rotation_leg?: number | null;
   rotation_placement?: RotationPlacement | null;

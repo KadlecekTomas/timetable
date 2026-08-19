@@ -13,6 +13,7 @@ import type {
   ImportSummary,
 } from "@/lib/import/contracts";
 import { analyzeClientImportWorkbook } from "@/lib/import/client-workbook";
+import { maxGenerationTimeLimitForHost } from "@/lib/local/deep-solve";
 
 export const LOCAL_SCHOOL_YEAR_ID = "local-school-year";
 
@@ -106,6 +107,7 @@ export interface LocalAssignment {
   maxPerDay: number | null;
   minDayGap: number | null;
   parallelKey: string | null;
+  roomShareKey?: string | null;
   rotationKey: string | null;
   rotationLeg: number | null;
   rotationPlacement: "ADJACENT" | "SAME_DAY" | "FLEXIBLE" | null;
@@ -329,6 +331,7 @@ function normalizeStoredProject(project: LocalProject): LocalProject {
     assignments: project.assignments.map((assignment) => ({
       ...assignment,
       parallelKey: assignment.parallelKey ?? null,
+      roomShareKey: assignment.roomShareKey ?? null,
       rotationKey: assignment.rotationKey ?? null,
       rotationLeg: assignment.rotationLeg ?? null,
       rotationPlacement: assignment.rotationPlacement ?? null,
@@ -492,6 +495,7 @@ function projectSnapshot(
       max_per_day: assignment.maxPerDay,
       min_day_gap: assignment.minDayGap,
       parallel_key: assignment.parallelKey,
+      room_share_key: assignment.roomShareKey ?? null,
       rotation_key: assignment.rotationKey,
       rotation_leg: assignment.rotationLeg,
       rotation_placement: assignment.rotationPlacement,
@@ -770,6 +774,7 @@ async function createResource(
         maxPerDay: nullableNumber(body, "maxPerDay"),
         minDayGap: nullableNumber(body, "minDayGap"),
         parallelKey: stringField(body, "parallelKey") || null,
+        roomShareKey: stringField(body, "roomShareKey") || null,
         rotationKey: stringField(body, "rotationKey") || null,
         rotationLeg: [1, 2].includes(Number(body.rotationLeg))
           ? Number(body.rotationLeg)
@@ -1330,15 +1335,18 @@ async function createGenerationRun(
   body: Record<string, unknown>,
 ): Promise<Response> {
   const timeLimitSeconds = Number(body.timeLimitSeconds ?? 60);
+  const hostname =
+    typeof window === "undefined" ? "" : window.location.hostname;
+  const maxTimeLimitSeconds = maxGenerationTimeLimitForHost(hostname);
   if (
     !Number.isInteger(timeLimitSeconds) ||
     timeLimitSeconds < 1 ||
-    timeLimitSeconds > 300
+    timeLimitSeconds > maxTimeLimitSeconds
   ) {
     return errorResponse(
       422,
       "GENERATION_REQUEST_INVALID",
-      "Časový limit musí být mezi 1 a 300 sekundami.",
+      `Časový limit musí být mezi 1 a ${maxTimeLimitSeconds} sekundami.`,
     );
   }
   const project = await getLocalProject();

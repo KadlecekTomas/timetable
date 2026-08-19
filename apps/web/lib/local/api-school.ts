@@ -4,6 +4,7 @@ import {
   physicalEducationExternalAvailability,
 } from "./physical-education-external-occupancy";
 import { buildSchoolProjectForGeneration } from "./school-project-generation";
+import { staffingExactUnavailableAvailability } from "./staffing-exact-availability";
 import {
   loadStaffingPlan,
   teacherCodesForPlan,
@@ -202,9 +203,10 @@ export async function localApiFetch(
       );
     }
     const body = requestBody(init);
+    const staffingPlan = loadStaffingPlan();
     const result = buildSchoolProjectForGeneration({
       existingProject: await base.getLocalProject(),
-      staffingPlan: loadStaffingPlan(),
+      staffingPlan,
       teachingPlan: loadTeachingPlan(),
       forceReplaceGeneratedData: body.forceReplaceGeneratedData === true,
     });
@@ -216,6 +218,11 @@ export async function localApiFetch(
           : 422,
       );
     }
+    const exactTeacherAvailability = staffingExactUnavailableAvailability(
+      result.project,
+      staffingPlan,
+    );
+    result.project.availability.push(...exactTeacherAvailability);
     const externalAvailability = physicalEducationExternalAvailability(
       result.project,
       loadPhysicalEducationExternalOccupancy().slots,

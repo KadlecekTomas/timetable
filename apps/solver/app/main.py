@@ -1,3 +1,4 @@
+import os
 import time
 from collections import defaultdict
 from dataclasses import dataclass
@@ -23,6 +24,10 @@ from app.models import (
     SolveRequest,
     SolveResponse,
     TeachingGroup,
+)
+from app.room_sharing import (
+    room_share_block_pair_key,
+    room_share_block_pairs,
 )
 from app.rotations import add_rotation_constraints
 from app.school_day import crosses_lunch_break
@@ -50,8 +55,21 @@ SUBJECT_LATE_WEIGHTS = {
     "VV": 0,
     "PC": 0,
 }
+SUBJECT_AFTERNOON_BONUSES = {
+    "TV": 1_800,
+    "PC": 1_500,
+    "VV": 1_500,
+    "SVS": 1_300,
+    "VZ": 1_300,
+    "VKZ": 1_300,
+    "HV": 350,
+    "PRPK": 300,
+    "PKCJ": 300,
+}
 DEFAULT_SUBJECT_LATE_WEIGHT = 300
 VERCEL_REQUEST_BUDGET_SECONDS = 270.0
+LOCAL_DEEP_SOLVE_MAX_SECONDS = 1_800.0
+LOCAL_DEEP_SOLVE_ENV = "ALLOW_LONG_SOLVES"
 
 
 @dataclass(frozen=True)
@@ -191,6 +209,27 @@ def _preflight_diagnostics(
                 }
             )
 
+    blocks_by_id = {block.id: block for block in blocks}
+    for left_block_id, right_block_id in room_share_block_pairs(payload.assignments):
+        left_block = blocks_by_id[left_block_id]
+        right_block = blocks_by_id[right_block_id]
+        left_candidates = set(
+            _candidate_keys(payload, left_block, fixed.get(left_block_id))
+        )
+        right_candidates = set(
+            _candidate_keys(payload, right_block, fixed.get(right_block_id))
+        )
+        if not left_candidates.intersection(right_candidates):
+            diagnostics.append(
+                {
+                    "code": "ROOM_SHARE_EMPTY_INTERSECTION",
+                    "message": (
+                        f"Sdílené bloky {left_block_id} a {right_block_id} nemají společné umístění a místnost."
+                    ),
+                    "entityIds": [left_block.assignment.id, right_block.assignment.id],
+                }
+            )
+
     for teacher_id in sorted({item.teacher_id for item in payload.assignments}):
         required = sum(item.weekly_periods for item in payload.assignments if item.teacher_id == teacher_id)
         unavailable = {
@@ -219,6 +258,10 @@ def _fixed_conflict_diagnostics(
     assignments = {assignment.id: assignment for assignment in payload.assignments}
     fixed_items = [*payload.fixed_lessons, *payload.locked_lessons]
     diagnostics: list[dict[str, Any]] = []
+    shared_room_pairs = {
+        room_share_block_pair_key(left, right)
+        for left, right in room_share_block_pairs(payload.assignments)
+    }
 
     for index, left in enumerate(fixed_items):
         left_assignment = assignments[left.assignment_id]
@@ -236,10 +279,22 @@ def _fixed_conflict_diagnostics(
                 or right_assignment.group == TeachingGroup.WHOLE
                 or left_assignment.group == right_assignment.group
             )
+            left_block_id = f"{left.assignment_id}:{left.block_index}"
+            right_block_id = f"{right.assignment_id}:{right.block_index}"
+            is_shared_room_pair = (
+                room_share_block_pair_key(left_block_id, right_block_id)
+                in shared_room_pairs
+            )
+            same_room_conflict = (
+                left.room_id is not None
+                and right.room_id is not None
+                and left.room_id == right.room_id
+                and not is_shared_room_pair
+            )
             shares_resource = (
                 left_assignment.teacher_id == right_assignment.teacher_id
                 or class_conflict
-                or (left.room_id is not None and right.room_id is not None and left.room_id == right.room_id)
+                or same_room_conflict
             )
             if shares_resource:
                 diagnostics.append(
@@ -283,6 +338,9 @@ def _subject_late_cost(
     if afternoon_distance == 0:
         return 0
     subject_code = _subject_code(payload, assignment.subject_id)
+    afternoon_bonus = SUBJECT_AFTERNOON_BONUSES.get(subject_code, 0)
+    if afternoon_bonus > 0:
+        return -afternoon_distance * afternoon_bonus
     weight = SUBJECT_LATE_WEIGHTS.get(
         subject_code,
         DEFAULT_SUBJECT_LATE_WEIGHT,
@@ -412,11 +470,21 @@ def _search_workers(payload: SolveRequest) -> int:
     return 8 if payload.time_limit_seconds >= 120 else 1
 
 
+def _long_solves_enabled() -> bool:
+    return os.getenv(LOCAL_DEEP_SOLVE_ENV, "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
 def _solver_time_limit_seconds(
     payload: SolveRequest,
     request_started: float,
 ) -> float:
     requested = float(payload.time_limit_seconds)
+    if _long_solves_enabled():
+        return min(requested, LOCAL_DEEP_SOLVE_MAX_SECONDS)
     elapsed = max(0.0, time.monotonic() - request_started)
     remaining_budget = max(1.0, VERCEL_REQUEST_BUDGET_SECONDS - elapsed)
     return min(requested, remaining_budget)
@@ -440,6 +508,8 @@ def solve(payload: SolveRequest) -> SolveResponse:
 
     model = cp_model.CpModel()
     variables: dict[str, list[tuple[CandidateKey, cp_model.IntVar]]] = {}
+    room_share_pairs = room_share_block_pairs(payload.assignments)
+    shared_room_follower_blocks = {right for _left, right in room_share_pairs}
     teacher_slots: dict[tuple[str, int, int], list[cp_model.IntVar]] = defaultdict(list)
     room_slots: dict[tuple[str, int, int], list[cp_model.IntVar]] = defaultdict(list)
     class_whole_slots: dict[tuple[str, int, int], list[cp_model.IntVar]] = defaultdict(list)
@@ -490,7 +560,7 @@ def solve(payload: SolveRequest) -> SolveResponse:
                         class_group_2_slots[(class_id, candidate.day, period)].append(variable)
                     else:
                         class_group_3_slots[(class_id, candidate.day, period)].append(variable)
-                if candidate.room_id:
+                if candidate.room_id and block.id not in shared_room_follower_blocks:
                     room_slots[(candidate.room_id, candidate.day, period)].append(variable)
 
         model.add_exactly_one([variable for _candidate, variable in candidates])
@@ -579,6 +649,33 @@ def solve(payload: SolveRequest) -> SolveResponse:
                     model.add(
                         sum(reference_at_position) == sum(candidate_at_position)
                     )
+
+    for left_block_id, right_block_id in room_share_pairs:
+        positions = {
+            (candidate.day, candidate.period, candidate.room_id)
+            for block_id in (left_block_id, right_block_id)
+            for candidate, _variable in variables[block_id]
+        }
+        for day, period, room_id in positions:
+            left_at_position = [
+                variable
+                for candidate, variable in variables[left_block_id]
+                if (
+                    candidate.day == day
+                    and candidate.period == period
+                    and candidate.room_id == room_id
+                )
+            ]
+            right_at_position = [
+                variable
+                for candidate, variable in variables[right_block_id]
+                if (
+                    candidate.day == day
+                    and candidate.period == period
+                    and candidate.room_id == room_id
+                )
+            ]
+            model.add(sum(left_at_position) == sum(right_at_position))
 
     rotation_diagnostics = add_rotation_constraints(
         model=model,
@@ -900,7 +997,9 @@ def solve(payload: SolveRequest) -> SolveResponse:
             {
                 "code": "PEDAGOGICAL_AFTERNOON_PRIORITY",
                 "message": (
-                    "Pozdní hodiny přednostně využívají pohybové, výtvarné a praktické předměty před matematikou, jazyky a informatikou."
+                    "Odpolední hodiny aktivně preferují TV, PČ, VV, SVS a VKZ; "
+                "HV, PřPk a PkČj jsou záložní odpolední předměty. "
+                "Jádrové předměty zůstávají prioritně dříve."
                 ),
             },
             search_diagnostic,

@@ -4,6 +4,11 @@ import type {
   ReadinessReport,
   SnapshotAssignment,
 } from "./contracts";
+import {
+  roomShareAssignmentGroups,
+  sharedRoomBlockDurations,
+  sharedRoomPeriodDiscount,
+} from "./room-sharing";
 
 function issue(
   code: string,
@@ -254,6 +259,150 @@ export function evaluateReadiness(
           "ERROR",
           "Pravidlo dostupnosti odkazuje mimo rozsah pracovního dne.",
           [rule.entity_id],
+        ),
+      );
+    }
+  }
+
+  const totalWeeklySlots = snapshot.periods_per_day.reduce(
+    (total, periods) => total + periods,
+    0,
+  );
+  const teacherUnavailableSlots = new Map<string, Set<string>>();
+  for (const rule of snapshot.availability) {
+    if (
+      rule.kind !== "UNAVAILABLE" ||
+      rule.entity_type !== "TEACHER" ||
+      rule.period < 0 ||
+      rule.period >= (snapshot.periods_per_day[rule.day] ?? 0)
+    ) {
+      continue;
+    }
+    const slots =
+      teacherUnavailableSlots.get(rule.entity_id) ?? new Set<string>();
+    slots.add(`${rule.day}:${rule.period}`);
+    teacherUnavailableSlots.set(rule.entity_id, slots);
+  }
+  for (const teacher of snapshot.teachers) {
+    const required = teacherLoads.get(teacher.id) ?? 0;
+    const available =
+      totalWeeklySlots - (teacherUnavailableSlots.get(teacher.id)?.size ?? 0);
+    if (required > available) {
+      add(
+        issue(
+          "TEACHER_AVAILABLE_SLOT_CAPACITY_EXCEEDED",
+          "ERROR",
+          `${teacher.first_name} ${teacher.last_name}: ${required} hodin výuky, ale podle zadané dostupnosti má pouze ${available} použitelných hodin. Chybí minimálně ${required - available}.`,
+          [teacher.id],
+          "Uvolněte některé blokované hodiny nebo přesuňte část výuky na jiného učitele.",
+        ),
+      );
+    }
+  }
+
+  for (const group of roomShareAssignmentGroups(snapshot.assignments)) {
+    if (group.assignments.length !== 2) {
+      add(
+        issue(
+          "ROOM_SHARE_GROUP_INVALID",
+          "ERROR",
+          `Sdílený prostor ${group.key} musí spojovat právě dvě výukové vazby.`,
+          group.assignments.map((assignment) => assignment.id),
+        ),
+      );
+      continue;
+    }
+    if (sharedRoomBlockDurations(group.assignments).length === 0) {
+      add(
+        issue(
+          "ROOM_SHARE_SHAPE_MISMATCH",
+          "ERROR",
+          `Sdílený prostor ${group.key} nemá žádný společný kompatibilní blok.`,
+          group.assignments.map((assignment) => assignment.id),
+        ),
+      );
+    }
+  }
+
+  const peSubjectIds = new Set(
+    snapshot.subjects
+      .filter((subject) => subject.code.trim().toUpperCase() === "TV")
+      .map((subject) => subject.id),
+  );
+  const peAssignments = snapshot.assignments.filter((assignment) =>
+    peSubjectIds.has(assignment.subject_id),
+  );
+  const peRoomTypeIds = new Set(
+    peAssignments.flatMap((assignment) =>
+      assignment.required_room_type_id
+        ? [assignment.required_room_type_id]
+        : [],
+    ),
+  );
+  for (const subject of snapshot.subjects) {
+    if (peSubjectIds.has(subject.id) && subject.default_room_type_id) {
+      peRoomTypeIds.add(subject.default_room_type_id);
+    }
+  }
+  const peRequiredRoomIds = new Set(
+    peAssignments.flatMap((assignment) =>
+      assignment.required_room_id ? [assignment.required_room_id] : [],
+    ),
+  );
+  const peRoomIds = new Set(
+    snapshot.rooms
+      .filter(
+        (room) =>
+          peRequiredRoomIds.has(room.id) ||
+          (room.room_type_id != null && peRoomTypeIds.has(room.room_type_id)),
+      )
+      .map((room) => room.id),
+  );
+  if (peAssignments.length > 0 && peRoomIds.size > 0) {
+    const unavailablePeRoomSlots = new Set(
+      snapshot.availability
+        .filter(
+          (rule) =>
+            rule.kind === "UNAVAILABLE" &&
+            rule.entity_type === "ROOM" &&
+            peRoomIds.has(rule.entity_id),
+        )
+        .map((rule) => `${rule.entity_id}:${rule.day}:${rule.period}`),
+    );
+    let availablePeRoomPeriods = 0;
+    for (let day = 0; day < snapshot.periods_per_day.length; day += 1) {
+      const periods = snapshot.periods_per_day[day] ?? 0;
+      for (let period = 0; period < periods; period += 1) {
+        for (const roomId of peRoomIds) {
+          if (!unavailablePeRoomSlots.has(`${roomId}:${day}:${period}`)) {
+            availablePeRoomPeriods += 1;
+          }
+        }
+      }
+    }
+    const requiredPeRoomPeriods =
+      peAssignments.reduce(
+        (total, assignment) => total + assignment.weekly_periods,
+        0,
+      ) - sharedRoomPeriodDiscount(peAssignments);
+    const reserve = availablePeRoomPeriods - requiredPeRoomPeriods;
+    if (reserve < 0) {
+      add(
+        issue(
+          "PE_TOTAL_ROOM_CAPACITY_EXCEEDED",
+          "ERROR",
+          `TV vyžaduje ${requiredPeRoomPeriods} prostorohodin týdně, ale po všech omezeních včetně obsazenosti 1. stupně zbývá jen ${availablePeRoomPeriods}. Chybí minimálně ${Math.abs(reserve)} prostorohodin.`,
+          [...peRoomIds],
+          "Uvolněte část TV kapacity, přidejte další použitelný prostor nebo upravte časové omezení TV.",
+        ),
+      );
+    } else if (requiredPeRoomPeriods > 0 && reserve <= 5) {
+      add(
+        issue(
+          "PE_TOTAL_ROOM_CAPACITY_TIGHT",
+          "WARNING",
+          `TV má po započtení 1. stupně rezervu jen ${reserve} prostorohodin týdně. Zadání je velmi těsné.`,
+          [...peRoomIds],
         ),
       );
     }

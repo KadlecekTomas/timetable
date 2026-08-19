@@ -1,5 +1,9 @@
+import { applySchoolTeacherAvailabilityDefaults } from "./school-teacher-availability-defaults";
+
 export const STAFFING_PLAN_STORAGE_KEY = "rozvrhar:staffing-plan:v1";
 export const STAFFING_PLAN_CHANGE_EVENT = "rozvrhar:staffing-plan-changed";
+const SCHOOL_TEACHER_AVAILABILITY_MIGRATION_KEY =
+  "rozvrhar:school-teacher-availability:2026-2027:v1";
 export const MAX_WEEKLY_TEACHER_LOAD = 22;
 export const MAX_WEEKLY_TEACHER_TOTAL_LOAD = 60;
 
@@ -141,7 +145,6 @@ export function validateStaffingTeacher(
   const baseLoad = baseWeeklyLoad(teacher);
   const overtimeLoad = overtimeWeeklyLoad(teacher);
 
-  if (!teacher.firstName.trim()) messages.push("Doplňte jméno.");
   if (!teacher.lastName.trim()) messages.push("Doplňte příjmení.");
   if (
     !Number.isInteger(baseLoad) ||
@@ -312,7 +315,30 @@ export function loadStaffingPlan(): StaffingPlan {
   if (typeof window === "undefined") return createEmptyStaffingPlan();
   try {
     const raw = window.localStorage.getItem(STAFFING_PLAN_STORAGE_KEY);
-    return raw ? normalizePlan(JSON.parse(raw)) : createEmptyStaffingPlan();
+    const plan = raw
+      ? normalizePlan(JSON.parse(raw))
+      : createEmptyStaffingPlan();
+    if (
+      plan.teachers.length === 0 ||
+      window.localStorage.getItem(SCHOOL_TEACHER_AVAILABILITY_MIGRATION_KEY) ===
+        "1"
+    ) {
+      return plan;
+    }
+
+    const applied = applySchoolTeacherAvailabilityDefaults(plan);
+    if (applied.matchedSurnames.length === 0) return plan;
+
+    const migrated = normalizePlan({
+      ...applied.plan,
+      updatedAt: new Date().toISOString(),
+    });
+    window.localStorage.setItem(
+      STAFFING_PLAN_STORAGE_KEY,
+      JSON.stringify(migrated),
+    );
+    window.localStorage.setItem(SCHOOL_TEACHER_AVAILABILITY_MIGRATION_KEY, "1");
+    return migrated;
   } catch {
     return createEmptyStaffingPlan();
   }
