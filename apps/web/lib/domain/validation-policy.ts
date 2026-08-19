@@ -207,7 +207,14 @@ export function validateSchedule(
   const legacy = validateLegacySchedule(snapshot, lessons);
   if (!snapshot.policy) return legacy;
 
-  const ignored = new Set(["LUNCH_BREAK_CROSSED", "CLASS_HAS_INTERNAL_GAP"]);
+  // Explicit SolverPolicy owns the class afternoon semantics. The legacy
+  // no-consecutive-afternoons rule contradicts the accepted V8 pattern where
+  // 33-hour classes deliberately use Tue/Wed/Thu afternoons.
+  const ignored = new Set([
+    "LUNCH_BREAK_CROSSED",
+    "CLASS_HAS_INTERNAL_GAP",
+    "CONSECUTIVE_CLASS_AFTERNOONS",
+  ]);
   if (!snapshot.policy.class_day.require_first_period) {
     ignored.add("CLASS_DOES_NOT_START_AT_EIGHT");
   }
