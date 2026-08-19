@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-import { exactUploadedWorkbookBytes } from "../test-support/exact-uploaded-excel-fixture";
+import { currentSchoolV8WorkbookBytes } from "../test-support/current-school-v8-workbook-fixture";
 
-test("exact anonymized uploaded Excel imports through UI and produces a solver timetable", async ({
+test("exact current-school V8 Excel imports through UI and produces a policy-valid timetable", async ({
   page,
 }) => {
   test.setTimeout(780_000);
@@ -15,10 +15,10 @@ test("exact anonymized uploaded Excel imports through UI and produces a solver t
     }
   });
 
-  const bytes = await exactUploadedWorkbookBytes();
+  const bytes = await currentSchoolV8WorkbookBytes();
   await page.goto("/coverage?schoolYearId=local-school-year");
   await page.getByLabel("Nahrát Excel s učiteli a úvazky").setInputFiles({
-    name: "uploaded-staffing-anonymized.xlsx",
+    name: "current-school-v8-staffing.xlsx",
     mimeType:
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     buffer: Buffer.from(bytes),
