@@ -61,8 +61,8 @@ export function buildSolverSnapshot({
     })),
     rooms: project.rooms.map((room) => ({
       id: room.id,
-      code: room.code,
-      name: room.name,
+      code: room.code ?? undefined,
+      name: room.name ?? undefined,
       room_type_id: room.roomTypeId,
     })),
     assignments: project.assignments.map((assignment) => ({
