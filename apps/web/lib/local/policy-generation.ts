@@ -1,7 +1,4 @@
-import type {
-  ScheduledLesson,
-  SolverPolicy,
-} from "@/lib/domain/contracts";
+import type { ScheduledLesson, SolverPolicy } from "@/lib/domain/contracts";
 import { evaluateReadiness } from "@/lib/domain/readiness";
 import { scoreSchedule } from "@/lib/domain/scoring";
 import { validateSchedule } from "@/lib/domain/validation";
@@ -103,7 +100,8 @@ export async function createPolicyGenerationRun({
 }): Promise<Response> {
   const body = requestBody(init);
   const timeLimitSeconds = Number(body.timeLimitSeconds ?? 60);
-  const hostname = typeof window === "undefined" ? "" : window.location.hostname;
+  const hostname =
+    typeof window === "undefined" ? "" : window.location.hostname;
   const maximum = maxGenerationTimeLimitForHost(hostname);
   if (
     !Number.isInteger(timeLimitSeconds) ||
@@ -216,8 +214,10 @@ export async function createPolicyGenerationRun({
 
     const versionId = crypto.randomUUID();
     const versionNumber =
-      Math.max(0, ...project.timetableVersions.map((item) => item.versionNumber)) +
-      1;
+      Math.max(
+        0,
+        ...project.timetableVersions.map((item) => item.versionNumber),
+      ) + 1;
     const timestamp = now();
     const lessons = solverPayload.lessons.map((lesson) => ({
       ...lesson,
