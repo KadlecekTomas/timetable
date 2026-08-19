@@ -3,8 +3,8 @@ import test from "node:test";
 
 import { resolveSolverBaseUrl } from "../lib/solver-url";
 
-test("resolveSolverBaseUrl keeps the Docker solver for local development", () => {
-  assert.equal(resolveSolverBaseUrl({}), "http://solver:8000");
+test("resolveSolverBaseUrl uses the host solver for local development", () => {
+  assert.equal(resolveSolverBaseUrl({}), "http://127.0.0.1:8000");
 });
 
 test("resolveSolverBaseUrl uses the public Services deployment on Vercel", () => {
