@@ -188,7 +188,7 @@ try {
       [
         "-m",
         "uvicorn",
-        "app.main:app",
+        "app.runtime:app",
         "--host",
         "127.0.0.1",
         "--port",
