@@ -214,8 +214,20 @@ export function schoolSchedulingPreferences({
   const subjectCodes = subjectCodeById(subjects);
 
   for (const assignment of assignments) {
-    if (subjectCodes.get(assignment.subjectId) === PHYSICAL_EDUCATION_CODE) {
-      assignment.maxPerDay = 2;
+    if (subjectCodes.get(assignment.subjectId) !== PHYSICAL_EDUCATION_CODE) {
+      continue;
+    }
+    assignment.maxPerDay = 2;
+
+    // In the accepted school timetable, most PE lessons are operationally
+    // joined across classes. Binding every independent group to one of several
+    // interchangeable sport rooms multiplies the CP-SAT search space without
+    // changing the timetable quality. Keep the existing 8.B+9.B room-share
+    // pair constrained for now, but let all other PE blocks solve on time and
+    // teacher feasibility only. Monday PE remains a hard policy rule.
+    if (!assignment.roomShareKey) {
+      assignment.requiredRoomId = null;
+      assignment.requiredRoomTypeId = null;
     }
   }
 
