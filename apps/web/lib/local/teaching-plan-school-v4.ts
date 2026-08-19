@@ -95,7 +95,8 @@ function writeStoredSplitPeriods(plan: TeachingPlan): void {
   if (typeof window === "undefined") return;
   const stored = Object.fromEntries(
     plan.rows.flatMap((row) =>
-      Number.isInteger(row.splitWeeklyPeriods) && Number(row.splitWeeklyPeriods) > 0
+      Number.isInteger(row.splitWeeklyPeriods) &&
+      Number(row.splitWeeklyPeriods) > 0
         ? [[row.id, Number(row.splitWeeklyPeriods)] as const]
         : [],
     ),
@@ -113,7 +114,10 @@ function sortedClassCodes(codes: string[]): string[] {
 }
 
 function rowClassCodes(row: TeachingPlanRow): string[] {
-  return sortedClassCodes([row.classCode, ...(row.additionalClassCodes ?? [])]);
+  return sortedClassCodes([
+    row.classCode,
+    ...(row.additionalClassCodes ?? []),
+  ]);
 }
 
 function rowWithClassCodes(
@@ -268,7 +272,11 @@ export function createDefaultSchoolTeachingPlan(
   allocationDraft: StaffingAllocationDraft | null,
 ): TeachingPlan {
   return enforceCurrentSchoolTeachingStructure(
-    base.createDefaultSchoolTeachingPlan(curriculum, staffingPlan, allocationDraft),
+    base.createDefaultSchoolTeachingPlan(
+      curriculum,
+      staffingPlan,
+      allocationDraft,
+    ),
   );
 }
 
