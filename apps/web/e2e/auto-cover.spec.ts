@@ -249,11 +249,9 @@ test("current school keeps second language class-scoped and removes grade-seven 
       left.classCode.localeCompare(right.classCode),
     );
   expect(languageRows).toHaveLength(3);
-  expect(languageRows.map((row: { classCode: string }) => row.classCode)).toEqual([
-    "8.A",
-    "8.B",
-    "8.C",
-  ]);
+  expect(
+    languageRows.map((row: { classCode: string }) => row.classCode),
+  ).toEqual(["8.A", "8.B", "8.C"]);
   for (const row of languageRows) {
     expect(row.primaryTeacherId).toBeTruthy();
     expect(row.secondaryTeacherId).toBeTruthy();
