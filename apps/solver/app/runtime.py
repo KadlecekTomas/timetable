@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
 from app import main as solver_main
-from app import rotations
+from app import rotations, validator
 from app.class_groups import class_required_weekly_periods, parallel_assignment_groups
 from app.models import AvailabilityKind, SolveRequest, SolveResponse
 
@@ -109,6 +109,7 @@ def _patched_solver(
 
         patch(solver_main, "class_required_weekly_periods", no_required_periods)
         patch(rotations, "class_required_weekly_periods", no_required_periods)
+        patch(validator, "class_required_weekly_periods", no_required_periods)
 
     if parallel_sync_disabled:
         patch(solver_main, "parallel_assignment_groups", lambda _assignments: [])
