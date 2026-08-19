@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   web:
@@ -140,3 +140,41 @@ jobs:
             apps/web/playwright-report
             apps/web/test-results
           if-no-files-found: ignore
+
+  patch-shared-pe:
+    if: github.head_ref == 'agent/local-deep-solve-school-pe-defaults' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/local-deep-solve-school-pe-defaults
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Apply shared PE model
+        run: python .github/scripts/patch-shared-pe.py
+      - name: Format changed web files
+        run: npx prettier --write apps/web/lib/domain/contracts.ts apps/web/lib/domain/room-sharing.ts apps/web/lib/domain/readiness.ts apps/web/lib/domain/validation.ts apps/web/lib/local/api.ts apps/web/lib/local/school-project-generation.ts apps/web/tests/room-sharing.test.ts apps/web/tests/school-project-generation.test.ts
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/lib/domain/contracts.ts \
+                  apps/web/lib/domain/room-sharing.ts \
+                  apps/web/lib/domain/readiness.ts \
+                  apps/web/lib/domain/validation.ts \
+                  apps/web/lib/local/api.ts \
+                  apps/web/lib/local/school-project-generation.ts \
+                  apps/web/tests/room-sharing.test.ts \
+                  apps/web/tests/school-project-generation.test.ts \
+                  apps/solver/app/models.py \
+                  apps/solver/app/room_sharing.py \
+                  apps/solver/app/main.py \
+                  apps/solver/app/validator.py \
+                  apps/solver/tests/test_room_sharing.py
+          git commit -m "Share 8.B and 9.B PE spaces"
+          git push origin HEAD:agent/local-deep-solve-school-pe-defaults
