@@ -175,29 +175,11 @@ test("JAZ2 stays class-scoped and Špánková receives the exact accepted V8 slo
           profile: /\.(B|D)$/.test(code) ? "SPORTS" : "REGULAR",
         })),
         rows: [
-          languageRow(
-            "language-8a",
-            "8.A",
-            "SPLIT",
-            "prikrylova",
-            "spankova",
-          ),
+          languageRow("language-8a", "8.A", "SPLIT", "prikrylova", "spankova"),
           languageRow("language-8b", "8.B", "WHOLE", "spankova"),
-          languageRow(
-            "language-8c",
-            "8.C",
-            "SPLIT",
-            "prikrylova",
-            "spankova",
-          ),
+          languageRow("language-8c", "8.C", "SPLIT", "prikrylova", "spankova"),
           languageRow("language-9a", "9.A", "WHOLE", "prikrylova"),
-          languageRow(
-            "language-9b",
-            "9.B",
-            "SPLIT",
-            "spankova",
-            "prikrylova",
-          ),
+          languageRow("language-9b", "9.B", "SPLIT", "spankova", "prikrylova"),
           languageRow("language-9c", "9.C", "WHOLE", "prikrylova"),
         ],
       }),
@@ -254,7 +236,8 @@ test("JAZ2 stays class-scoped and Špánková receives the exact accepted V8 slo
   const spankovaLessons = version!.lessons
     .filter(
       (lesson) =>
-        lesson.teacher_id === spankova!.id && lesson.subject_id === language!.id,
+        lesson.teacher_id === spankova!.id &&
+        lesson.subject_id === language!.id,
     )
     .sort((left, right) => left.day - right.day || left.period - right.period);
   expect(spankovaLessons).toHaveLength(12);
