@@ -25,7 +25,8 @@ test("recommended PE profile frees exactly nine room-periods against original in
       slot.occupiedSpaces,
     ]),
   );
-  const recommended = schoolRecommendedPhysicalEducationExternalOccupancySlots();
+  const recommended =
+    schoolRecommendedPhysicalEducationExternalOccupancySlots();
 
   assert.equal(recommended.length, original.size);
   const freed = recommended.reduce(
