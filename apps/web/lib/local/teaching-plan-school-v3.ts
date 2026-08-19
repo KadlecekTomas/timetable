@@ -451,10 +451,7 @@ export function loadTeachingPlan(): TeachingPlan {
     try {
       writeStoredSplitPeriods(enforced);
       const saved = applyStoredSplitPeriods(base.saveTeachingPlan(enforced));
-      return enforceCurrentSchoolTeachingStructure(
-        saved,
-        separateTeacherIds,
-      );
+      return enforceCurrentSchoolTeachingStructure(saved, separateTeacherIds);
     } finally {
       migratingTeachingPlan = false;
     }

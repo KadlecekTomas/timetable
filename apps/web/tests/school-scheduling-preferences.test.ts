@@ -93,7 +93,10 @@ test("Špánková gets nine fixed Spanish lessons Tue-Wed-Thu periods 2-4 and Ge
       ["spanish-8b", 2, 3, 3],
     ],
   );
-  assert.equal(result.fixedLessons.every((lesson) => lesson.locked), true);
+  assert.equal(
+    result.fixedLessons.every((lesson) => lesson.locked),
+    true,
+  );
   assert.deepEqual(
     result.availability.map((rule) => [
       rule.dayOfWeek,

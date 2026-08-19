@@ -41,7 +41,9 @@ function teacher(
     lastName,
     targetWeeklyLoad: 12,
     baseWeeklyLoad: 12,
-    subjectLoads: [{ id: `${id}:jaz2`, subjectCode: "JAZ2", weeklyPeriods: 12 }],
+    subjectLoads: [
+      { id: `${id}:jaz2`, subjectCode: "JAZ2", weeklyPeriods: 12 },
+    ],
     unavailableDays: [],
     unavailablePeriods: [],
   };
@@ -112,7 +114,9 @@ test("prepared solver project contains Špánková fixed Spanish and German foll
     .sort((left, right) => left.classId.localeCompare(right.classId));
   assert.equal(spanishAssignments.length, 3);
   assert.equal(
-    spanishAssignments.every((assignment) => assignment.additionalClassIds.length === 0),
+    spanishAssignments.every(
+      (assignment) => assignment.additionalClassIds.length === 0,
+    ),
     true,
   );
 

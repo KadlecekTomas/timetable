@@ -83,7 +83,8 @@ test("school defaults match all teachers by surname without requiring first name
     [],
   );
   assert.deepEqual(
-    applied.plan.teachers.find((item) => item.id === "spankova")!.unavailableDays,
+    applied.plan.teachers.find((item) => item.id === "spankova")!
+      .unavailableDays,
     ["MON", "FRI"],
   );
   assert.deepEqual(unavailable(applied.plan, "kvapilova"), [
