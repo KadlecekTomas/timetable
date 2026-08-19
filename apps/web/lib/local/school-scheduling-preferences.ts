@@ -26,7 +26,7 @@ const SPANISH_DAILY_ORDER = [
   },
 ] as const;
 const GERMAN_FOLLOW_UP_PERIOD = 4; // 5. vyučovací hodina
-const GERMAN_FOLLOW_UP_WEIGHT = 200;
+const GERMAN_FOLLOW_UP_WEIGHT = 100;
 
 function normalizedPersonToken(value: string): string {
   return value
