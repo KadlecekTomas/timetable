@@ -35,15 +35,12 @@ export const CURRENT_SCHOOL_SOLVER_POLICY: SolverPolicy = {
   ],
   class_day: {
     require_first_period: true,
-    // Human-readable variants:
-    // 1.–4. teaching, 5. lunch, 6.–7. teaching
-    // 1.–5. teaching, 6. lunch, 7.–8. teaching
     allowed_afternoon_patterns: [
       [0, 1, 2, 3, 5, 6],
       [0, 1, 2, 3, 4, 6, 7],
     ],
-    // Mon–Thu through 8th period; Friday through 6th period only.
-    latest_period_by_day: [7, 7, 7, 7, 5],
+    // The accepted V8 has no Monday afternoon. Friday also ends after period 6.
+    latest_period_by_day: [5, 7, 7, 7, 5],
   },
   teacher_afternoon_break: {
     enabled: true,
@@ -52,11 +49,11 @@ export const CURRENT_SCHOOL_SOLVER_POLICY: SolverPolicy = {
     minimum_free_periods: 1,
   },
   quality: {
-    // Balance class days before chasing cosmetic teacher preferences.
+    // This high priority is also interpreted by the policy adapter as a hard
+    // max-one-lesson daily spread for regular full-week classes.
     class_daily_balance_weight: 20_000,
     class_afternoon_weight: 4_000,
-    // Monday afternoons are strongly discouraged. Friday is already hard-blocked.
-    afternoon_day_weights: [8_000, 0, 0, 0, 50_000],
+    afternoon_day_weights: [0, 0, 0, 0, 0],
     subject_late_weights: {
       INF: 1_500,
       VZ: 250,
