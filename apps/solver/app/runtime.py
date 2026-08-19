@@ -129,13 +129,21 @@ def _patched_solver(
         patch(validator, "class_required_weekly_periods", no_required_periods)
 
     if parallel_sync_disabled:
-        no_parallel_groups = lambda _assignments: []
+
+        def no_parallel_groups(_assignments: Any) -> list[Any]:
+            return []
+
         patch(solver_main, "parallel_assignment_groups", no_parallel_groups)
         patch(validator, "parallel_assignment_groups", no_parallel_groups)
 
     if room_share_disabled:
-        no_room_share_pairs = lambda _assignments: []
-        no_room_share_groups = lambda _assignments: []
+
+        def no_room_share_pairs(_assignments: Any) -> list[Any]:
+            return []
+
+        def no_room_share_groups(_assignments: Any) -> list[Any]:
+            return []
+
         patch(solver_main, "room_share_block_pairs", no_room_share_pairs)
         patch(validator, "room_share_block_pairs", no_room_share_pairs)
         patch(validator, "room_share_assignment_groups", no_room_share_groups)
@@ -166,8 +174,11 @@ def _patched_solver(
             )
             return []
 
+        def no_rotation_validation(_payload: Any, _lessons: Any) -> list[Any]:
+            return []
+
         patch(solver_main, "add_rotation_constraints", quality_only_rotation_constraints)
-        patch(validator, "validate_rotation_schedule", lambda _payload, _lessons: [])
+        patch(validator, "validate_rotation_schedule", no_rotation_validation)
 
     try:
         yield
