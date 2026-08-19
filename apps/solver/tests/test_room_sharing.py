@@ -57,5 +57,7 @@ def test_declared_co_teachers_share_the_same_room_and_time() -> None:
 
 def test_same_single_room_is_infeasible_without_room_share() -> None:
     response = client.post("/solve", json=payload(False))
-    assert response.status_code == 200, response.text
-    assert response.json()["status"] == "INFEASIBLE"
+    assert response.status_code == 422, response.text
+    detail = response.json()["detail"]
+    assert detail["code"] == "INFEASIBLE"
+    assert any(cause["code"] == "INFEASIBLE_MODEL" for cause in detail["causes"])
