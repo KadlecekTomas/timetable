@@ -14,6 +14,7 @@ from app.policy_validation import validate_policy_schedule
 
 _CURRENT_PAYLOAD: ContextVar[Any | None] = ContextVar("solver_policy_payload", default=None)
 _INSTALLED = False
+POLICY_FIRST_SOLUTION_BUDGET_SECONDS = 240
 
 
 def install_policy_adapter() -> None:
@@ -36,13 +37,86 @@ def install_policy_adapter() -> None:
     original_add_rotation_constraints = solver_main.add_rotation_constraints
     original_validate_schedule = validator.validate_schedule
     original_school_quality = rotations._add_school_quality_policy
+    original_availability_cost = solver_main._availability_cost
+    original_add_gap_objective = solver_main._add_gap_objective
 
     def solve_with_policy(payload: Any) -> Any:
         token = _CURRENT_PAYLOAD.set(payload)
+        if payload.policy is None:
+            try:
+                return original_solve(payload)
+            finally:
+                _CURRENT_PAYLOAD.reset(token)
+
+        # Finding a valid full-school timetable is the first priority. The legacy
+        # objective contains thousands of teacher/class-gap and preference terms;
+        # on the real school input CP-SAT could spend more than five minutes before
+        # returning any candidate. Policy requests therefore solve feasibility
+        # first: all hard V8 constraints remain active, while cosmetic objectives
+        # are temporarily neutralized. Once we have a reliably fast valid baseline,
+        # quality can be improved in a bounded second-stage optimizer.
+        original_time_limit = payload.time_limit_seconds
+        original_weights = payload.weights.model_copy(deep=True)
+        original_quality = payload.policy.quality.model_copy(deep=True)
         try:
+            payload.time_limit_seconds = min(
+                original_time_limit,
+                POLICY_FIRST_SOLUTION_BUDGET_SECONDS,
+            )
+            payload.weights.teacher_gap = 0
+            payload.weights.class_gap = 0
+            payload.weights.discouraged_slot = 0
+            payload.weights.preferred_slot_bonus = 0
+            payload.weights.same_day_concentration = 0
+            payload.weights.late_period = 0
+            payload.weights.rotation_spread = 0
+
+            # Keep class_daily_balance_weight: policy_constraints uses its V8
+            # priority threshold to add the hard max-one-period daily spread.
+            payload.policy.quality.class_afternoon_weight = 0
+            payload.policy.quality.afternoon_day_weights = [
+                0 for _unused in payload.policy.quality.afternoon_day_weights
+            ]
+            payload.policy.quality.subject_late_weights = {}
+            payload.policy.quality.subject_afternoon_bonuses = {}
             return original_solve(payload)
         finally:
+            payload.time_limit_seconds = original_time_limit
+            payload.weights = original_weights
+            payload.policy.quality = original_quality
             _CURRENT_PAYLOAD.reset(token)
+
+    def availability_cost_with_policy(
+        payload: Any,
+        assignment: Any,
+        candidate: Any,
+        duration: int,
+    ) -> int:
+        if payload.policy is not None:
+            return 0
+        return original_availability_cost(payload, assignment, candidate, duration)
+
+    def add_gap_objective_with_policy(
+        model: Any,
+        objective_terms: Any,
+        occupancy_sources: Any,
+        entity_ids: Any,
+        periods_per_day: Any,
+        weight: int,
+        prefix: str,
+    ) -> None:
+        payload = _CURRENT_PAYLOAD.get()
+        if payload is not None and payload.policy is not None:
+            return
+        original_add_gap_objective(
+            model,
+            objective_terms,
+            occupancy_sources,
+            entity_ids,
+            periods_per_day,
+            weight,
+            prefix,
+        )
 
     def candidate_keys_with_policy(payload: Any, block: Any, fixed: Any) -> list[Any]:
         if payload.policy is None:
@@ -163,6 +237,8 @@ def install_policy_adapter() -> None:
 
     solver_main.solve = solve_with_policy
     solver_main._candidate_keys = candidate_keys_with_policy
+    solver_main._availability_cost = availability_cost_with_policy
+    solver_main._add_gap_objective = add_gap_objective_with_policy
     solver_main.class_required_weekly_periods = class_required_with_policy
     solver_main._forbid_regular_class_gaps = forbid_class_gaps_with_policy
     rotations._add_school_quality_policy = school_quality_with_policy
