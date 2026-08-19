@@ -11,10 +11,10 @@ function key(dayOfWeek: number, period: number): string {
   return `${dayOfWeek}:${period}`;
 }
 
-test("fresh projects use the recommended 2026/27 PE capacity profile", () => {
+test("fresh projects preserve the original PE occupancy until recommendation is applied", () => {
   assert.deepEqual(
     loadPhysicalEducationExternalOccupancy().slots,
-    schoolRecommendedPhysicalEducationExternalOccupancySlots(),
+    schoolDefaultPhysicalEducationExternalOccupancySlots(),
   );
 });
 
