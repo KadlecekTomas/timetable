@@ -77,7 +77,7 @@ function emptyState(): PhysicalEducationExternalOccupancyState {
   return {
     version: 2,
     updatedAt: new Date(0).toISOString(),
-    slots: schoolRecommendedPhysicalEducationExternalOccupancySlots(),
+    slots: schoolDefaultPhysicalEducationExternalOccupancySlots(),
   };
 }
 
@@ -141,7 +141,7 @@ export function loadPhysicalEducationExternalOccupancy(): PhysicalEducationExter
       slots:
         isCurrentVersion || normalizedSlots.length > 0
           ? normalizedSlots
-          : schoolRecommendedPhysicalEducationExternalOccupancySlots(),
+          : schoolDefaultPhysicalEducationExternalOccupancySlots(),
     };
   } catch {
     return emptyState();
