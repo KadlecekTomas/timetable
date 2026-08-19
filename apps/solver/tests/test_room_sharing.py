@@ -61,3 +61,16 @@ def test_same_single_room_is_infeasible_without_room_share() -> None:
     detail = response.json()["detail"]
     assert detail["code"] == "INFEASIBLE"
     assert any(cause["code"] == "INFEASIBLE_MODEL" for cause in detail["causes"])
+
+
+def test_same_teacher_room_share_is_not_forced_to_overlap() -> None:
+    data = payload(True)
+    data["periods_per_day"] = [4]
+    data["assignments"][1]["teacher_id"] = "teacher-8b"
+
+    response = client.post("/solve", json=data)
+    assert response.status_code == 200, response.text
+    lessons = response.json()["lessons"]
+    assert len(lessons) == 2
+    starts = sorted((lesson["period"], lesson["room_id"]) for lesson in lessons)
+    assert starts == [(0, "gym"), (2, "gym")]
