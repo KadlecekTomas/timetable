@@ -6,10 +6,12 @@ client = TestClient(app)
 
 
 def test_runtime_explains_class_day_policy_instead_of_generic_infeasible() -> None:
-    # The school policy allows at most 34 periods for one class in a five-day
-    # 8-period week (Mon/Fri afternoons are blocked and afternoons cannot be
-    # consecutive). The raw solver can only report a generic infeasible model;
-    # the runtime wrapper proves that relaxing this policy restores feasibility.
+    # Ten weekly periods normally fit easily. But fixing one lesson to Monday's
+    # seventh period conflicts with the school's hard class-day shape: classes
+    # must start in period 1 and have no internal gaps, while Monday afternoon is
+    # also forbidden by the school policy. Removing only that policy makes the
+    # same teaching data immediately feasible, so this is a fast deterministic
+    # diagnostic case instead of a search-timeout-sensitive stress test.
     assignments = [
         {
             "id": f"lesson-{index}",
@@ -18,7 +20,7 @@ def test_runtime_explains_class_day_policy_instead_of_generic_infeasible() -> No
             "subject_id": f"subject-{index}",
             "weekly_periods": 1,
         }
-        for index in range(35)
+        for index in range(10)
     ]
 
     response = client.post(
@@ -27,6 +29,14 @@ def test_runtime_explains_class_day_policy_instead_of_generic_infeasible() -> No
             "periods_per_day": [8, 8, 8, 8, 8],
             "classes": [{"id": "8a", "code": "8.A"}],
             "assignments": assignments,
+            "fixed_lessons": [
+                {
+                    "assignment_id": "lesson-0",
+                    "block_index": 0,
+                    "day": 0,
+                    "period": 6,
+                }
+            ],
             "time_limit_seconds": 5,
         },
     )
