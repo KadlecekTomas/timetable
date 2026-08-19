@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from enum import StrEnum
 from threading import Lock
 from typing import Any
 
@@ -16,7 +17,13 @@ from app.models import AvailabilityKind, SolveRequest, SolveResponse
 DIAGNOSTIC_SECONDS = 6
 _SOLVE_LOCK = Lock()
 
-app = FastAPI(title="Timetable Solver", version="0.4.0")
+app = FastAPI(title="Timetable Solver", version="0.5.0")
+
+
+class RelaxationOutcome(StrEnum):
+    FEASIBLE = "FEASIBLE"
+    INFEASIBLE = "INFEASIBLE"
+    INDETERMINATE = "INDETERMINATE"
 
 
 @app.get("/health", response_model=solver_main.HealthResponse)
@@ -49,11 +56,20 @@ def _is_generic_infeasible(detail: dict[str, Any]) -> bool:
     return not causes or all(item.get("code") == "INFEASIBLE_MODEL" for item in causes)
 
 
+def _http_exception_code(exc: HTTPException) -> str:
+    detail = exc.detail
+    if not isinstance(detail, dict):
+        return ""
+    return str(detail.get("code") or "")
+
+
 def _structural_diagnostics(payload: SolveRequest) -> list[dict[str, Any]]:
     diagnostics: list[dict[str, Any]] = []
     total_slots = sum(payload.periods_per_day)
 
-    for class_id, required in sorted(class_required_weekly_periods(payload.assignments).items()):
+    for class_id, required in sorted(
+        class_required_weekly_periods(payload.assignments).items()
+    ):
         if required <= total_slots:
             continue
         diagnostics.append(
@@ -104,6 +120,7 @@ def _patched_solver(
         setattr(module, name, value)
 
     if class_day_policy:
+
         def no_required_periods(_assignments: Any) -> dict[str, int]:
             return {}
 
@@ -112,12 +129,27 @@ def _patched_solver(
         patch(validator, "class_required_weekly_periods", no_required_periods)
 
     if parallel_sync_disabled:
-        patch(solver_main, "parallel_assignment_groups", lambda _assignments: [])
+
+        def no_parallel_groups(_assignments: Any) -> list[Any]:
+            return []
+
+        patch(solver_main, "parallel_assignment_groups", no_parallel_groups)
+        patch(validator, "parallel_assignment_groups", no_parallel_groups)
 
     if room_share_disabled:
-        patch(solver_main, "room_share_block_pairs", lambda _assignments: [])
+
+        def no_room_share_pairs(_assignments: Any) -> list[Any]:
+            return []
+
+        def no_room_share_groups(_assignments: Any) -> list[Any]:
+            return []
+
+        patch(solver_main, "room_share_block_pairs", no_room_share_pairs)
+        patch(validator, "room_share_block_pairs", no_room_share_pairs)
+        patch(validator, "room_share_assignment_groups", no_room_share_groups)
 
     if rotations_disabled:
+
         def quality_only_rotation_constraints(
             *,
             model: Any,
@@ -142,7 +174,11 @@ def _patched_solver(
             )
             return []
 
+        def no_rotation_validation(_payload: Any, _lessons: Any) -> list[Any]:
+            return []
+
         patch(solver_main, "add_rotation_constraints", quality_only_rotation_constraints)
+        patch(validator, "validate_rotation_schedule", no_rotation_validation)
 
     try:
         yield
@@ -190,7 +226,7 @@ def _find_feasible_relaxation(
     rotations_disabled: bool = False,
     parallel_sync_disabled: bool = False,
     room_share_disabled: bool = False,
-) -> bool:
+) -> RelaxationOutcome:
     diagnostic_payload = candidate or _diagnostic_payload(payload)
     try:
         with _patched_solver(
@@ -200,9 +236,11 @@ def _find_feasible_relaxation(
             room_share_disabled=room_share_disabled,
         ):
             solver_main.solve(diagnostic_payload)
-    except HTTPException:
-        return False
-    return True
+    except HTTPException as exc:
+        if _http_exception_code(exc) in {"INFEASIBLE", "INFEASIBLE_INPUT"}:
+            return RelaxationOutcome.INFEASIBLE
+        return RelaxationOutcome.INDETERMINATE
+    return RelaxationOutcome.FEASIBLE
 
 
 def _diagnose_infeasibility(payload: SolveRequest) -> list[dict[str, Any]]:
@@ -311,19 +349,26 @@ def _diagnose_infeasibility(payload: SolveRequest) -> list[dict[str, Any]]:
         ),
     ]
 
+    indeterminate_groups: list[str] = []
     for diagnostic, attempt in attempts:
-        if attempt():
+        outcome = attempt()
+        if outcome == RelaxationOutcome.FEASIBLE:
             return [diagnostic]
+        if outcome == RelaxationOutcome.INDETERMINATE:
+            group = diagnostic.get("details", {}).get("relaxedConstraintGroup")
+            if isinstance(group, str):
+                indeterminate_groups.append(group)
 
     combined = _relax_unavailable(_relax_rooms(_relax_fixed_lessons(payload)))
-    if _find_feasible_relaxation(
+    combined_outcome = _find_feasible_relaxation(
         payload,
         candidate=combined,
         class_day_policy=True,
         rotations_disabled=True,
         parallel_sync_disabled=True,
         room_share_disabled=True,
-    ):
+    )
+    if combined_outcome == RelaxationOutcome.FEASIBLE:
         return [
             {
                 "code": "COMBINED_HARD_CONSTRAINT_CONFLICT",
@@ -336,12 +381,35 @@ def _diagnose_infeasibility(payload: SolveRequest) -> list[dict[str, Any]]:
             }
         ]
 
+    if combined_outcome == RelaxationOutcome.INDETERMINATE:
+        indeterminate_groups.append("COMBINED")
+
+    if indeterminate_groups:
+        return [
+            {
+                "code": "DIAGNOSTIC_SEARCH_LIMIT",
+                "message": (
+                    "Původní rozvrh je neproveditelný, ale některé diagnostické běhy "
+                    "skončily časovým limitem dřív, než stihly prokázat příčinu. "
+                    "Tento výsledek proto neznamená, že jsou chybně zadané úvazky."
+                ),
+                "entityIds": [],
+                "details": {
+                    "diagnosticSeconds": DIAGNOSTIC_SECONDS,
+                    "indeterminateConstraintGroups": sorted(
+                        set(indeterminate_groups)
+                    ),
+                },
+            }
+        ]
+
     return [
         {
             "code": "UNRESOLVED_INFEASIBLE_CORE",
             "message": (
-                "Konflikt zůstává i po diagnostickém uvolnění provozních pravidel. "
-                "Nejspíš jde o základní kolizi úvazků/tříd nebo o chybnou výukovou vazbu."
+                "Konflikt zůstává prokazatelně neproveditelný i po diagnostickém "
+                "uvolnění provozních pravidel. Jde tedy o základní kolizi výukových "
+                "vazeb nebo zdrojů, ne o pouhý diagnostický timeout."
             ),
             "entityIds": [],
         }
