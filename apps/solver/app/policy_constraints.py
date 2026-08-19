@@ -62,6 +62,57 @@ def _allowed_class_day_patterns(payload: SolveRequest, day: int) -> list[list[in
     return allowed
 
 
+def _preferred_balanced_loads(
+    payload: SolveRequest,
+    weekly_required: int,
+) -> list[int]:
+    days = len(payload.periods_per_day)
+    low = weekly_required // days
+    high = (weekly_required + days - 1) // days
+    extra = weekly_required - low * days
+    result = [low] * days
+    if extra <= 0:
+        return result
+
+    latest_values = payload.policy.class_day.latest_period_by_day if payload.policy else []
+    # Prefer longer days in the middle of the week. This reproduces the natural
+    # school shape without fixing any concrete subject or teacher placement.
+    preferred_days = [day for day in (1, 2, 3, 0, 4) if day < days]
+    for day in preferred_days:
+        if extra <= 0:
+            break
+        latest = payload.periods_per_day[day] - 1
+        if day < len(latest_values) and latest_values[day] is not None:
+            latest = min(latest, int(latest_values[day]))
+        if high > latest + 1:
+            continue
+        result[day] = high
+        extra -= 1
+    return result
+
+
+def _preferred_occupancy_for_load(
+    payload: SolveRequest,
+    day: int,
+    target_load: int,
+) -> set[int]:
+    if target_load <= 0:
+        return set()
+    afternoon_start = payload.policy.teacher_afternoon_break.afternoon_start_period
+    if target_load <= afternoon_start:
+        return set(range(target_load))
+
+    patterns = [
+        pattern
+        for pattern in payload.policy.class_day.allowed_afternoon_patterns
+        if len(pattern) == target_load
+        and all(period < payload.periods_per_day[day] for period in pattern)
+    ]
+    if patterns:
+        return set(patterns[0])
+    return set(range(min(target_load, payload.periods_per_day[day])))
+
+
 def add_policy_constraints(
     *,
     model: cp_model.CpModel,
@@ -208,6 +259,7 @@ def add_policy_constraints(
                 )
                 model.add(sum(late_slots) >= afternoon)
                 model.add(sum(late_slots) <= len(late_slots) * afternoon)
+                model.add_hint(afternoon, 0)
                 relevant_break_slots = [
                     occupancy[period]
                     for period in break_policy.break_periods
@@ -230,6 +282,7 @@ def add_policy_constraints(
         weekly_required = required_by_class[class_id]
         balanced_low = weekly_required // number_of_days
         balanced_high = (weekly_required + number_of_days - 1) // number_of_days
+        preferred_loads = _preferred_balanced_loads(payload, weekly_required)
         day_loads: list[cp_model.IntVar] = []
 
         for day, periods in enumerate(payload.periods_per_day):
@@ -239,12 +292,16 @@ def add_policy_constraints(
             day_loads.append(load)
 
             if hard_balance:
-                # Strong propagation: instead of asking CP-SAT to discover that a
-                # balanced 33-hour week means 6-7 lessons every day, state that
-                # bound directly. Combined with Monday/Friday max 6 this forces
-                # the accepted V8 pattern 6-7-7-7-6 immediately.
                 model.add(load >= balanced_low)
                 model.add(load <= balanced_high)
+
+            preferred_periods = _preferred_occupancy_for_load(
+                payload,
+                day,
+                preferred_loads[day],
+            )
+            for period, occupied in enumerate(occupancy):
+                model.add_hint(occupied, 1 if period in preferred_periods else 0)
 
             afternoon_start = break_policy.afternoon_start_period
             late_slots = occupancy[afternoon_start:]
@@ -254,6 +311,10 @@ def add_policy_constraints(
                 )
                 model.add(sum(late_slots) >= afternoon)
                 model.add(sum(late_slots) <= len(late_slots) * afternoon)
+                model.add_hint(
+                    afternoon,
+                    1 if any(period >= afternoon_start for period in preferred_periods) else 0,
+                )
                 day_weight = (
                     policy.quality.afternoon_day_weights[day]
                     if day < len(policy.quality.afternoon_day_weights)
@@ -265,8 +326,6 @@ def add_policy_constraints(
 
         if len(day_loads) >= 2 and policy.quality.class_daily_balance_weight:
             if hard_balance:
-                # The direct day bounds already guarantee spread <= 1 and are much
-                # easier for presolve than max/min equality auxiliaries.
                 continue
             max_load = model.new_int_var(
                 0,
