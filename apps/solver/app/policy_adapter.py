@@ -4,7 +4,7 @@ from contextvars import ContextVar
 from typing import Any
 
 from app import main as solver_main
-from app import rotations
+from app import rotations, scoring, validator
 from app.policy import (
     candidate_exceeds_day_boundary,
     candidate_violates_subject_window,
@@ -34,7 +34,7 @@ def install_policy_adapter() -> None:
     original_forbid_class_gaps = solver_main._forbid_regular_class_gaps
     original_class_required = solver_main.class_required_weekly_periods
     original_add_rotation_constraints = solver_main.add_rotation_constraints
-    original_validate_schedule = solver_main.validate_schedule
+    original_validate_schedule = validator.validate_schedule
     original_school_quality = rotations._add_school_quality_policy
 
     def solve_with_policy(payload: Any) -> Any:
@@ -167,4 +167,9 @@ def install_policy_adapter() -> None:
     solver_main._forbid_regular_class_gaps = forbid_class_gaps_with_policy
     rotations._add_school_quality_policy = school_quality_with_policy
     solver_main.add_rotation_constraints = add_rotation_constraints_with_policy
+
+    # main.py, scoring.py and runtime diagnostics import validation through
+    # different module references. Keep all of them on the same policy-aware path.
     solver_main.validate_schedule = validate_schedule_with_policy
+    validator.validate_schedule = validate_schedule_with_policy
+    scoring.validate_schedule = validate_schedule_with_policy
