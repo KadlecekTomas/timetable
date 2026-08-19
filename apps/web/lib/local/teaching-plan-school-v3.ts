@@ -4,7 +4,7 @@ import {
   SCHOOL_SPLIT_SUBJECT_CODES,
 } from "./school-default-data";
 import type { SchoolCurriculum } from "./school-curriculum";
-import { loadStaffingPlan, type StaffingPlan } from "./staffing-plan-school-v2";
+import type { StaffingPlan } from "./staffing-plan-school-v2";
 import { SCHOOL_CLASS_CODES } from "./teaching-plan-school";
 import {
   classGradeFromCode,
@@ -23,34 +23,12 @@ declare module "./teaching-plan" {
 }
 
 const SECOND_FOREIGN_LANGUAGE_CODE = "JAZ2";
-const SPANKOVA_SURNAME = "spankova";
 const ELECTIVE_SUBJECT_CODE = "VOL";
 const ELECTIVE_EXCLUDED_GRADES = new Set([6, 7]);
 const SPLIT_PERIODS_STORAGE_KEY = "rozvrhar:teaching-plan-split-periods:v1";
 const DOUBLE_BLOCK_SUBJECT_CODES = new Set(["TV", "VV"]);
 
 let migratingTeachingPlan = false;
-
-function normalizedPersonToken(value: string): string {
-  return value
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z]/g, "")
-    .toLocaleLowerCase("cs-CZ");
-}
-
-function separateSecondLanguageTeacherIds(
-  staffingPlan: StaffingPlan,
-): Set<string> {
-  return new Set(
-    staffingPlan.teachers
-      .filter(
-        (teacher) =>
-          normalizedPersonToken(teacher.lastName) === SPANKOVA_SURNAME,
-      )
-      .map((teacher) => teacher.id),
-  );
-}
 
 function isCurrentSchoolPlan(plan: TeachingPlan): boolean {
   const allowedCodes = new Set<string>(SCHOOL_CLASS_CODES);
@@ -318,7 +296,6 @@ function mergedWorkloadCredits(
 
 export function combineSecondForeignLanguageByGrade(
   plan: TeachingPlan,
-  separateTeacherIds: ReadonlySet<string> = new Set(),
 ): TeachingPlan {
   if (!isCurrentSchoolPlan(plan)) return plan;
 
@@ -326,16 +303,7 @@ export function combineSecondForeignLanguageByGrade(
   plan.rows.forEach((row, index) => {
     const targets = rowClassCodes(row);
     const grade = classGradeFromCode(row.classCode);
-    const rowTeacherIds = [
-      row.primaryTeacherId,
-      row.secondaryTeacherId,
-      row.tertiaryTeacherId ?? "",
-    ].filter(Boolean);
-    const keepSeparate = rowTeacherIds.some((teacherId) =>
-      separateTeacherIds.has(teacherId),
-    );
     const eligible =
-      !keepSeparate &&
       row.subjectCode === SECOND_FOREIGN_LANGUAGE_CODE &&
       row.organization === "SPLIT" &&
       grade >= 8 &&
@@ -391,13 +359,11 @@ export function combineSecondForeignLanguageByGrade(
 
 export function enforceCurrentSchoolTeachingStructure(
   plan: TeachingPlan,
-  separateTeacherIds: ReadonlySet<string> = new Set(),
 ): TeachingPlan {
   if (!isCurrentSchoolPlan(plan)) return plan;
   return enforceRequiredLessonBlocks(
     combineSecondForeignLanguageByGrade(
       enforceMandatorySchoolSplits(removeUnavailableElectives(plan)),
-      separateTeacherIds,
     ),
   );
 }
@@ -407,14 +373,9 @@ export function applySchoolOperationalRules(
   staffingPlan: StaffingPlan,
   allocationDraft: StaffingAllocationDraft | null = null,
 ): TeachingPlan {
-  const separateTeacherIds = separateSecondLanguageTeacherIds(staffingPlan);
-  const structured = enforceCurrentSchoolTeachingStructure(
-    plan,
-    separateTeacherIds,
-  );
+  const structured = enforceCurrentSchoolTeachingStructure(plan);
   return enforceCurrentSchoolTeachingStructure(
     base.applySchoolOperationalRules(structured, staffingPlan, allocationDraft),
-    separateTeacherIds,
   );
 }
 
@@ -423,25 +384,18 @@ export function createDefaultSchoolTeachingPlan(
   staffingPlan: StaffingPlan,
   allocationDraft: StaffingAllocationDraft | null,
 ): TeachingPlan {
-  const separateTeacherIds = separateSecondLanguageTeacherIds(staffingPlan);
   return enforceCurrentSchoolTeachingStructure(
     base.createDefaultSchoolTeachingPlan(
       curriculum,
       staffingPlan,
       allocationDraft,
     ),
-    separateTeacherIds,
   );
 }
 
 export function loadTeachingPlan(): TeachingPlan {
-  const staffingPlan = loadStaffingPlan();
-  const separateTeacherIds = separateSecondLanguageTeacherIds(staffingPlan);
   const loaded = applyStoredSplitPeriods(base.loadTeachingPlan());
-  const enforced = enforceCurrentSchoolTeachingStructure(
-    loaded,
-    separateTeacherIds,
-  );
+  const enforced = enforceCurrentSchoolTeachingStructure(loaded);
   if (
     typeof window !== "undefined" &&
     !migratingTeachingPlan &&
@@ -451,7 +405,7 @@ export function loadTeachingPlan(): TeachingPlan {
     try {
       writeStoredSplitPeriods(enforced);
       const saved = applyStoredSplitPeriods(base.saveTeachingPlan(enforced));
-      return enforceCurrentSchoolTeachingStructure(saved, separateTeacherIds);
+      return enforceCurrentSchoolTeachingStructure(saved);
     } finally {
       migratingTeachingPlan = false;
     }
@@ -460,15 +414,10 @@ export function loadTeachingPlan(): TeachingPlan {
 }
 
 export function saveTeachingPlan(plan: TeachingPlan): TeachingPlan {
-  const staffingPlan = loadStaffingPlan();
-  const separateTeacherIds = separateSecondLanguageTeacherIds(staffingPlan);
-  const enforced = enforceCurrentSchoolTeachingStructure(
-    plan,
-    separateTeacherIds,
-  );
+  const enforced = enforceCurrentSchoolTeachingStructure(plan);
   writeStoredSplitPeriods(enforced);
   const saved = applyStoredSplitPeriods(base.saveTeachingPlan(enforced));
-  return enforceCurrentSchoolTeachingStructure(saved, separateTeacherIds);
+  return enforceCurrentSchoolTeachingStructure(saved);
 }
 
 export function rowTeacherPeriods(
@@ -503,11 +452,7 @@ export function validateTeachingPlan(
   staffingPlan: StaffingPlan,
   allocationDraft: StaffingAllocationDraft | null | undefined = undefined,
 ): string[] {
-  const separateTeacherIds = separateSecondLanguageTeacherIds(staffingPlan);
-  const enforced = enforceCurrentSchoolTeachingStructure(
-    plan,
-    separateTeacherIds,
-  );
+  const enforced = enforceCurrentSchoolTeachingStructure(plan);
   const sameTeacherPrefixes = enforced.rows
     .filter(isSameTeacherPartialSplit)
     .map((row) => `${row.classCode} ${row.subjectCode}:`);

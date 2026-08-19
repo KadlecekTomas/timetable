@@ -65,209 +65,231 @@ async function readProject(page: Page): Promise<StoredProject> {
   );
 }
 
-test("Špánková teaches the real 12-hour Tue-Wed-Thu scenario", async ({
-  page,
-}) => {
-  test.setTimeout(120_000);
-  const pageErrors: string[] = [];
-  const serverErrors: string[] = [];
-  page.on("pageerror", (error) => pageErrors.push(error.message));
-  page.on("response", (response) => {
-    if (response.status() >= 500) {
-      serverErrors.push(`${response.status()} ${response.url()}`);
-    }
-  });
+function assignmentClassIds(assignment: StoredAssignment): string[] {
+  return [assignment.classId, ...assignment.additionalClassIds].sort();
+}
 
-  await page.goto("/");
-  await page.evaluate(() => {
-    const classCodes = [
-      "6.A",
-      "6.B",
-      "6.C",
-      "6.D",
-      "7.A",
-      "7.B",
-      "7.C",
-      "8.A",
-      "8.B",
-      "8.C",
-      "9.A",
-      "9.B",
-      "9.C",
-    ];
-
-    localStorage.setItem(
-      "rozvrhar:staffing-plan:v1",
-      JSON.stringify({
-        version: 1,
-        updatedAt: new Date().toISOString(),
-        teachers: [
-          {
-            id: "prikrylova",
-            firstName: "",
-            lastName: "Přikrylová",
-            targetWeeklyLoad: 12,
-            baseWeeklyLoad: 12,
-            subjectLoads: [
-              {
-                id: "load-prikrylova-jaz2",
-                subjectCode: "JAZ2",
-                weeklyPeriods: 12,
-              },
-            ],
-            unavailableDays: [],
-            unavailablePeriods: [],
-          },
-          {
-            id: "spankova",
-            firstName: "",
-            lastName: "Špánková",
-            targetWeeklyLoad: 12,
-            baseWeeklyLoad: 12,
-            subjectLoads: [
-              {
-                id: "load-spankova-jaz2",
-                subjectCode: "JAZ2",
-                weeklyPeriods: 12,
-              },
-            ],
-            unavailableDays: [],
-            unavailablePeriods: [],
-          },
-        ],
-      }),
-    );
-
-    const languageRow = (
-      id: string,
-      classCode: string,
-      primaryTeacherId: string,
-      secondaryTeacherId: string,
-    ) => ({
-      id,
-      classCode,
-      subjectCode: "JAZ2",
-      secondarySubjectCode: "",
-      weeklyPeriods: 3,
-      lessonShape: "SEPARATE",
-      doublePeriodsCount: 0,
-      organization: "SPLIT",
-      rotationPlacement: "SAME_DAY",
-      primaryTeacherId,
-      secondaryTeacherId,
-      splitGroupCount: 2,
+test(
+  "JAZ2 keeps 8th and 9th grade students in shared groups",
+  async ({ page }) => {
+    test.setTimeout(120_000);
+    const pageErrors: string[] = [];
+    const serverErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    page.on("response", (response) => {
+      if (response.status() >= 500) {
+        serverErrors.push(`${response.status()} ${response.url()}`);
+      }
     });
 
-    localStorage.setItem(
-      "rozvrhar:teaching-plan:v1",
-      JSON.stringify({
-        version: 1,
-        updatedAt: new Date().toISOString(),
-        classes: classCodes.map((code, index) => ({
-          id: `class-${index}`,
-          code,
-          grade: Number(code.split(".")[0]),
-          profile: /\.(B|D)$/.test(code) ? "SPORTS" : "REGULAR",
-        })),
-        rows: [
-          languageRow("language-8a", "8.A", "prikrylova", "spankova"),
-          languageRow("language-8b", "8.B", "prikrylova", "spankova"),
-          languageRow("language-8c", "8.C", "prikrylova", "spankova"),
-          languageRow("language-9b", "9.B", "spankova", "prikrylova"),
-        ],
-      }),
+    await page.goto("/");
+    await page.evaluate(() => {
+      const classCodes = [
+        "6.A",
+        "6.B",
+        "6.C",
+        "6.D",
+        "7.A",
+        "7.B",
+        "7.C",
+        "8.A",
+        "8.B",
+        "8.C",
+        "9.A",
+        "9.B",
+        "9.C",
+      ];
+
+      localStorage.setItem(
+        "rozvrhar:staffing-plan:v1",
+        JSON.stringify({
+          version: 1,
+          updatedAt: new Date().toISOString(),
+          teachers: [
+            {
+              id: "prikrylova",
+              firstName: "",
+              lastName: "Přikrylová",
+              targetWeeklyLoad: 19,
+              baseWeeklyLoad: 19,
+              subjectLoads: [
+                {
+                  id: "load-prikrylova-jaz2",
+                  subjectCode: "JAZ2",
+                  weeklyPeriods: 15,
+                },
+                {
+                  id: "load-prikrylova-other",
+                  subjectCode: "VV",
+                  weeklyPeriods: 4,
+                },
+              ],
+              unavailableDays: [],
+              unavailablePeriods: [],
+            },
+            {
+              id: "spankova",
+              firstName: "",
+              lastName: "Špánková",
+              targetWeeklyLoad: 12,
+              baseWeeklyLoad: 12,
+              subjectLoads: [
+                {
+                  id: "load-spankova-jaz2",
+                  subjectCode: "JAZ2",
+                  weeklyPeriods: 12,
+                },
+              ],
+              unavailableDays: [],
+              unavailablePeriods: [],
+            },
+          ],
+        }),
+      );
+
+      const languageRow = (
+        id: string,
+        classCode: string,
+        primaryTeacherId: string,
+        secondaryTeacherId: string,
+      ) => ({
+        id,
+        classCode,
+        subjectCode: "JAZ2",
+        secondarySubjectCode: "",
+        weeklyPeriods: 3,
+        lessonShape: "SEPARATE",
+        doublePeriodsCount: 0,
+        organization: "SPLIT",
+        rotationPlacement: "SAME_DAY",
+        primaryTeacherId,
+        secondaryTeacherId,
+        splitGroupCount: 2,
+      });
+
+      localStorage.setItem(
+        "rozvrhar:teaching-plan:v1",
+        JSON.stringify({
+          version: 1,
+          updatedAt: new Date().toISOString(),
+          classes: classCodes.map((code, index) => ({
+            id: `class-${index}`,
+            code,
+            grade: Number(code.split(".")[0]),
+            profile: /\.(B|D)$/.test(code) ? "SPORTS" : "REGULAR",
+          })),
+          rows: [
+            languageRow("language-8a", "8.A", "prikrylova", "spankova"),
+            languageRow("language-8b", "8.B", "spankova", ""),
+            languageRow("language-8c", "8.C", "prikrylova", "spankova"),
+            languageRow("language-9a", "9.A", "prikrylova", ""),
+            languageRow("language-9b", "9.B", "spankova", "prikrylova"),
+            languageRow("language-9c", "9.C", "prikrylova", ""),
+          ],
+        }),
+      );
+    });
+
+    await page.goto("/generate?schoolYearId=local-school-year");
+    await page
+      .getByRole("button", { name: "Připravit a zkontrolovat data" })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Zadání je připravené" }),
+    ).toBeVisible();
+
+    const prepared = await readProject(page);
+    const spankova = prepared.teachers.find(
+      (teacher) => teacher.lastName === "Špánková",
     );
-  });
+    const language = prepared.subjects.find(
+      (subject) => subject.code === "JAZ2",
+    );
+    const classIdByCode = new Map(
+      prepared.classes.map((schoolClass) => [schoolClass.code, schoolClass.id]),
+    );
+    expect(spankova).toBeDefined();
+    expect(language).toBeDefined();
 
-  await page.goto("/generate?schoolYearId=local-school-year");
-  await page
-    .getByRole("button", { name: "Připravit a zkontrolovat data" })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "Zadání je připravené" }),
-  ).toBeVisible();
+    const preparedSpankova = prepared.assignments
+      .filter(
+        (assignment) =>
+          assignment.teacherId === spankova!.id &&
+          assignment.subjectId === language!.id,
+      )
+      .sort((left, right) => left.classId.localeCompare(right.classId));
+    expect(preparedSpankova).toHaveLength(2);
+    expect(assignmentClassIds(preparedSpankova[0]!)).toEqual(
+      ["8.A", "8.B", "8.C"]
+        .map((code) => classIdByCode.get(code))
+        .sort(),
+    );
+    expect(assignmentClassIds(preparedSpankova[1]!)).toEqual(
+      ["9.A", "9.B", "9.C"]
+        .map((code) => classIdByCode.get(code))
+        .sort(),
+    );
 
-  const prepared = await readProject(page);
-  const spankova = prepared.teachers.find(
-    (teacher) => teacher.lastName === "Špánková",
-  );
-  const language = prepared.subjects.find((subject) => subject.code === "JAZ2");
-  const classIdByCode = new Map(
-    prepared.classes.map((schoolClass) => [schoolClass.code, schoolClass.id]),
-  );
-  expect(spankova).toBeDefined();
-  expect(language).toBeDefined();
+    await page.getByLabel("Časový limit výpočtu").selectOption("30");
+    await page.getByRole("button", { name: "Vytvořit nový návrh" }).click();
+    await expect(
+      page.getByText(/^(Proveditelný návrh|Optimální návrh)$/),
+    ).toBeVisible({ timeout: 60_000 });
 
-  const preparedSpanish = prepared.assignments.filter(
-    (assignment) =>
-      assignment.teacherId === spankova!.id &&
-      assignment.subjectId === language!.id &&
-      ["8.A", "8.B", "8.C"].some(
-        (code) => assignment.classId === classIdByCode.get(code),
-      ),
-  );
-  expect(preparedSpanish).toHaveLength(3);
-  expect(
-    preparedSpanish.every(
-      (assignment) => assignment.additionalClassIds.length === 0,
-    ),
-  ).toBe(true);
+    const generated = await readProject(page);
+    const version = generated.timetableVersions.at(-1);
+    expect(version).toBeDefined();
+    expect(validateSchedule(version!.snapshot, version!.lessons)).toEqual([]);
 
-  await page.getByLabel("Časový limit výpočtu").selectOption("30");
-  await page.getByRole("button", { name: "Vytvořit nový návrh" }).click();
-  await expect(
-    page.getByText(/^(Proveditelný návrh|Optimální návrh)$/),
-  ).toBeVisible({ timeout: 60_000 });
+    const assignmentById = new Map(
+      generated.assignments.map((assignment) => [assignment.id, assignment]),
+    );
+    const spankovaLessons = version!.lessons.filter(
+      (lesson) =>
+        lesson.teacher_id === spankova!.id &&
+        lesson.subject_id === language!.id,
+    );
+    expect(spankovaLessons).toHaveLength(6);
+    expect(
+      spankovaLessons.every((lesson) => [1, 2, 3].includes(lesson.day)),
+    ).toBe(true);
 
-  const generated = await readProject(page);
-  const version = generated.timetableVersions.at(-1);
-  expect(version).toBeDefined();
-  expect(validateSchedule(version!.snapshot, version!.lessons)).toEqual([]);
+    const spanish = spankovaLessons
+      .filter((lesson) => {
+        const assignment = assignmentById.get(lesson.assignment_id);
+        return (
+          assignment !== undefined &&
+          assignmentClassIds(assignment).every((classId) =>
+            ["8.A", "8.B", "8.C"].some(
+              (code) => classId === classIdByCode.get(code),
+            ),
+          )
+        );
+      })
+      .sort((left, right) => left.day - right.day || left.period - right.period);
+    expect(spanish).toHaveLength(3);
+    expect(
+      spanish.map((lesson) => [lesson.day, lesson.period, lesson.locked]),
+    ).toEqual([
+      [1, 1, true],
+      [2, 1, true],
+      [3, 1, true],
+    ]);
 
-  const assignmentById = new Map(
-    generated.assignments.map((assignment) => [assignment.id, assignment]),
-  );
-  const spankovaLessons = version!.lessons.filter(
-    (lesson) =>
-      lesson.teacher_id === spankova!.id && lesson.subject_id === language!.id,
-  );
-  expect(spankovaLessons).toHaveLength(12);
-  expect(
-    spankovaLessons.every((lesson) => [1, 2, 3].includes(lesson.day)),
-  ).toBe(true);
-
-  const spanish = spankovaLessons
-    .filter((lesson) => {
+    const german = spankovaLessons.filter((lesson) => {
       const assignment = assignmentById.get(lesson.assignment_id);
       return (
         assignment !== undefined &&
-        ["8.A", "8.B", "8.C"].some(
-          (code) => assignment.classId === classIdByCode.get(code),
+        assignmentClassIds(assignment).every((classId) =>
+          ["9.A", "9.B", "9.C"].some(
+            (code) => classId === classIdByCode.get(code),
+          ),
         )
       );
-    })
-    .sort((left, right) => left.day - right.day || left.period - right.period);
-  expect(spanish).toHaveLength(9);
-  for (const day of [1, 2, 3]) {
-    const daily = spanish.filter((lesson) => lesson.day === day);
-    expect(daily.map((lesson) => lesson.period).sort()).toEqual([1, 2, 3]);
-    expect(daily.every((lesson) => lesson.locked)).toBe(true);
-    expect(
-      new Set(
-        daily.map(
-          (lesson) => assignmentById.get(lesson.assignment_id)?.classId,
-        ),
-      ).size,
-    ).toBe(3);
-  }
+    });
+    expect(german).toHaveLength(3);
 
-  const german = spankovaLessons.filter((lesson) => {
-    const assignment = assignmentById.get(lesson.assignment_id);
-    return assignment?.classId === classIdByCode.get("9.B");
-  });
-  expect(german).toHaveLength(3);
-  expect(german.every((lesson) => [1, 2, 3].includes(lesson.day))).toBe(true);
-
-  expect(pageErrors).toEqual([]);
-  expect(serverErrors).toEqual([]);
-});
+    expect(pageErrors).toEqual([]);
+    expect(serverErrors).toEqual([]);
+  },
+);

@@ -34,12 +34,16 @@ const staffingPlan: StaffingPlan = {
   ],
 };
 
-function assignment(id: string, classId: string): LocalAssignment {
+function assignment(
+  id: string,
+  classId: string,
+  additionalClassIds: string[] = [],
+): LocalAssignment {
   return {
     id,
     assignmentCode: id,
     classId,
-    additionalClassIds: [],
+    additionalClassIds,
     subjectId: "subject:JAZ2",
     teacherId: "teacher:spankova",
     group: "GROUP_2",
@@ -58,13 +62,11 @@ function assignment(id: string, classId: string): LocalAssignment {
 }
 
 const assignments = [
-  assignment("spanish-8a", "class:8-A"),
-  assignment("spanish-8b", "class:8-B"),
-  assignment("spanish-8c", "class:8-C"),
-  assignment("german-9b", "class:9-B"),
+  assignment("spanish-8", "class:8-A", ["class:8-B", "class:8-C"]),
+  assignment("german-9", "class:9-A", ["class:9-B", "class:9-C"]),
 ];
 
-test("Špánková gets nine fixed Spanish lessons Tue-Wed-Thu periods 2-4 and German period 5 preference", () => {
+test("shared Špánková Spanish is fixed Tue-Wed-Thu second period and German follow-up is preferred", () => {
   const result = schoolSchedulingPreferences({
     assignments,
     subjects,
@@ -73,7 +75,6 @@ test("Špánková gets nine fixed Spanish lessons Tue-Wed-Thu periods 2-4 and Ge
   });
 
   assert.deepEqual(result.warnings, []);
-  assert.equal(result.fixedLessons.length, 9);
   assert.deepEqual(
     result.fixedLessons.map((lesson) => [
       lesson.assignmentId,
@@ -82,15 +83,9 @@ test("Špánková gets nine fixed Spanish lessons Tue-Wed-Thu periods 2-4 and Ge
       lesson.startPeriod,
     ]),
     [
-      ["spanish-8a", 0, 1, 1],
-      ["spanish-8b", 0, 1, 2],
-      ["spanish-8c", 0, 1, 3],
-      ["spanish-8b", 1, 2, 1],
-      ["spanish-8c", 1, 2, 2],
-      ["spanish-8a", 1, 2, 3],
-      ["spanish-8c", 2, 3, 1],
-      ["spanish-8a", 2, 3, 2],
-      ["spanish-8b", 2, 3, 3],
+      ["spanish-8", 0, 1, 1],
+      ["spanish-8", 1, 2, 1],
+      ["spanish-8", 2, 3, 1],
     ],
   );
   assert.equal(
@@ -104,14 +99,20 @@ test("Špánková gets nine fixed Spanish lessons Tue-Wed-Thu periods 2-4 and Ge
       rule.weight,
     ]),
     [
-      [1, 4, 100],
-      [2, 4, 100],
-      [3, 4, 100],
+      [1, 2, 100],
+      [1, 3, 60],
+      [1, 4, 30],
+      [2, 2, 100],
+      [2, 3, 60],
+      [2, 4, 30],
+      [3, 2, 100],
+      [3, 3, 60],
+      [3, 4, 30],
     ],
   );
 });
 
-test("existing manual fixed lesson wins over the school default for the same Spanish block", () => {
+test("existing manual fixed lesson wins over the shared Spanish school default", () => {
   const result = schoolSchedulingPreferences({
     assignments,
     subjects,
@@ -119,10 +120,10 @@ test("existing manual fixed lesson wins over the school default for the same Spa
     existingFixedLessons: [
       {
         id: "manual",
-        assignmentId: "spanish-8b",
+        assignmentId: "spanish-8",
         blockIndex: 1,
-        dayOfWeek: 2,
-        startPeriod: 5,
+        dayOfWeek: 4,
+        startPeriod: 3,
         duration: 1,
         roomId: null,
         locked: true,
@@ -130,12 +131,8 @@ test("existing manual fixed lesson wins over the school default for the same Spa
     ],
   });
 
-  assert.equal(result.fixedLessons.length, 8);
-  assert.equal(
-    result.fixedLessons.some(
-      (lesson) =>
-        lesson.assignmentId === "spanish-8b" && lesson.blockIndex === 1,
-    ),
-    false,
+  assert.deepEqual(
+    result.fixedLessons.map((lesson) => lesson.blockIndex),
+    [0, 2],
   );
 });
