@@ -39,6 +39,42 @@ jobs:
       - run: ruff check apps/solver
       - run: pytest apps/solver
 
+  full-school-solver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SOLVER_URL: http://127.0.0.1:8000
+      ALLOW_LONG_SOLVES: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: npm ci
+      - run: pip install "."
+        working-directory: apps/solver
+      - name: Start current solver runtime
+        shell: bash
+        run: |
+          nohup bash -c 'cd apps/solver && uvicorn app.runtime:app --host 127.0.0.1 --port 8000' > /tmp/full-school-solver.log 2>&1 &
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/full-school-solver.log || true
+          exit 1
+      - name: Solve exact anonymized full-school input
+        run: node --import tsx apps/web/integration/exact-full-school-solver.ts
+      - name: Show solver diagnostics
+        if: failure()
+        run: cat /tmp/full-school-solver.log || true
+
   containers:
     runs-on: ubuntu-latest
     timeout-minutes: 20
