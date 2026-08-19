@@ -557,7 +557,7 @@ export function validateTeachingPlan(
     allocationDraft === undefined
       ? base.validateTeachingPlan(enforced, staffingPlan)
       : base.validateTeachingPlan(enforced, staffingPlan, allocationDraft);
-  const filtered = baseMessages.filter((message) => {
+  return baseMessages.filter((message) => {
     const sameTeacherRow = sameTeacherPrefixes.some((prefix) =>
       message.startsWith(prefix),
     );
@@ -567,10 +567,4 @@ export function validateTeachingPlan(
       message.includes("Každá skupina musí mít jiného učitele.")
     );
   });
-  if (isCurrentSchoolPlan(enforced) && !prikrylovaTeacherId(staffingPlan)) {
-    filtered.push(
-      "TV 9.A/9.C: v personálním plánu chybí Přikrylová, která má obě třídy učit sama.",
-    );
-  }
-  return filtered;
 }
