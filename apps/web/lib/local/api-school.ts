@@ -5,7 +5,10 @@ import {
 } from "./physical-education-external-occupancy";
 import { createPolicyGenerationRun } from "./policy-generation";
 import { buildSchoolProjectForGeneration } from "./school-project-generation";
-import { CURRENT_SCHOOL_SOLVER_POLICY } from "./school-solver-policy";
+import {
+  CURRENT_SCHOOL_SOLVER_POLICY,
+  isCurrentSchoolV8Project,
+} from "./school-solver-policy";
 import { staffingExactUnavailableAvailability } from "./staffing-exact-availability";
 import {
   loadStaffingPlan,
@@ -251,6 +254,12 @@ export async function localApiFetch(
         404,
       );
     }
+
+    const project = await base.getLocalProject();
+    if (!isCurrentSchoolV8Project(project)) {
+      return base.localApiFetch(input, init);
+    }
+
     return createPolicyGenerationRun({
       init,
       policy: CURRENT_SCHOOL_SOLVER_POLICY,
