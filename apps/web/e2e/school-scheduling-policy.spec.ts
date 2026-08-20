@@ -138,6 +138,22 @@ test("JAZ2 stays class-scoped and Špánková receives the exact accepted V8 slo
             unavailableDays: [],
             unavailablePeriods: [],
           },
+          {
+            id: "kadlecek",
+            firstName: "Tomáš",
+            lastName: "Kadleček",
+            targetWeeklyLoad: 13,
+            baseWeeklyLoad: 13,
+            subjectLoads: [
+              {
+                id: "load-kadlecek-inf",
+                subjectCode: "INF",
+                weeklyPeriods: 13,
+              },
+            ],
+            unavailableDays: ["FRI"],
+            unavailablePeriods: [],
+          },
         ],
       }),
     );
@@ -163,6 +179,21 @@ test("JAZ2 stays class-scoped and Špánková receives the exact accepted V8 slo
       splitGroupCount: 2,
     });
 
+    const infRow = (classCode: string) => ({
+      id: `inf-${classCode}`,
+      classCode,
+      subjectCode: "INF",
+      secondarySubjectCode: "",
+      weeklyPeriods: 1,
+      lessonShape: "SEPARATE",
+      doublePeriodsCount: 0,
+      organization: classCode === "8.B" ? "WHOLE" : "SPLIT",
+      rotationPlacement: "SAME_DAY",
+      primaryTeacherId: "kadlecek",
+      secondaryTeacherId: classCode === "8.B" ? "" : "kadlecek",
+      splitGroupCount: 2,
+    });
+
     localStorage.setItem(
       "rozvrhar:teaching-plan:v1",
       JSON.stringify({
@@ -181,6 +212,7 @@ test("JAZ2 stays class-scoped and Špánková receives the exact accepted V8 slo
           languageRow("language-9a", "9.A", "WHOLE", "prikrylova"),
           languageRow("language-9b", "9.B", "SPLIT", "spankova", "prikrylova"),
           languageRow("language-9c", "9.C", "WHOLE", "prikrylova"),
+          ...classCodes.map(infRow),
         ],
       }),
     );
