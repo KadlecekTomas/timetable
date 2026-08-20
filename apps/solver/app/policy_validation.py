@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from app.class_groups import lesson_class_ids
+from app.class_groups import class_required_weekly_periods, lesson_class_ids
 from app.models import ScheduledLesson, SolveRequest, ValidationIssue
 from app.policy import (
     candidate_exceeds_day_boundary,
@@ -12,6 +12,8 @@ from app.policy import (
     subject_code,
     teacher_afternoon_break_satisfied,
 )
+
+FULL_WEEK_CLASS_MINIMUM_PERIODS = 20
 
 
 def validate_policy_schedule(
@@ -23,6 +25,12 @@ def validate_policy_schedule(
 
     issues: list[ValidationIssue] = []
     assignments = {assignment.id: assignment for assignment in payload.assignments}
+    required_periods_by_class = class_required_weekly_periods(payload.assignments)
+    full_week_class_ids = {
+        class_id
+        for class_id, required in required_periods_by_class.items()
+        if required >= FULL_WEEK_CLASS_MINIMUM_PERIODS
+    }
 
     class_periods: dict[tuple[str, int], set[int]] = defaultdict(set)
     teacher_periods: dict[tuple[str, int], set[int]] = defaultdict(set)
@@ -72,14 +80,12 @@ def validate_policy_schedule(
             teacher_periods[(lesson.teacher_id, lesson.day)].add(period)
             for class_id in lesson_class_ids(lesson):
                 class_periods[(class_id, lesson.day)].add(period)
-                # Atomic partial-split rotations intentionally occupy two periods
-                # in one day (for example the accepted CJ/M swap). They are a
-                # different scheduling construct from repeated ordinary lessons,
-                # so the generic per-day subject cap must not count them.
                 if assignment.rotation_key is None:
                     class_subject_periods[(class_id, code, lesson.day)].add(period)
 
     for (class_id, day), occupied in sorted(class_periods.items()):
+        if class_id not in full_week_class_ids:
+            continue
         if not class_day_pattern_allowed(payload, occupied):
             issues.append(
                 ValidationIssue(
