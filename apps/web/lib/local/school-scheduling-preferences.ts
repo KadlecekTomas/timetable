@@ -10,8 +10,10 @@ type LocalFixedLesson = LocalProject["fixedLessons"][number];
 
 const SPANKOVA_SURNAME = "spankova";
 const KADLECEK_SURNAME = "kadlecek";
+const INDRAKOVA_SURNAME = "indrakova";
 const SECOND_FOREIGN_LANGUAGE_CODE = "JAZ2";
 const INFORMATICS_CODE = "INF";
+const HEALTH_EDUCATION_CODE = "VZ";
 const PHYSICAL_EDUCATION_CODE = "TV";
 
 interface FixedAssignmentSlot {
@@ -49,6 +51,10 @@ const KADLECEK_INF_SLOTS: readonly FixedAssignmentSlot[] = [
   { classCode: "8.A", dayOfWeek: 2, startPeriod: 4 },
   { classCode: "6.D", dayOfWeek: 2, startPeriod: 5 },
   { classCode: "8.B", dayOfWeek: 3, startPeriod: 0 },
+] as const;
+
+const INDRAKOVA_HEALTH_SLOTS: readonly FixedAssignmentSlot[] = [
+  { classCode: "7.A", dayOfWeek: 0, startPeriod: 4 },
 ] as const;
 
 function normalizedPersonToken(value: string): string {
@@ -118,7 +124,7 @@ function appendFixedLesson(
   existingKeys.add(key);
 }
 
-function addThreeDayFixedSchedule({
+function addFixedSchedule({
   assignments,
   subjectCodes,
   teacherId,
@@ -205,6 +211,9 @@ export function schoolSchedulingPreferences({
   const kadlecek = staffingPlan.teachers.find(
     (teacher) => normalizedPersonToken(teacher.lastName) === KADLECEK_SURNAME,
   );
+  const indrakova = staffingPlan.teachers.find(
+    (teacher) => normalizedPersonToken(teacher.lastName) === INDRAKOVA_SURNAME,
+  );
   const currentSchoolPresetActive = Boolean(spankova && kadlecek);
 
   for (const assignment of assignments) {
@@ -227,7 +236,7 @@ export function schoolSchedulingPreferences({
   );
 
   if (currentSchoolPresetActive && spankova && kadlecek) {
-    addThreeDayFixedSchedule({
+    addFixedSchedule({
       assignments,
       subjectCodes,
       teacherId: `teacher:${spankova.id}`,
@@ -238,7 +247,7 @@ export function schoolSchedulingPreferences({
       warnings,
       label: "Špánková",
     });
-    addThreeDayFixedSchedule({
+    addFixedSchedule({
       assignments,
       subjectCodes,
       teacherId: `teacher:${kadlecek.id}`,
@@ -249,6 +258,19 @@ export function schoolSchedulingPreferences({
       warnings,
       label: "Kadleček",
     });
+    if (indrakova) {
+      addFixedSchedule({
+        assignments,
+        subjectCodes,
+        teacherId: `teacher:${indrakova.id}`,
+        subjectCode: HEALTH_EDUCATION_CODE,
+        slots: INDRAKOVA_HEALTH_SLOTS,
+        fixedLessons,
+        existingKeys,
+        warnings,
+        label: "Indráková",
+      });
+    }
   }
 
   return { fixedLessons, availability: [], warnings };
