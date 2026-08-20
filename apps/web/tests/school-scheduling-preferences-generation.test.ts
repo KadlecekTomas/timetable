@@ -3,10 +3,7 @@ import test from "node:test";
 
 import type { LocalProject } from "../lib/local/api";
 import { buildSchoolProjectForGeneration } from "../lib/local/school-project-generation";
-import type {
-  StaffingPlan,
-  StaffingTeacher,
-} from "../lib/local/staffing-plan";
+import type { StaffingPlan, StaffingTeacher } from "../lib/local/staffing-plan";
 import type { TeachingPlan, TeachingPlanRow } from "../lib/local/teaching-plan";
 import { enforceCurrentSchoolTeachingStructure } from "../lib/local/teaching-plan-school-v3";
 
@@ -46,9 +43,7 @@ function teacher(
     lastName,
     targetWeeklyLoad: weeklyPeriods,
     baseWeeklyLoad: Math.min(weeklyPeriods, 22),
-    subjectLoads: [
-      { id: `${id}:${subjectCode}`, subjectCode, weeklyPeriods },
-    ],
+    subjectLoads: [{ id: `${id}:${subjectCode}`, subjectCode, weeklyPeriods }],
     unavailableDays: [],
     unavailablePeriods: [],
   };
@@ -118,7 +113,9 @@ function fixedSlotsByClass(
     })
     .sort(
       (left, right) =>
-        left[1] - right[1] || left[2] - right[2] || left[0].localeCompare(right[0]),
+        left[1] - right[1] ||
+        left[2] - right[2] ||
+        left[0].localeCompare(right[0]),
     );
 }
 
@@ -146,7 +143,9 @@ test("Špánková keeps class-scoped JAZ2 and receives the exact V8 Tue-Wed-Thu 
   };
 
   const structured = enforceCurrentSchoolTeachingStructure(teachingPlan);
-  const languageRows = structured.rows.filter((row) => row.subjectCode === "JAZ2");
+  const languageRows = structured.rows.filter(
+    (row) => row.subjectCode === "JAZ2",
+  );
   assert.equal(languageRows.length, 6);
   assert.equal(
     languageRows.find((row) => row.classCode === "8.B")?.organization,
