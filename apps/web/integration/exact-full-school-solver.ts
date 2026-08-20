@@ -139,6 +139,11 @@ async function main() {
     12,
     "Špánková must keep all 12 accepted fixed JAZ2 slots",
   );
+  assert.equal(
+    fixedCountForTeacher(generated.project, "Indráková"),
+    1,
+    "Indráková must keep 7.A VZ on Monday period 5",
+  );
 
   const request = buildSolverSnapshot({
     project: generated.project,

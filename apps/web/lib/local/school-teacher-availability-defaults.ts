@@ -117,7 +117,6 @@ export const SCHOOL_TEACHER_AVAILABILITY_DEFAULTS: readonly SchoolTeacherAvailab
     {
       surname: "Indrakova",
       unavailablePeriods: [
-        ...periods("MON", 5),
         ...periods("TUE", 3, 4, 5),
         ...periods("WED", 4, 5),
         ...periods("THU", 3, 4),
