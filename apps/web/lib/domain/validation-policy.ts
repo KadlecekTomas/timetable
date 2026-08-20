@@ -5,7 +5,10 @@ import type {
   TimetableMove,
   ValidationIssue,
 } from "./contracts";
-import { classRequiredWeeklyPeriods, lessonClassIds } from "./class-groups";
+import {
+  classRequiredWeeklyPeriods,
+  lessonClassIds,
+} from "./class-groups";
 import {
   validateMove as validateLegacyMove,
   validateSchedule as validateLegacySchedule,
