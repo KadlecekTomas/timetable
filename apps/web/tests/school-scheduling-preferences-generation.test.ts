@@ -95,6 +95,64 @@ function classes() {
   }));
 }
 
+function currentSchoolFixture(): {
+  staffingPlan: StaffingPlan;
+  teachingPlan: TeachingPlan;
+} {
+  const staffingPlan: StaffingPlan = {
+    version: 1,
+    updatedAt: "test",
+    teachers: [
+      teacher("prikrylova", "Přikrylová", "JAZ2", 15),
+      teacher("spankova", "Špánková", "JAZ2", 12),
+      teacher("kadlecek", "Kadleček", "INF", 13),
+      teacher("vasakova", "Vašáková", "INF", 12),
+    ],
+  };
+
+  const languageRows: TeachingPlanRow[] = [
+    languageRow("language-8a", "8.A", "SPLIT", "prikrylova", "spankova"),
+    languageRow("language-8b", "8.B", "WHOLE", "spankova"),
+    languageRow("language-8c", "8.C", "SPLIT", "prikrylova", "spankova"),
+    languageRow("language-9a", "9.A", "WHOLE", "prikrylova"),
+    languageRow("language-9b", "9.B", "SPLIT", "spankova", "prikrylova"),
+    languageRow("language-9c", "9.C", "WHOLE", "prikrylova"),
+  ];
+
+  const informaticsRows: TeachingPlanRow[] = classCodes.map((classCode) => ({
+    id: `inf-${classCode}`,
+    classCode,
+    subjectCode: "INF",
+    weeklyPeriods: 1,
+    lessonShape: "SEPARATE",
+    doublePeriodsCount: 0,
+    organization: classCode === "8.B" ? "WHOLE" : "SPLIT",
+    primaryTeacherId: "kadlecek",
+    secondaryTeacherId: classCode === "8.B" ? "" : "vasakova",
+    splitGroupCount: 2,
+  }));
+
+  return {
+    staffingPlan,
+    teachingPlan: {
+      version: 1,
+      updatedAt: "test",
+      classes: classes(),
+      rows: [...languageRows, ...informaticsRows],
+    },
+  };
+}
+
+function buildCurrentSchoolFixture() {
+  const { staffingPlan, teachingPlan } = currentSchoolFixture();
+  return buildSchoolProjectForGeneration({
+    existingProject: project(),
+    staffingPlan,
+    teachingPlan: enforceCurrentSchoolTeachingStructure(teachingPlan),
+    forceReplaceGeneratedData: false,
+  });
+}
+
 function fixedSlotsByClass(
   result: ReturnType<typeof buildSchoolProjectForGeneration>,
   teacherId: string,
@@ -120,52 +178,7 @@ function fixedSlotsByClass(
 }
 
 test("Špánková keeps class-scoped JAZ2 and receives the exact V8 Tue-Wed-Thu sequence", () => {
-  const staffingPlan: StaffingPlan = {
-    version: 1,
-    updatedAt: "test",
-    teachers: [
-      teacher("prikrylova", "Přikrylová", "JAZ2", 15),
-      teacher("spankova", "Špánková", "JAZ2", 12),
-    ],
-  };
-  const teachingPlan: TeachingPlan = {
-    version: 1,
-    updatedAt: "test",
-    classes: classes(),
-    rows: [
-      languageRow("language-8a", "8.A", "SPLIT", "prikrylova", "spankova"),
-      languageRow("language-8b", "8.B", "WHOLE", "spankova"),
-      languageRow("language-8c", "8.C", "SPLIT", "prikrylova", "spankova"),
-      languageRow("language-9a", "9.A", "WHOLE", "prikrylova"),
-      languageRow("language-9b", "9.B", "SPLIT", "spankova", "prikrylova"),
-      languageRow("language-9c", "9.C", "WHOLE", "prikrylova"),
-    ],
-  };
-
-  const structured = enforceCurrentSchoolTeachingStructure(teachingPlan);
-  const languageRows = structured.rows.filter(
-    (row) => row.subjectCode === "JAZ2",
-  );
-  assert.equal(languageRows.length, 6);
-  assert.equal(
-    languageRows.find((row) => row.classCode === "8.B")?.organization,
-    "WHOLE",
-  );
-  assert.equal(
-    languageRows.find((row) => row.classCode === "9.A")?.organization,
-    "WHOLE",
-  );
-  assert.equal(
-    languageRows.find((row) => row.classCode === "9.C")?.organization,
-    "WHOLE",
-  );
-
-  const result = buildSchoolProjectForGeneration({
-    existingProject: project(),
-    staffingPlan,
-    teachingPlan: structured,
-    forceReplaceGeneratedData: false,
-  });
+  const result = buildCurrentSchoolFixture();
 
   assert.deepEqual(result.blockers, []);
   assert.deepEqual(fixedSlotsByClass(result, "teacher:spankova"), [
@@ -185,39 +198,7 @@ test("Špánková keeps class-scoped JAZ2 and receives the exact V8 Tue-Wed-Thu 
 });
 
 test("Kadleček receives the exact accepted V5/V8 INF pattern", () => {
-  const staffingPlan: StaffingPlan = {
-    version: 1,
-    updatedAt: "test",
-    teachers: [
-      teacher("kadlecek", "Kadleček", "INF", 13),
-      teacher("vasakova", "Vašáková", "INF", 12),
-    ],
-  };
-  const teachingPlan: TeachingPlan = {
-    version: 1,
-    updatedAt: "test",
-    classes: classes(),
-    rows: classCodes.map((classCode) => ({
-      id: `inf-${classCode}`,
-      classCode,
-      subjectCode: "INF",
-      weeklyPeriods: 1,
-      lessonShape: "SEPARATE" as const,
-      doublePeriodsCount: 0,
-      organization:
-        classCode === "8.B" ? ("WHOLE" as const) : ("SPLIT" as const),
-      primaryTeacherId: "kadlecek",
-      secondaryTeacherId: classCode === "8.B" ? "" : "vasakova",
-      splitGroupCount: 2 as const,
-    })),
-  };
-
-  const result = buildSchoolProjectForGeneration({
-    existingProject: project(),
-    staffingPlan,
-    teachingPlan: enforceCurrentSchoolTeachingStructure(teachingPlan),
-    forceReplaceGeneratedData: false,
-  });
+  const result = buildCurrentSchoolFixture();
 
   assert.deepEqual(result.blockers, []);
   assert.deepEqual(fixedSlotsByClass(result, "teacher:kadlecek"), [
