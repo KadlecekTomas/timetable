@@ -1,3 +1,5 @@
+import { mkdir } from "node:fs/promises";
+
 import { expect, test } from "@playwright/test";
 
 import { currentSchoolV8WorkbookBytes } from "../test-support/current-school-v8-workbook-fixture";
@@ -61,6 +63,20 @@ test("exact current-school V8 Excel imports through UI and produces a policy-val
   await expect(
     page.getByRole("heading", { name: "Kvalita návrhu" }),
   ).toBeVisible();
+
+  await expect(
+    page.getByRole("button", { name: "Exportovat rozvrh do Excelu" }),
+  ).toBeVisible();
+  const downloadPromise = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Exportovat rozvrh do Excelu" })
+    .click();
+  const download = await downloadPromise;
+  await mkdir("test-results/coverage-screenshots", { recursive: true });
+  await download.saveAs(
+    "test-results/coverage-screenshots/current-school-v8-exact.xlsx",
+  );
+
   expect(pageErrors).toEqual([]);
   expect(serverErrors).toEqual([]);
 });
