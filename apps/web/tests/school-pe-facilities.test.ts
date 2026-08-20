@@ -31,7 +31,7 @@ function emptyProject(): LocalProject {
   };
 }
 
-test("TV keeps school facility metadata while V8 avoids per-assignment room branching", () => {
+test("generic TV uses school sport facilities, never Monday, and hall is Thursday-only", () => {
   const staffingPlan: StaffingPlan = {
     version: 1,
     updatedAt: "test",
@@ -95,12 +95,8 @@ test("TV keeps school facility metadata while V8 avoids per-assignment room bran
     ),
   );
 
-  // V8 intentionally does not branch every ordinary PE assignment over five
-  // equivalent concrete rooms. Facility metadata remains available for UI and
-  // capacity planning, while the exact current-school solve uses the shared PE
-  // operational model instead of a per-lesson room choice.
   const assignment = result.project.assignments[0];
-  assert.equal(assignment?.requiredRoomTypeId, null);
+  assert.equal(assignment?.requiredRoomTypeId, "room-type:TV");
   assert.equal(
     result.project.subjects.find((subject) => subject.code === "TV")
       ?.defaultRoomTypeId,
