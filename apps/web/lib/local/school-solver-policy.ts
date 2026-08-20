@@ -31,7 +31,9 @@ function normalizedPersonToken(value: string): string {
  * generic solver path and must never inherit named-school constraints.
  */
 export function isCurrentSchoolV8Project(project: LocalProject): boolean {
-  const classCodes = new Set(project.classes.map((schoolClass) => schoolClass.code));
+  const classCodes = new Set(
+    project.classes.map((schoolClass) => schoolClass.code),
+  );
   if (!CURRENT_SCHOOL_CLASS_CODES.every((code) => classCodes.has(code))) {
     return false;
   }
