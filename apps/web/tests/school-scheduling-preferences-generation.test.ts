@@ -103,7 +103,7 @@ function classes() {
 function fixedSlotsByClass(
   result: ReturnType<typeof buildSchoolProjectForGeneration>,
   teacherId: string,
-): Array<[string, number, number]> {
+): Array<readonly [string, number, number]> {
   const assignmentById = new Map(
     result.project.assignments.map((assignment) => [assignment.id, assignment]),
   );
@@ -146,9 +146,7 @@ test("Špánková keeps class-scoped JAZ2 and receives the exact V8 Tue-Wed-Thu 
   };
 
   const structured = enforceCurrentSchoolTeachingStructure(teachingPlan);
-  const languageRows = structured.rows.filter(
-    (row) => row.subjectCode === "JAZ2",
-  );
+  const languageRows = structured.rows.filter((row) => row.subjectCode === "JAZ2");
   assert.equal(languageRows.length, 6);
   assert.equal(
     languageRows.find((row) => row.classCode === "8.B")?.organization,
