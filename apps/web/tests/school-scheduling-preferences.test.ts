@@ -20,6 +20,13 @@ const subjects: LocalSubject[] = [
     colorToken: null,
     defaultRoomTypeId: null,
   },
+  {
+    id: "subject:VZ",
+    code: "VZ",
+    name: "Výchova ke zdraví",
+    colorToken: null,
+    defaultRoomTypeId: null,
+  },
 ];
 
 const staffingPlan: StaffingPlan = {
@@ -50,6 +57,18 @@ const staffingPlan: StaffingPlan = {
       unavailableDays: ["FRI"],
       unavailablePeriods: [],
     },
+    {
+      id: "indrakova",
+      firstName: "",
+      lastName: "Indráková",
+      targetWeeklyLoad: 1,
+      baseWeeklyLoad: 1,
+      subjectLoads: [
+        { id: "indrakova-vz", subjectCode: "VZ", weeklyPeriods: 1 },
+      ],
+      unavailableDays: [],
+      unavailablePeriods: [],
+    },
   ],
 };
 
@@ -62,7 +81,7 @@ function assignment({
 }: {
   id: string;
   classCode: string;
-  subjectCode: "JAZ2" | "INF";
+  subjectCode: "JAZ2" | "INF" | "VZ";
   teacherId: string;
   weeklyPeriods: number;
 }): LocalAssignment {
@@ -125,7 +144,21 @@ const infAssignments = kadlecekClasses.map((classCode) =>
   }),
 );
 
-const assignments = [...spanishAssignments, ...infAssignments];
+const healthAssignments = [
+  assignment({
+    id: "health-7.A",
+    classCode: "7.A",
+    subjectCode: "VZ",
+    teacherId: "indrakova",
+    weeklyPeriods: 1,
+  }),
+];
+
+const assignments = [
+  ...spanishAssignments,
+  ...infAssignments,
+  ...healthAssignments,
+];
 
 function fixedForTeacher(
   result: ReturnType<typeof schoolSchedulingPreferences>,
@@ -141,7 +174,7 @@ function fixedForTeacher(
     ]);
 }
 
-test("V8 preset fixes the exact Špánková sequence and accepted Kadleček INF pattern", () => {
+test("V8 preset fixes Špánková, Kadleček and Indráková accepted slots", () => {
   const result = schoolSchedulingPreferences({
     assignments: structuredClone(assignments),
     subjects,
@@ -151,7 +184,7 @@ test("V8 preset fixes the exact Špánková sequence and accepted Kadleček INF 
 
   assert.deepEqual(result.warnings, []);
   assert.deepEqual(result.availability, []);
-  assert.equal(result.fixedLessons.length, 25);
+  assert.equal(result.fixedLessons.length, 26);
   assert.equal(
     result.fixedLessons.every((lesson) => lesson.locked),
     true,
@@ -187,6 +220,10 @@ test("V8 preset fixes the exact Špánková sequence and accepted Kadleček INF 
     ["inf-6.D", 0, 2, 5],
     ["inf-8.B", 0, 3, 0],
   ]);
+
+  assert.deepEqual(fixedForTeacher(result, "health-"), [
+    ["health-7.A", 0, 0, 4],
+  ]);
 });
 
 test("existing manual fixed lesson wins for that block while remaining V8 defaults are retained", () => {
@@ -209,7 +246,7 @@ test("existing manual fixed lesson wins for that block while remaining V8 defaul
   });
 
   assert.deepEqual(result.warnings, []);
-  assert.equal(result.fixedLessons.length, 24);
+  assert.equal(result.fixedLessons.length, 25);
   assert.deepEqual(
     result.fixedLessons
       .filter((lesson) => lesson.assignmentId === "spanish-8.B")
