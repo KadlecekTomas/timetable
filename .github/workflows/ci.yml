@@ -1,4 +1,5 @@
 name: CI
+# Product-runtime regression gate: exact V8 generation must stay green.
 
 on:
   pull_request:
@@ -36,7 +37,7 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install ".[dev]"
         working-directory: apps/solver
-      - run: ruff check apps/solver
+      - run: ruff check --config apps/solver/pyproject.toml apps/solver
       - run: pytest apps/solver
 
   full-school-solver:
@@ -57,10 +58,10 @@ jobs:
       - run: npm ci
       - run: pip install "."
         working-directory: apps/solver
-      - name: Start current solver runtime
+      - name: Start policy-aware production solver runtime
         shell: bash
         run: |
-          nohup bash -c 'cd apps/solver && uvicorn app.runtime:app --host 127.0.0.1 --port 8000' > /tmp/full-school-solver.log 2>&1 &
+          nohup bash -c 'cd apps/solver && uvicorn app.product_runtime:app --host 127.0.0.1 --port 8000' > /tmp/full-school-solver.log 2>&1 &
           for attempt in $(seq 1 90); do
             if curl --fail --silent http://127.0.0.1:8000/health >/dev/null; then
               exit 0
@@ -69,7 +70,7 @@ jobs:
           done
           cat /tmp/full-school-solver.log || true
           exit 1
-      - name: Solve exact anonymized full-school input
+      - name: Solve exact current-school V8 input
         run: node --import tsx integration/exact-full-school-solver.ts
         working-directory: apps/web
       - name: Show solver diagnostics
@@ -125,10 +126,10 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Build web without a database
         run: npm run build --workspace @timetable/web
-      - name: Start solver and web
+      - name: Start policy-aware solver and web
         shell: bash
         run: |
-          nohup bash -c 'cd apps/solver && uvicorn app.runtime:app --host 127.0.0.1 --port 8000' > /tmp/solver.log 2>&1 &
+          nohup bash -c 'cd apps/solver && uvicorn app.product_runtime:app --host 127.0.0.1 --port 8000' > /tmp/solver.log 2>&1 &
           nohup npm run start --workspace @timetable/web > /tmp/web.log 2>&1 &
 
           for attempt in $(seq 1 90); do
@@ -145,7 +146,7 @@ jobs:
           exit 1
       - name: Run database-free browser workflows
         run: npm run e2e --workspace @timetable/web -- e2e/local-first.spec.ts e2e/local-first-backup.spec.ts e2e/project-share.spec.ts e2e/timetable-export.spec.ts e2e/staffing.spec.ts e2e/teaching-plan.spec.ts e2e/teaching-plan-import-review.spec.ts e2e/subject-rotation-and-sports.spec.ts e2e/auto-cover.spec.ts e2e/current-school-generation.spec.ts e2e/school-scheduling-policy.spec.ts e2e/coverage-overview.spec.ts e2e/actual-2027-workbook.spec.ts e2e/dashboard-workflow.spec.ts e2e/leadership-ux.spec.ts --retries=0
-      - name: Run exact uploaded full-school generation
+      - name: Run exact current-school V8 full-school generation
         run: npm run e2e --workspace @timetable/web -- e2e/exact-uploaded-excel-generation.spec.ts --retries=0
       - name: Upload detailed teaching-plan screenshots and Excel
         if: always()

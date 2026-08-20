@@ -31,7 +31,7 @@ function emptyProject(): LocalProject {
   };
 }
 
-test("TV always uses school sport facilities, never Monday, and hall is Thursday-only", () => {
+test("generic TV uses school sport facilities, never Monday, and hall is Thursday-only", () => {
   const staffingPlan: StaffingPlan = {
     version: 1,
     updatedAt: "test",

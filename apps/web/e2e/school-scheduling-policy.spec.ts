@@ -69,7 +69,7 @@ function assignmentClassIds(assignment: StoredAssignment): string[] {
   return [assignment.classId, ...assignment.additionalClassIds].sort();
 }
 
-test("JAZ2 keeps 8th and 9th grade students in shared groups", async ({
+test("JAZ2 stays class-scoped and Špánková receives the exact accepted V8 slots", async ({
   page,
 }) => {
   test.setTimeout(120_000);
@@ -110,18 +110,13 @@ test("JAZ2 keeps 8th and 9th grade students in shared groups", async ({
             id: "prikrylova",
             firstName: "",
             lastName: "Přikrylová",
-            targetWeeklyLoad: 19,
-            baseWeeklyLoad: 19,
+            targetWeeklyLoad: 15,
+            baseWeeklyLoad: 15,
             subjectLoads: [
               {
                 id: "load-prikrylova-jaz2",
                 subjectCode: "JAZ2",
                 weeklyPeriods: 15,
-              },
-              {
-                id: "load-prikrylova-other",
-                subjectCode: "VV",
-                weeklyPeriods: 4,
               },
             ],
             unavailableDays: [],
@@ -143,6 +138,38 @@ test("JAZ2 keeps 8th and 9th grade students in shared groups", async ({
             unavailableDays: [],
             unavailablePeriods: [],
           },
+          {
+            id: "kadlecek",
+            firstName: "Tomáš",
+            lastName: "Kadleček",
+            targetWeeklyLoad: 13,
+            baseWeeklyLoad: 13,
+            subjectLoads: [
+              {
+                id: "load-kadlecek-inf",
+                subjectCode: "INF",
+                weeklyPeriods: 13,
+              },
+            ],
+            unavailableDays: ["FRI"],
+            unavailablePeriods: [],
+          },
+          {
+            id: "vasakova",
+            firstName: "Nikola",
+            lastName: "Vašáková",
+            targetWeeklyLoad: 12,
+            baseWeeklyLoad: 12,
+            subjectLoads: [
+              {
+                id: "load-vasakova-inf",
+                subjectCode: "INF",
+                weeklyPeriods: 12,
+              },
+            ],
+            unavailableDays: ["MON", "THU", "FRI"],
+            unavailablePeriods: [],
+          },
         ],
       }),
     );
@@ -150,8 +177,9 @@ test("JAZ2 keeps 8th and 9th grade students in shared groups", async ({
     const languageRow = (
       id: string,
       classCode: string,
+      organization: "WHOLE" | "SPLIT",
       primaryTeacherId: string,
-      secondaryTeacherId: string,
+      secondaryTeacherId = "",
     ) => ({
       id,
       classCode,
@@ -160,10 +188,25 @@ test("JAZ2 keeps 8th and 9th grade students in shared groups", async ({
       weeklyPeriods: 3,
       lessonShape: "SEPARATE",
       doublePeriodsCount: 0,
-      organization: "SPLIT",
+      organization,
       rotationPlacement: "SAME_DAY",
       primaryTeacherId,
       secondaryTeacherId,
+      splitGroupCount: 2,
+    });
+
+    const infRow = (classCode: string) => ({
+      id: `inf-${classCode}`,
+      classCode,
+      subjectCode: "INF",
+      secondarySubjectCode: "",
+      weeklyPeriods: 1,
+      lessonShape: "SEPARATE",
+      doublePeriodsCount: 0,
+      organization: classCode === "8.B" ? "WHOLE" : "SPLIT",
+      rotationPlacement: "SAME_DAY",
+      primaryTeacherId: "kadlecek",
+      secondaryTeacherId: classCode === "8.B" ? "" : "vasakova",
       splitGroupCount: 2,
     });
 
@@ -179,12 +222,13 @@ test("JAZ2 keeps 8th and 9th grade students in shared groups", async ({
           profile: /\.(B|D)$/.test(code) ? "SPORTS" : "REGULAR",
         })),
         rows: [
-          languageRow("language-8a", "8.A", "prikrylova", "spankova"),
-          languageRow("language-8b", "8.B", "spankova", ""),
-          languageRow("language-8c", "8.C", "prikrylova", "spankova"),
-          languageRow("language-9a", "9.A", "prikrylova", ""),
-          languageRow("language-9b", "9.B", "spankova", "prikrylova"),
-          languageRow("language-9c", "9.C", "prikrylova", ""),
+          languageRow("language-8a", "8.A", "SPLIT", "prikrylova", "spankova"),
+          languageRow("language-8b", "8.B", "WHOLE", "spankova"),
+          languageRow("language-8c", "8.C", "SPLIT", "prikrylova", "spankova"),
+          languageRow("language-9a", "9.A", "WHOLE", "prikrylova"),
+          languageRow("language-9b", "9.B", "SPLIT", "spankova", "prikrylova"),
+          languageRow("language-9c", "9.C", "WHOLE", "prikrylova"),
+          ...classCodes.map(infRow),
         ],
       }),
     );
@@ -216,12 +260,11 @@ test("JAZ2 keeps 8th and 9th grade students in shared groups", async ({
         assignment.subjectId === language!.id,
     )
     .sort((left, right) => left.classId.localeCompare(right.classId));
-  expect(preparedSpankova).toHaveLength(2);
-  expect(assignmentClassIds(preparedSpankova[0]!)).toEqual(
-    ["8.A", "8.B", "8.C"].map((code) => classIdByCode.get(code)).sort(),
-  );
-  expect(assignmentClassIds(preparedSpankova[1]!)).toEqual(
-    ["9.A", "9.B", "9.C"].map((code) => classIdByCode.get(code)).sort(),
+  expect(preparedSpankova).toHaveLength(4);
+  expect(
+    preparedSpankova.map((assignment) => assignmentClassIds(assignment)),
+  ).toEqual(
+    ["8.A", "8.B", "8.C", "9.B"].map((code) => [classIdByCode.get(code)]),
   );
 
   await page.getByLabel("Časový limit výpočtu").selectOption("30");
@@ -238,49 +281,36 @@ test("JAZ2 keeps 8th and 9th grade students in shared groups", async ({
   const assignmentById = new Map(
     generated.assignments.map((assignment) => [assignment.id, assignment]),
   );
-  const spankovaLessons = version!.lessons.filter(
-    (lesson) =>
-      lesson.teacher_id === spankova!.id && lesson.subject_id === language!.id,
-  );
-  expect(spankovaLessons).toHaveLength(6);
-  expect(
-    spankovaLessons.every((lesson) => [1, 2, 3].includes(lesson.day)),
-  ).toBe(true);
-
-  const spanish = spankovaLessons
-    .filter((lesson) => {
-      const assignment = assignmentById.get(lesson.assignment_id);
-      return (
-        assignment !== undefined &&
-        assignmentClassIds(assignment).every((classId) =>
-          ["8.A", "8.B", "8.C"].some(
-            (code) => classId === classIdByCode.get(code),
-          ),
-        )
-      );
-    })
+  const spankovaLessons = version!.lessons
+    .filter(
+      (lesson) =>
+        lesson.teacher_id === spankova!.id &&
+        lesson.subject_id === language!.id,
+    )
     .sort((left, right) => left.day - right.day || left.period - right.period);
-  expect(spanish).toHaveLength(3);
+  expect(spankovaLessons).toHaveLength(12);
   expect(
-    spanish.map((lesson) => [lesson.day, lesson.period, lesson.locked]),
+    spankovaLessons.map((lesson) => {
+      const assignment = assignmentById.get(lesson.assignment_id);
+      const classCode = [...classIdByCode.entries()].find(
+        ([, classId]) => classId === assignment?.classId,
+      )?.[0];
+      return [classCode, lesson.day, lesson.period, lesson.locked];
+    }),
   ).toEqual([
-    [1, 1, true],
-    [2, 1, true],
-    [3, 1, true],
+    ["8.B", 1, 1, true],
+    ["8.C", 1, 2, true],
+    ["8.A", 1, 3, true],
+    ["9.B", 1, 4, true],
+    ["8.B", 2, 1, true],
+    ["8.A", 2, 2, true],
+    ["8.C", 2, 3, true],
+    ["9.B", 2, 4, true],
+    ["8.B", 3, 1, true],
+    ["8.C", 3, 2, true],
+    ["8.A", 3, 3, true],
+    ["9.B", 3, 4, true],
   ]);
-
-  const german = spankovaLessons.filter((lesson) => {
-    const assignment = assignmentById.get(lesson.assignment_id);
-    return (
-      assignment !== undefined &&
-      assignmentClassIds(assignment).every((classId) =>
-        ["9.A", "9.B", "9.C"].some(
-          (code) => classId === classIdByCode.get(code),
-        ),
-      )
-    );
-  });
-  expect(german).toHaveLength(3);
 
   expect(pageErrors).toEqual([]);
   expect(serverErrors).toEqual([]);

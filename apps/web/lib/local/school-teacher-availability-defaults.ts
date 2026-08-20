@@ -41,9 +41,19 @@ function fromPeriod(
   );
 }
 
+function samePeriodsEveryDay(
+  ...oneBasedPeriods: number[]
+): StaffingUnavailablePeriod[] {
+  return (Object.keys(DAY_ORDER) as StaffingDayCode[]).flatMap((day) =>
+    periods(day, ...oneBasedPeriods),
+  );
+}
+
 /**
  * Authoritative school defaults for hard teacher unavailability in 2026/2027.
  * Matching is surname-first because source workbooks may omit first names.
+ *
+ * These rules are a school preset. The generic solver must not depend on names.
  */
 export const SCHOOL_TEACHER_AVAILABILITY_DEFAULTS: readonly SchoolTeacherAvailabilityRule[] =
   [
@@ -57,7 +67,12 @@ export const SCHOOL_TEACHER_AVAILABILITY_DEFAULTS: readonly SchoolTeacherAvailab
       firstName: "Kateřina",
       unavailablePeriods: fromPeriod("THU", 5),
     },
-    { surname: "Jislová", firstName: "Anežka", unavailableDays: ["FRI"] },
+    {
+      surname: "Jislová",
+      firstName: "Anežka",
+      unavailableDays: ["FRI"],
+      unavailablePeriods: periods("MON", 7, 8),
+    },
     { surname: "Kadleček", firstName: "Tomáš", unavailableDays: ["FRI"] },
     { surname: "Kvapilová", unavailablePeriods: fromPeriod("THU", 3) },
     {
@@ -72,6 +87,14 @@ export const SCHOOL_TEACHER_AVAILABILITY_DEFAULTS: readonly SchoolTeacherAvailab
       unavailablePeriods: periods("MON", 5),
     },
     { surname: "Pokorná", firstName: "Jaroslava", unavailableDays: ["FRI"] },
+    {
+      surname: "Schoberová",
+      unavailablePeriods: [...periods("MON", 7, 8), ...periods("THU", 7, 8)],
+    },
+    {
+      surname: "Slončíková",
+      unavailablePeriods: periods("MON", 7, 8),
+    },
     { surname: "Šárová", firstName: "Eliška", unavailableDays: ["MON", "FRI"] },
     { surname: "Šobotník", firstName: "Jan", unavailableDays: ["MON"] },
     { surname: "Špánková", unavailableDays: ["MON", "FRI"] },
@@ -104,8 +127,7 @@ export const SCHOOL_TEACHER_AVAILABILITY_DEFAULTS: readonly SchoolTeacherAvailab
       surname: "Jakoubková",
       firstName: "Zuzana",
       unavailablePeriods: [
-        ...periods("MON", 6),
-        ...periods("THU", 5),
+        ...samePeriodsEveryDay(5, 6),
         ...periods("FRI", 3, 4),
       ],
     },

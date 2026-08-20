@@ -15,9 +15,11 @@
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "paths": {
+      "@/lib/domain/scoring": ["./lib/domain/scoring-policy"],
+      "@/lib/domain/validation": ["./lib/domain/validation-policy"],
       "@/lib/local/api": ["./lib/local/api-school"],
       "@/lib/local/staffing-plan": ["./lib/local/staffing-plan-school-v2"],
-      "@/lib/local/teaching-plan": ["./lib/local/teaching-plan-school-v3"],
+      "@/lib/local/teaching-plan": ["./lib/local/teaching-plan-school-v4"],
       "@/lib/import/client-workbook": ["./lib/import/client-workbook-school"],
       "@/lib/import/teaching-plan-workbook": [
         "./lib/import/teaching-plan-workbook-school-v2"

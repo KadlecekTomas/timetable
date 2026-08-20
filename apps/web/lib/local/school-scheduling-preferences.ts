@@ -9,18 +9,46 @@ import type { StaffingPlan } from "./staffing-plan";
 type LocalFixedLesson = LocalProject["fixedLessons"][number];
 
 const SPANKOVA_SURNAME = "spankova";
+const KADLECEK_SURNAME = "kadlecek";
 const SECOND_FOREIGN_LANGUAGE_CODE = "JAZ2";
+const INFORMATICS_CODE = "INF";
 const PHYSICAL_EDUCATION_CODE = "TV";
-const EIGHTH_GRADE_CLASS_IDS = new Set(["class:8-A", "class:8-B", "class:8-C"]);
-const SPANISH_FIXED_SLOTS = [
-  { dayOfWeek: 1, startPeriod: 1 }, // Út 2. hodina
-  { dayOfWeek: 2, startPeriod: 1 }, // St 2. hodina
-  { dayOfWeek: 3, startPeriod: 1 }, // Čt 2. hodina
+
+interface FixedAssignmentSlot {
+  classCode: string;
+  dayOfWeek: number;
+  startPeriod: number;
+}
+
+const SPANKOVA_CLASS_SLOTS: readonly FixedAssignmentSlot[] = [
+  { classCode: "8.B", dayOfWeek: 1, startPeriod: 1 },
+  { classCode: "8.C", dayOfWeek: 1, startPeriod: 2 },
+  { classCode: "8.A", dayOfWeek: 1, startPeriod: 3 },
+  { classCode: "9.B", dayOfWeek: 1, startPeriod: 4 },
+  { classCode: "8.B", dayOfWeek: 2, startPeriod: 1 },
+  { classCode: "8.A", dayOfWeek: 2, startPeriod: 2 },
+  { classCode: "8.C", dayOfWeek: 2, startPeriod: 3 },
+  { classCode: "9.B", dayOfWeek: 2, startPeriod: 4 },
+  { classCode: "8.B", dayOfWeek: 3, startPeriod: 1 },
+  { classCode: "8.C", dayOfWeek: 3, startPeriod: 2 },
+  { classCode: "8.A", dayOfWeek: 3, startPeriod: 3 },
+  { classCode: "9.B", dayOfWeek: 3, startPeriod: 4 },
 ] as const;
-const GERMAN_FOLLOW_UP_PREFERENCES = [
-  { period: 2, weight: 100 }, // ideálně hned 3. hodinu
-  { period: 3, weight: 60 },
-  { period: 4, weight: 30 },
+
+const KADLECEK_INF_SLOTS: readonly FixedAssignmentSlot[] = [
+  { classCode: "8.C", dayOfWeek: 1, startPeriod: 0 },
+  { classCode: "7.C", dayOfWeek: 1, startPeriod: 1 },
+  { classCode: "9.A", dayOfWeek: 1, startPeriod: 2 },
+  { classCode: "6.B", dayOfWeek: 1, startPeriod: 3 },
+  { classCode: "7.B", dayOfWeek: 1, startPeriod: 4 },
+  { classCode: "9.C", dayOfWeek: 1, startPeriod: 5 },
+  { classCode: "9.B", dayOfWeek: 2, startPeriod: 0 },
+  { classCode: "7.A", dayOfWeek: 2, startPeriod: 1 },
+  { classCode: "6.C", dayOfWeek: 2, startPeriod: 2 },
+  { classCode: "6.A", dayOfWeek: 2, startPeriod: 3 },
+  { classCode: "8.A", dayOfWeek: 2, startPeriod: 4 },
+  { classCode: "6.D", dayOfWeek: 2, startPeriod: 5 },
+  { classCode: "8.B", dayOfWeek: 3, startPeriod: 0 },
 ] as const;
 
 function normalizedPersonToken(value: string): string {
@@ -31,20 +59,125 @@ function normalizedPersonToken(value: string): string {
     .toLocaleLowerCase("cs-CZ");
 }
 
-function classIdsForAssignment(assignment: LocalAssignment): Set<string> {
-  return new Set([assignment.classId, ...assignment.additionalClassIds]);
+function subjectCodeById(subjects: LocalSubject[]): Map<string, string> {
+  return new Map(subjects.map((subject) => [subject.id, subject.code]));
 }
 
-function isEighthGradeSharedLanguage(assignment: LocalAssignment): boolean {
-  const ids = classIdsForAssignment(assignment);
-  return (
-    ids.size === EIGHTH_GRADE_CLASS_IDS.size &&
-    [...EIGHTH_GRADE_CLASS_IDS].every((classId) => ids.has(classId))
+function classCodeFromId(classId: string): string {
+  return classId.replace(/^class:/, "").replace(/-/g, ".");
+}
+
+function assignmentClassCodes(assignment: LocalAssignment): string[] {
+  return [assignment.classId, ...assignment.additionalClassIds].map(
+    classCodeFromId,
   );
 }
 
-function subjectCodeById(subjects: LocalSubject[]): Map<string, string> {
-  return new Map(subjects.map((subject) => [subject.id, subject.code]));
+function assignmentForTeacherClassSubject({
+  assignments,
+  subjectCodes,
+  teacherId,
+  classCode,
+  subjectCode,
+}: {
+  assignments: LocalAssignment[];
+  subjectCodes: Map<string, string>;
+  teacherId: string;
+  classCode: string;
+  subjectCode: string;
+}): LocalAssignment | undefined {
+  return assignments.find(
+    (assignment) =>
+      assignment.teacherId === teacherId &&
+      subjectCodes.get(assignment.subjectId) === subjectCode &&
+      assignmentClassCodes(assignment).includes(classCode),
+  );
+}
+
+function appendFixedLesson(
+  target: LocalFixedLesson[],
+  existingKeys: Set<string>,
+  assignment: LocalAssignment,
+  blockIndex: number,
+  dayOfWeek: number,
+  startPeriod: number,
+  idPrefix: string,
+): void {
+  const key = `${assignment.id}:${blockIndex}`;
+  if (existingKeys.has(key)) return;
+  target.push({
+    id: `${idPrefix}:${assignment.id}:${blockIndex}`,
+    assignmentId: assignment.id,
+    blockIndex,
+    dayOfWeek,
+    startPeriod,
+    duration: 1,
+    roomId: null,
+    locked: true,
+  });
+  existingKeys.add(key);
+}
+
+function addThreeDayFixedSchedule({
+  assignments,
+  subjectCodes,
+  teacherId,
+  subjectCode,
+  slots,
+  fixedLessons,
+  existingKeys,
+  warnings,
+  label,
+}: {
+  assignments: LocalAssignment[];
+  subjectCodes: Map<string, string>;
+  teacherId: string;
+  subjectCode: string;
+  slots: readonly FixedAssignmentSlot[];
+  fixedLessons: LocalFixedLesson[];
+  existingKeys: Set<string>;
+  warnings: string[];
+  label: string;
+}): void {
+  const nextBlockByAssignment = new Map<string, number>();
+  for (const slot of slots) {
+    const assignment = assignmentForTeacherClassSubject({
+      assignments,
+      subjectCodes,
+      teacherId,
+      classCode: slot.classCode,
+      subjectCode,
+    });
+    if (!assignment) {
+      warnings.push(
+        `${label}: chybí vazba ${slot.classCode} ${subjectCode}; pevný slot nebyl vložen.`,
+      );
+      continue;
+    }
+    if (assignment.lessonShape !== "SINGLE") {
+      warnings.push(
+        `${label}: ${slot.classCode} ${subjectCode} musí být po jednotlivých hodinách.`,
+      );
+      continue;
+    }
+    const blockIndex = nextBlockByAssignment.get(assignment.id) ?? 0;
+    if (blockIndex >= assignment.weeklyPeriods) {
+      warnings.push(
+        `${label}: ${slot.classCode} ${subjectCode} nemá dost výukových bloků pro pevný rozpis.`,
+      );
+      continue;
+    }
+    appendFixedLesson(
+      fixedLessons,
+      existingKeys,
+      assignment,
+      blockIndex,
+      slot.dayOfWeek,
+      slot.startPeriod,
+      `school-default:${normalizedPersonToken(label)}`,
+    );
+    nextBlockByAssignment.set(assignment.id, blockIndex + 1);
+  }
 }
 
 export interface SchoolSchedulingPreferencesResult {
@@ -53,13 +186,6 @@ export interface SchoolSchedulingPreferencesResult {
   warnings: string[];
 }
 
-/**
- * Current-school scheduling wishes that are not part of the curriculum itself.
- * Spanish for Špánková is a fixed operational requirement; German after it is
- * deliberately only preferred so it can move when another hard constraint wins.
- * PE is additionally capped at two periods per assignment/day, so a group can
- * never receive two double blocks (or a double plus a single) on the same day.
- */
 export function schoolSchedulingPreferences({
   assignments,
   subjects,
@@ -73,71 +199,57 @@ export function schoolSchedulingPreferences({
 }): SchoolSchedulingPreferencesResult {
   const warnings: string[] = [];
   const subjectCodes = subjectCodeById(subjects);
-
-  for (const assignment of assignments) {
-    if (subjectCodes.get(assignment.subjectId) === PHYSICAL_EDUCATION_CODE) {
-      assignment.maxPerDay = 2;
-    }
-  }
-
   const spankova = staffingPlan.teachers.find(
     (teacher) => normalizedPersonToken(teacher.lastName) === SPANKOVA_SURNAME,
   );
-  if (!spankova) {
-    return { fixedLessons: [], availability: [], warnings };
+  const kadlecek = staffingPlan.teachers.find(
+    (teacher) => normalizedPersonToken(teacher.lastName) === KADLECEK_SURNAME,
+  );
+  const currentSchoolPresetActive = Boolean(spankova && kadlecek);
+
+  for (const assignment of assignments) {
+    if (subjectCodes.get(assignment.subjectId) !== PHYSICAL_EDUCATION_CODE) {
+      continue;
+    }
+    assignment.maxPerDay = 2;
+
+    if (currentSchoolPresetActive && !assignment.roomShareKey) {
+      assignment.requiredRoomId = null;
+      assignment.requiredRoomTypeId = null;
+    }
   }
 
-  const teacherId = `teacher:${spankova.id}`;
-  const languageAssignments = assignments.filter(
-    (assignment) =>
-      assignment.teacherId === teacherId &&
-      subjectCodes.get(assignment.subjectId) === SECOND_FOREIGN_LANGUAGE_CODE,
-  );
-  const spanish = languageAssignments.find(isEighthGradeSharedLanguage);
-
   const fixedLessons: LocalFixedLesson[] = [];
-  if (
-    !spanish ||
-    spanish.weeklyPeriods !== 3 ||
-    spanish.lessonShape !== "SINGLE"
-  ) {
-    warnings.push(
-      "Špánková: nebyla nalezena očekávaná společná ŠpJ výuka 8. ročníku 3 h týdně; pevné Út–St–Čt 2. hodiny nebyly automaticky vloženy.",
-    );
-  } else {
-    const existingKeys = new Set(
-      existingFixedLessons.map(
-        (lesson) => `${lesson.assignmentId}:${lesson.blockIndex}`,
-      ),
-    );
-    SPANISH_FIXED_SLOTS.forEach((slot, blockIndex) => {
-      if (existingKeys.has(`${spanish.id}:${blockIndex}`)) return;
-      fixedLessons.push({
-        id: `school-default:spankova-spj:${blockIndex}`,
-        assignmentId: spanish.id,
-        blockIndex,
-        dayOfWeek: slot.dayOfWeek,
-        startPeriod: slot.startPeriod,
-        duration: 1,
-        roomId: null,
-        locked: true,
-      });
+  const existingKeys = new Set(
+    existingFixedLessons.map(
+      (lesson) => `${lesson.assignmentId}:${lesson.blockIndex}`,
+    ),
+  );
+
+  if (currentSchoolPresetActive && spankova && kadlecek) {
+    addThreeDayFixedSchedule({
+      assignments,
+      subjectCodes,
+      teacherId: `teacher:${spankova.id}`,
+      subjectCode: SECOND_FOREIGN_LANGUAGE_CODE,
+      slots: SPANKOVA_CLASS_SLOTS,
+      fixedLessons,
+      existingKeys,
+      warnings,
+      label: "Špánková",
+    });
+    addThreeDayFixedSchedule({
+      assignments,
+      subjectCodes,
+      teacherId: `teacher:${kadlecek.id}`,
+      subjectCode: INFORMATICS_CODE,
+      slots: KADLECEK_INF_SLOTS,
+      fixedLessons,
+      existingKeys,
+      warnings,
+      label: "Kadleček",
     });
   }
 
-  const availability: LocalAvailability[] = [1, 2, 3].flatMap((dayOfWeek) =>
-    GERMAN_FOLLOW_UP_PREFERENCES.map(({ period, weight }) => ({
-      id: `school-preference:spankova-follow-up:${dayOfWeek}:${period}`,
-      entityType: "TEACHER" as const,
-      entityId: teacherId,
-      dayOfWeek,
-      period,
-      kind: "PREFERRED" as const,
-      weight,
-      reason:
-        "Špánková: po ŠpJ preferovat navazující němčinu v Út/St/Čt bez zbytečné mezery",
-    })),
-  );
-
-  return { fixedLessons, availability, warnings };
+  return { fixedLessons, availability: [], warnings };
 }

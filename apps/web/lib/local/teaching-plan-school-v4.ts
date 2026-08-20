@@ -1,0 +1,362 @@
+import type { StaffingAllocationDraft } from "./staffing-allocation-draft";
+import {
+  SCHOOL_SINGLE_SPLIT_PERIOD_SUBJECT_CODES,
+  SCHOOL_SPLIT_SUBJECT_CODES,
+} from "./school-default-data";
+import type { SchoolCurriculum } from "./school-curriculum";
+import type { StaffingPlan } from "./staffing-plan-school-v2";
+import { SCHOOL_CLASS_CODES } from "./teaching-plan-school";
+import {
+  classGradeFromCode,
+  normalizeClassCode,
+  type TeachingPlan,
+  type TeachingPlanRow,
+} from "./teaching-plan";
+import * as base from "./teaching-plan-school-v2";
+
+export * from "./teaching-plan-school-v2";
+
+declare module "./teaching-plan" {
+  interface TeachingPlanRow {
+    splitWeeklyPeriods?: number;
+  }
+}
+
+const SECOND_FOREIGN_LANGUAGE_CODE = "JAZ2";
+const ELECTIVE_SUBJECT_CODE = "VOL";
+const ELECTIVE_EXCLUDED_GRADES = new Set([6, 7]);
+const SPLIT_PERIODS_STORAGE_KEY = "rozvrhar:teaching-plan-split-periods:v1";
+const DOUBLE_BLOCK_SUBJECT_CODES = new Set(["TV", "VV"]);
+
+let migratingTeachingPlan = false;
+
+function isCurrentSchoolPlan(plan: TeachingPlan): boolean {
+  const allowedCodes = new Set<string>(SCHOOL_CLASS_CODES);
+  const classCodes = new Set(
+    plan.classes.map((schoolClass) => schoolClass.code),
+  );
+  return (
+    classCodes.size >= 10 &&
+    [...classCodes].every((classCode) => allowedCodes.has(classCode))
+  );
+}
+
+export function isSameTeacherPartialSplit(row: TeachingPlanRow): boolean {
+  if (
+    row.organization !== "SPLIT" ||
+    (row.splitGroupCount ?? 2) !== 2 ||
+    !SCHOOL_SINGLE_SPLIT_PERIOD_SUBJECT_CODES.has(row.subjectCode) ||
+    !Number.isInteger(row.splitWeeklyPeriods)
+  ) {
+    return false;
+  }
+  const splitPeriods = Math.max(
+    0,
+    Math.min(row.weeklyPeriods, Number(row.splitWeeklyPeriods)),
+  );
+  return splitPeriods > 0 && splitPeriods < row.weeklyPeriods;
+}
+
+function splitPeriodsForRow(row: TeachingPlanRow): number {
+  return Number.isInteger(row.splitWeeklyPeriods)
+    ? Math.max(0, Math.min(row.weeklyPeriods, Number(row.splitWeeklyPeriods)))
+    : row.weeklyPeriods;
+}
+
+function readStoredSplitPeriods(): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(SPLIT_PERIODS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return {};
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).flatMap(
+        ([rowId, periods]) =>
+          Number.isInteger(periods) && Number(periods) > 0
+            ? [[rowId, Number(periods)] as const]
+            : [],
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function applyStoredSplitPeriods(plan: TeachingPlan): TeachingPlan {
+  const stored = readStoredSplitPeriods();
+  return {
+    ...plan,
+    rows: plan.rows.map((row) =>
+      stored[row.id] ? { ...row, splitWeeklyPeriods: stored[row.id] } : row,
+    ),
+  };
+}
+
+function writeStoredSplitPeriods(plan: TeachingPlan): void {
+  if (typeof window === "undefined") return;
+  const stored = Object.fromEntries(
+    plan.rows.flatMap((row) =>
+      Number.isInteger(row.splitWeeklyPeriods) &&
+      Number(row.splitWeeklyPeriods) > 0
+        ? [[row.id, Number(row.splitWeeklyPeriods)] as const]
+        : [],
+    ),
+  );
+  window.localStorage.setItem(
+    SPLIT_PERIODS_STORAGE_KEY,
+    JSON.stringify(stored),
+  );
+}
+
+function sortedClassCodes(codes: string[]): string[] {
+  return [...new Set(codes.map(normalizeClassCode).filter(Boolean))].sort(
+    (left, right) =>
+      left.localeCompare(right, "cs-CZ", {
+        numeric: true,
+      }),
+  );
+}
+
+function rowClassCodes(row: TeachingPlanRow): string[] {
+  return sortedClassCodes([row.classCode, ...(row.additionalClassCodes ?? [])]);
+}
+
+function rowWithClassCodes(
+  row: TeachingPlanRow,
+  classCodes: string[],
+): TeachingPlanRow {
+  const targets = sortedClassCodes(classCodes);
+  return {
+    ...row,
+    classCode: targets[0] ?? normalizeClassCode(row.classCode),
+    additionalClassCodes: targets.slice(1),
+  };
+}
+
+function removeUnavailableElectives(plan: TeachingPlan): TeachingPlan {
+  return {
+    ...plan,
+    rows: plan.rows.flatMap((row) => {
+      if (row.subjectCode !== ELECTIVE_SUBJECT_CODE) return [row];
+      const remainingClasses = rowClassCodes(row).filter(
+        (classCode) =>
+          !ELECTIVE_EXCLUDED_GRADES.has(classGradeFromCode(classCode)),
+      );
+      return remainingClasses.length > 0
+        ? [rowWithClassCodes(row, remainingClasses)]
+        : [];
+    }),
+  };
+}
+
+function enforceRequiredLessonBlocks(plan: TeachingPlan): TeachingPlan {
+  if (!isCurrentSchoolPlan(plan)) return plan;
+
+  return {
+    ...plan,
+    rows: plan.rows.map((row) => {
+      const subjectCodes = [row.subjectCode, row.secondarySubjectCode].filter(
+        (subjectCode): subjectCode is string => Boolean(subjectCode),
+      );
+      const requiresDoubleBlock = subjectCodes.some((subjectCode) =>
+        DOUBLE_BLOCK_SUBJECT_CODES.has(subjectCode),
+      );
+      const containsPhysicalEducation = subjectCodes.includes("TV");
+
+      if (row.weeklyPeriods === 2 && requiresDoubleBlock) {
+        return {
+          ...row,
+          lessonShape: "DOUBLE" as const,
+          doublePeriodsCount: 1,
+        };
+      }
+      if (row.weeklyPeriods === 4 && containsPhysicalEducation) {
+        return {
+          ...row,
+          lessonShape: "DOUBLE" as const,
+          doublePeriodsCount: 2,
+        };
+      }
+      if (row.weeklyPeriods === 5 && containsPhysicalEducation) {
+        return {
+          ...row,
+          lessonShape: "MIXED" as const,
+          doublePeriodsCount: 2,
+        };
+      }
+      return row;
+    }),
+  };
+}
+
+/**
+ * Current-school split rules. Unlike the old v3 preset this never rewrites
+ * 9.A/9.C PE staffing and never merges JAZ2 rows across whole grades.
+ */
+export function enforceMandatorySchoolSplits(plan: TeachingPlan): TeachingPlan {
+  if (!isCurrentSchoolPlan(plan)) return plan;
+
+  return {
+    ...plan,
+    rows: plan.rows.map((row) => {
+      if (
+        row.organization === "ROTATION" ||
+        !SCHOOL_SPLIT_SUBJECT_CODES.has(row.subjectCode)
+      ) {
+        return row;
+      }
+
+      // JAZ2 organization comes directly from the staffing matrix. Some classes
+      // have one language/teacher while others are split between two languages.
+      if (row.subjectCode === SECOND_FOREIGN_LANGUAGE_CODE) {
+        return row;
+      }
+
+      if (
+        normalizeClassCode(row.classCode) === "8.B" &&
+        row.subjectCode === "INF"
+      ) {
+        return {
+          ...row,
+          organization: "WHOLE" as const,
+          splitWeeklyPeriods: undefined,
+          secondaryTeacherId: "",
+          tertiaryTeacherId: "",
+          splitGroupCount: 2,
+        };
+      }
+
+      const singleSplit = SCHOOL_SINGLE_SPLIT_PERIOD_SUBJECT_CODES.has(
+        row.subjectCode,
+      );
+      const splitGroupCount = !singleSplit && row.splitGroupCount === 3 ? 3 : 2;
+      return {
+        ...row,
+        organization: "SPLIT" as const,
+        splitWeeklyPeriods: singleSplit ? 1 : row.weeklyPeriods,
+        secondaryTeacherId: singleSplit
+          ? row.primaryTeacherId
+          : row.secondaryTeacherId,
+        tertiaryTeacherId: splitGroupCount === 3 ? row.tertiaryTeacherId : "",
+        splitGroupCount,
+        additionalClassCodes:
+          row.subjectCode === "TV" ? [] : row.additionalClassCodes,
+        sharedGroupLabel: row.subjectCode === "TV" ? "" : row.sharedGroupLabel,
+      };
+    }),
+  };
+}
+
+export function enforceCurrentSchoolTeachingStructure(
+  plan: TeachingPlan,
+): TeachingPlan {
+  if (!isCurrentSchoolPlan(plan)) return plan;
+  return enforceRequiredLessonBlocks(
+    enforceMandatorySchoolSplits(removeUnavailableElectives(plan)),
+  );
+}
+
+export function applySchoolOperationalRules(
+  plan: TeachingPlan,
+  staffingPlan: StaffingPlan,
+  allocationDraft: StaffingAllocationDraft | null = null,
+): TeachingPlan {
+  const structured = enforceCurrentSchoolTeachingStructure(plan);
+  return enforceCurrentSchoolTeachingStructure(
+    base.applySchoolOperationalRules(structured, staffingPlan, allocationDraft),
+  );
+}
+
+export function createDefaultSchoolTeachingPlan(
+  curriculum: SchoolCurriculum,
+  staffingPlan: StaffingPlan,
+  allocationDraft: StaffingAllocationDraft | null,
+): TeachingPlan {
+  return enforceCurrentSchoolTeachingStructure(
+    base.createDefaultSchoolTeachingPlan(
+      curriculum,
+      staffingPlan,
+      allocationDraft,
+    ),
+  );
+}
+
+export function loadTeachingPlan(): TeachingPlan {
+  const loaded = applyStoredSplitPeriods(base.loadTeachingPlan());
+  const enforced = enforceCurrentSchoolTeachingStructure(loaded);
+  if (
+    typeof window !== "undefined" &&
+    !migratingTeachingPlan &&
+    JSON.stringify(loaded.rows) !== JSON.stringify(enforced.rows)
+  ) {
+    migratingTeachingPlan = true;
+    try {
+      writeStoredSplitPeriods(enforced);
+      const saved = applyStoredSplitPeriods(base.saveTeachingPlan(enforced));
+      return enforceCurrentSchoolTeachingStructure(saved);
+    } finally {
+      migratingTeachingPlan = false;
+    }
+  }
+  return enforced;
+}
+
+export function saveTeachingPlan(plan: TeachingPlan): TeachingPlan {
+  const enforced = enforceCurrentSchoolTeachingStructure(plan);
+  writeStoredSplitPeriods(enforced);
+  const saved = applyStoredSplitPeriods(base.saveTeachingPlan(enforced));
+  return enforceCurrentSchoolTeachingStructure(saved);
+}
+
+export function rowTeacherPeriods(
+  row: TeachingPlanRow,
+  teacherId: string,
+): number {
+  const periods = base.rowTeacherPeriods(row, teacherId);
+  if (
+    isSameTeacherPartialSplit(row) &&
+    row.primaryTeacherId === teacherId &&
+    row.secondaryTeacherId === teacherId
+  ) {
+    return periods + splitPeriodsForRow(row);
+  }
+  if (
+    row.organization === "SPLIT" &&
+    Number.isInteger(row.splitWeeklyPeriods) &&
+    row.secondaryTeacherId === teacherId &&
+    row.primaryTeacherId !== teacherId
+  ) {
+    const splitPeriods = Math.max(
+      1,
+      Math.min(row.weeklyPeriods, Number(row.splitWeeklyPeriods)),
+    );
+    return periods - row.weeklyPeriods + splitPeriods;
+  }
+  return periods;
+}
+
+export function validateTeachingPlan(
+  plan: TeachingPlan,
+  staffingPlan: StaffingPlan,
+  allocationDraft: StaffingAllocationDraft | null | undefined = undefined,
+): string[] {
+  const enforced = enforceCurrentSchoolTeachingStructure(plan);
+  const sameTeacherPrefixes = enforced.rows
+    .filter(isSameTeacherPartialSplit)
+    .map((row) => `${row.classCode} ${row.subjectCode}:`);
+  const baseMessages =
+    allocationDraft === undefined
+      ? base.validateTeachingPlan(enforced, staffingPlan)
+      : base.validateTeachingPlan(enforced, staffingPlan, allocationDraft);
+  return baseMessages.filter((message) => {
+    const sameTeacherRow = sameTeacherPrefixes.some((prefix) =>
+      message.startsWith(prefix),
+    );
+    if (!sameTeacherRow) return true;
+    return !(
+      message.includes("Vyberte učitele druhé skupiny.") ||
+      message.includes("Každá skupina musí mít jiného učitele.")
+    );
+  });
+}

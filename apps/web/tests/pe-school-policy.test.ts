@@ -23,7 +23,7 @@ function teacher(id: string, lastName: string) {
   };
 }
 
-test("9.A and 9.C PE are whole-class with Přikrylová while 8th grade and 9.B stay split", () => {
+test("9.A and 9.C PE keep imported split staffing instead of being rewritten to Přikrylová", () => {
   const staffingPlan = createEmptyStaffingPlan();
   staffingPlan.teachers = [
     teacher("prikrylova", "Přikrylová"),
@@ -61,10 +61,9 @@ test("9.A and 9.C PE are whole-class with Přikrylová while 8th grade and 9.B s
     const row = enforced.rows.find(
       (item) => item.classCode === classCode && item.subjectCode === "TV",
     );
-    assert.equal(row?.organization, "WHOLE", classCode);
-    assert.equal(row?.primaryTeacherId, "prikrylova", classCode);
-    assert.equal(row?.secondaryTeacherId, "", classCode);
-    assert.equal(row?.tertiaryTeacherId, "", classCode);
+    assert.equal(row?.organization, "SPLIT", classCode);
+    assert.equal(row?.primaryTeacherId, "sobotnik", classCode);
+    assert.equal(row?.secondaryTeacherId, "masek", classCode);
     assert.equal(row?.lessonShape, "DOUBLE", classCode);
     assert.equal(row?.doublePeriodsCount, 1, classCode);
   }

@@ -103,7 +103,7 @@ test("coverage page fills every missing teacher and raises load when needed", as
   ).toEqual([["M", 5]]);
 });
 
-test("current school shares second language by grade and removes grade-seven electives", async ({
+test("current school keeps second language class-scoped and removes grade-seven electives", async ({
   page,
 }) => {
   await page.goto("/");
@@ -133,13 +133,13 @@ test("current school shares second language by grade and removes grade-seven ele
             id: "teacher-language-one",
             firstName: "Jana",
             lastName: "Němcová",
-            targetWeeklyLoad: 3,
-            baseWeeklyLoad: 3,
+            targetWeeklyLoad: 9,
+            baseWeeklyLoad: 9,
             subjectLoads: [
               {
                 id: "load-language-one",
                 subjectCode: "JAZ2",
-                weeklyPeriods: 3,
+                weeklyPeriods: 9,
               },
             ],
             unavailableDays: [],
@@ -148,13 +148,13 @@ test("current school shares second language by grade and removes grade-seven ele
             id: "teacher-language-two",
             firstName: "Petr",
             lastName: "Francouz",
-            targetWeeklyLoad: 3,
-            baseWeeklyLoad: 3,
+            targetWeeklyLoad: 9,
+            baseWeeklyLoad: 9,
             subjectLoads: [
               {
                 id: "load-language-two",
                 subjectCode: "JAZ2",
-                weeklyPeriods: 3,
+                weeklyPeriods: 9,
               },
             ],
             unavailableDays: [],
@@ -199,6 +199,7 @@ test("current school shares second language by grade and removes grade-seven ele
             rotationPlacement: "SAME_DAY",
             primaryTeacherId: "teacher-language-one",
             secondaryTeacherId: "",
+            splitGroupCount: 2,
           })),
         ],
       }),
@@ -214,7 +215,7 @@ test("current school shares second language by grade and removes grade-seven ele
     ).toHaveAttribute("data-status", "PARTIAL");
     await expect(
       page.getByTestId(`coverage-${classCode}-JAZ2`),
-    ).toHaveAttribute("data-shared", "true");
+    ).toHaveAttribute("data-shared", "false");
   }
 
   await page.getByRole("button", { name: "Doplnit vše automaticky" }).click();
@@ -223,12 +224,12 @@ test("current school shares second language by grade and removes grade-seven ele
     await expect(
       page.getByTestId(`coverage-${classCode}-JAZ2`),
     ).toHaveAttribute("data-status", "FULL");
+    await expect(
+      page.getByTestId(`coverage-${classCode}-JAZ2`),
+    ).toHaveAttribute("data-shared", "false");
   }
 
   const stored = await page.evaluate(() => ({
-    staffing: JSON.parse(
-      localStorage.getItem("rozvrhar:staffing-plan:v1") ?? "{}",
-    ),
     teaching: JSON.parse(
       localStorage.getItem("rozvrhar:teaching-plan:v1") ?? "{}",
     ),
@@ -242,29 +243,18 @@ test("current school shares second language by grade and removes grade-seven ele
       (row: { subjectCode: string }) => row.subjectCode === "VOL",
     ),
   ).toHaveLength(0);
-  const languageRows = stored.teaching.rows.filter(
-    (row: { subjectCode: string }) => row.subjectCode === "JAZ2",
-  );
-  expect(languageRows).toHaveLength(1);
-  expect(languageRows[0].primaryTeacherId).toBe("teacher-language-one");
-  expect(languageRows[0].secondaryTeacherId).toBe("teacher-language-two");
-  expect(stored.shared[languageRows[0].id].additionalClassCodes).toEqual([
-    "8.B",
-    "8.C",
-  ]);
+  const languageRows = stored.teaching.rows
+    .filter((row: { subjectCode: string }) => row.subjectCode === "JAZ2")
+    .sort((left: { classCode: string }, right: { classCode: string }) =>
+      left.classCode.localeCompare(right.classCode),
+    );
+  expect(languageRows).toHaveLength(3);
   expect(
-    stored.staffing.teachers.map(
-      (teacher: {
-        id: string;
-        subjectLoads: Array<{ subjectCode: string; weeklyPeriods: number }>;
-      }) => [
-        teacher.id,
-        teacher.subjectLoads.find((load) => load.subjectCode === "JAZ2")
-          ?.weeklyPeriods,
-      ],
-    ),
-  ).toEqual([
-    ["teacher-language-one", 3],
-    ["teacher-language-two", 3],
-  ]);
+    languageRows.map((row: { classCode: string }) => row.classCode),
+  ).toEqual(["8.A", "8.B", "8.C"]);
+  for (const row of languageRows) {
+    expect(row.primaryTeacherId).toBeTruthy();
+    expect(row.secondaryTeacherId).toBeTruthy();
+    expect(stored.shared[row.id]?.additionalClassCodes ?? []).toEqual([]);
+  }
 });

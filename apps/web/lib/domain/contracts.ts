@@ -89,6 +89,49 @@ export interface SnapshotFixedLesson {
   locked?: boolean;
 }
 
+export interface SolverSubjectWindowRule {
+  subject_codes: string[];
+  periods: number[];
+  days?: number[] | null;
+}
+
+export interface SolverSubjectDailyLimit {
+  subject_codes: string[];
+  max_periods_per_day: number;
+}
+
+export interface SolverClassDayPolicy {
+  require_first_period: boolean;
+  allowed_afternoon_patterns: number[][];
+  latest_period_by_day: Array<number | null>;
+  /** Null disables the hard balance bound; 1 means daily loads differ by at most one lesson. */
+  max_daily_load_spread?: number | null;
+}
+
+export interface SolverTeacherAfternoonBreakPolicy {
+  enabled: boolean;
+  afternoon_start_period: number;
+  break_periods: number[];
+  minimum_free_periods: number;
+}
+
+export interface SolverQualityPolicy {
+  class_daily_balance_weight: number;
+  class_afternoon_weight: number;
+  afternoon_day_weights: number[];
+  subject_late_weights: Record<string, number>;
+  subject_afternoon_bonuses: Record<string, number>;
+}
+
+export interface SolverPolicy {
+  version: "1";
+  forbidden_subject_windows: SolverSubjectWindowRule[];
+  subject_daily_limits: SolverSubjectDailyLimit[];
+  class_day: SolverClassDayPolicy;
+  teacher_afternoon_break: SolverTeacherAfternoonBreakPolicy;
+  quality: SolverQualityPolicy;
+}
+
 export interface SolverWeights {
   teacher_gap: number;
   class_gap: number;
@@ -115,6 +158,7 @@ export interface CanonicalSnapshot {
   availability: SnapshotAvailabilityRule[];
   fixed_lessons: SnapshotFixedLesson[];
   locked_lessons: SnapshotFixedLesson[];
+  policy?: SolverPolicy | null;
   weights: SolverWeights;
   random_seed: number;
   time_limit_seconds: number;
