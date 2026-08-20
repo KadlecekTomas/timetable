@@ -21,17 +21,14 @@ interface FixedAssignmentSlot {
 }
 
 const SPANKOVA_CLASS_SLOTS: readonly FixedAssignmentSlot[] = [
-  // Tuesday
   { classCode: "8.B", dayOfWeek: 1, startPeriod: 1 },
   { classCode: "8.C", dayOfWeek: 1, startPeriod: 2 },
   { classCode: "8.A", dayOfWeek: 1, startPeriod: 3 },
   { classCode: "9.B", dayOfWeek: 1, startPeriod: 4 },
-  // Wednesday
   { classCode: "8.B", dayOfWeek: 2, startPeriod: 1 },
   { classCode: "8.A", dayOfWeek: 2, startPeriod: 2 },
   { classCode: "8.C", dayOfWeek: 2, startPeriod: 3 },
   { classCode: "9.B", dayOfWeek: 2, startPeriod: 4 },
-  // Thursday
   { classCode: "8.B", dayOfWeek: 3, startPeriod: 1 },
   { classCode: "8.C", dayOfWeek: 3, startPeriod: 2 },
   { classCode: "8.A", dayOfWeek: 3, startPeriod: 3 },
@@ -39,21 +36,18 @@ const SPANKOVA_CLASS_SLOTS: readonly FixedAssignmentSlot[] = [
 ] as const;
 
 const KADLECEK_INF_SLOTS: readonly FixedAssignmentSlot[] = [
-  // Tuesday 1.–6.
   { classCode: "8.C", dayOfWeek: 1, startPeriod: 0 },
   { classCode: "7.C", dayOfWeek: 1, startPeriod: 1 },
   { classCode: "9.A", dayOfWeek: 1, startPeriod: 2 },
   { classCode: "6.B", dayOfWeek: 1, startPeriod: 3 },
   { classCode: "7.B", dayOfWeek: 1, startPeriod: 4 },
   { classCode: "9.C", dayOfWeek: 1, startPeriod: 5 },
-  // Wednesday 1.–6.
   { classCode: "9.B", dayOfWeek: 2, startPeriod: 0 },
   { classCode: "7.A", dayOfWeek: 2, startPeriod: 1 },
   { classCode: "6.C", dayOfWeek: 2, startPeriod: 2 },
   { classCode: "6.A", dayOfWeek: 2, startPeriod: 3 },
   { classCode: "8.A", dayOfWeek: 2, startPeriod: 4 },
   { classCode: "6.D", dayOfWeek: 2, startPeriod: 5 },
-  // Thursday 1.
   { classCode: "8.B", dayOfWeek: 3, startPeriod: 0 },
 ] as const;
 
@@ -192,13 +186,6 @@ export interface SchoolSchedulingPreferencesResult {
   warnings: string[];
 }
 
-/**
- * Current-school operational preset.
- *
- * This file intentionally contains school-specific names and fixed slots. The
- * generic solver does not. Other schools can use the same solver with a
- * different preset/configuration.
- */
 export function schoolSchedulingPreferences({
   assignments,
   subjects,
@@ -212,6 +199,13 @@ export function schoolSchedulingPreferences({
 }): SchoolSchedulingPreferencesResult {
   const warnings: string[] = [];
   const subjectCodes = subjectCodeById(subjects);
+  const spankova = staffingPlan.teachers.find(
+    (teacher) => normalizedPersonToken(teacher.lastName) === SPANKOVA_SURNAME,
+  );
+  const kadlecek = staffingPlan.teachers.find(
+    (teacher) => normalizedPersonToken(teacher.lastName) === KADLECEK_SURNAME,
+  );
+  const currentSchoolPresetActive = Boolean(spankova && kadlecek);
 
   for (const assignment of assignments) {
     if (subjectCodes.get(assignment.subjectId) !== PHYSICAL_EDUCATION_CODE) {
@@ -219,13 +213,7 @@ export function schoolSchedulingPreferences({
     }
     assignment.maxPerDay = 2;
 
-    // In the accepted school timetable, most PE lessons are operationally
-    // joined across classes. Binding every independent group to one of several
-    // interchangeable sport rooms multiplies the CP-SAT search space without
-    // changing the timetable quality. Keep the existing 8.B+9.B room-share
-    // pair constrained for now, but let all other PE blocks solve on time and
-    // teacher feasibility only. Monday PE remains a hard policy rule.
-    if (!assignment.roomShareKey) {
+    if (currentSchoolPresetActive && !assignment.roomShareKey) {
       assignment.requiredRoomId = null;
       assignment.requiredRoomTypeId = null;
     }
@@ -238,10 +226,7 @@ export function schoolSchedulingPreferences({
     ),
   );
 
-  const spankova = staffingPlan.teachers.find(
-    (teacher) => normalizedPersonToken(teacher.lastName) === SPANKOVA_SURNAME,
-  );
-  if (spankova) {
+  if (currentSchoolPresetActive && spankova && kadlecek) {
     addThreeDayFixedSchedule({
       assignments,
       subjectCodes,
@@ -253,16 +238,6 @@ export function schoolSchedulingPreferences({
       warnings,
       label: "Špánková",
     });
-  } else {
-    warnings.push(
-      "Špánková: učitel nebyl nalezen; pevný rozpis JAZ2 nebyl vložen.",
-    );
-  }
-
-  const kadlecek = staffingPlan.teachers.find(
-    (teacher) => normalizedPersonToken(teacher.lastName) === KADLECEK_SURNAME,
-  );
-  if (kadlecek) {
     addThreeDayFixedSchedule({
       assignments,
       subjectCodes,
@@ -274,10 +249,6 @@ export function schoolSchedulingPreferences({
       warnings,
       label: "Kadleček",
     });
-  } else {
-    warnings.push(
-      "Kadleček: učitel nebyl nalezen; pevný rozpis INF nebyl vložen.",
-    );
   }
 
   return { fixedLessons, availability: [], warnings };
