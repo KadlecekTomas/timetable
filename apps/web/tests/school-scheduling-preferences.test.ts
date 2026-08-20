@@ -127,7 +127,10 @@ const infAssignments = kadlecekClasses.map((classCode) =>
 
 const assignments = [...spanishAssignments, ...infAssignments];
 
-function fixedForTeacher(result: ReturnType<typeof schoolSchedulingPreferences>, prefix: string) {
+function fixedForTeacher(
+  result: ReturnType<typeof schoolSchedulingPreferences>,
+  prefix: string,
+) {
   return result.fixedLessons
     .filter((lesson) => lesson.assignmentId.startsWith(prefix))
     .map((lesson) => [
@@ -149,7 +152,10 @@ test("V8 preset fixes the exact Špánková sequence and accepted Kadleček INF 
   assert.deepEqual(result.warnings, []);
   assert.deepEqual(result.availability, []);
   assert.equal(result.fixedLessons.length, 25);
-  assert.equal(result.fixedLessons.every((lesson) => lesson.locked), true);
+  assert.equal(
+    result.fixedLessons.every((lesson) => lesson.locked),
+    true,
+  );
 
   assert.deepEqual(fixedForTeacher(result, "spanish-"), [
     ["spanish-8.B", 0, 1, 1],
