@@ -3,11 +3,10 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-from ortools.sat.python import cp_model
-
 from app.class_groups import assignment_class_ids, class_required_weekly_periods
 from app.models import SolveRequest
 from app.policy import daily_subject_limit, subject_code
+from ortools.sat.python import cp_model
 
 
 HARD_BALANCE_PRIORITY = 20_000
@@ -60,55 +59,6 @@ def _allowed_class_day_patterns(payload: SolveRequest, day: int) -> list[list[in
     return allowed
 
 
-def _preferred_balanced_loads(
-    payload: SolveRequest,
-    weekly_required: int,
-) -> list[int]:
-    days = len(payload.periods_per_day)
-    low = weekly_required // days
-    high = (weekly_required + days - 1) // days
-    extra = weekly_required - low * days
-    result = [low] * days
-    if extra <= 0:
-        return result
-
-    latest_values = payload.policy.class_day.latest_period_by_day if payload.policy else []
-    preferred_days = [day for day in (1, 2, 3, 0, 4) if day < days]
-    for day in preferred_days:
-        if extra <= 0:
-            break
-        latest = payload.periods_per_day[day] - 1
-        if day < len(latest_values) and latest_values[day] is not None:
-            latest = min(latest, int(latest_values[day]))
-        if high > latest + 1:
-            continue
-        result[day] = high
-        extra -= 1
-    return result
-
-
-def _preferred_occupancy_for_load(
-    payload: SolveRequest,
-    day: int,
-    target_load: int,
-) -> set[int]:
-    if target_load <= 0:
-        return set()
-    afternoon_start = payload.policy.teacher_afternoon_break.afternoon_start_period
-    if target_load <= afternoon_start:
-        return set(range(target_load))
-
-    patterns = [
-        pattern
-        for pattern in payload.policy.class_day.allowed_afternoon_patterns
-        if len(pattern) == target_load
-        and all(period < payload.periods_per_day[day] for period in pattern)
-    ]
-    if patterns:
-        return set(patterns[0])
-    return set(range(min(target_load, payload.periods_per_day[day])))
-
-
 def add_policy_constraints(
     *,
     model: cp_model.CpModel,
@@ -126,6 +76,13 @@ def add_policy_constraints(
     class_subject_sources: dict[
         tuple[str, str, int, int], list[cp_model.IntVar]
     ] = defaultdict(list)
+
+    required_periods_by_class = class_required_weekly_periods(payload.assignments)
+    full_week_class_ids = {
+        class_id
+        for class_id, required in required_periods_by_class.items()
+        if required >= 20
+    }
 
     for assignment in payload.assignments:
         code = subject_code(payload, assignment.subject_id)
@@ -177,12 +134,6 @@ def add_policy_constraints(
             for class_id in assignment_class_ids(assignment)
         }
     )
-    required_by_class = class_required_weekly_periods(payload.assignments)
-    regular_class_ids = {
-        class_id
-        for class_id, weekly_periods in required_by_class.items()
-        if weekly_periods >= len(payload.periods_per_day)
-    }
 
     class_occupancy: dict[tuple[str, int], list[cp_model.IntVar]] = {}
     for class_id in class_ids:
@@ -196,7 +147,7 @@ def add_policy_constraints(
                 for period in range(periods)
             ]
             class_occupancy[(class_id, day)] = occupancy
-            if class_id in regular_class_ids:
+            if class_id in full_week_class_ids:
                 allowed = _allowed_class_day_patterns(payload, day)
                 if allowed:
                     model.add_allowed_assignments(occupancy, allowed)
@@ -255,7 +206,6 @@ def add_policy_constraints(
                 )
                 model.add(sum(late_slots) >= afternoon)
                 model.add(sum(late_slots) <= len(late_slots) * afternoon)
-                model.add_hint(afternoon, 0)
                 relevant_break_slots = [
                     occupancy[period]
                     for period in break_policy.break_periods
@@ -271,15 +221,13 @@ def add_policy_constraints(
                     afternoon
                 )
 
-    hard_balance = policy.quality.class_daily_balance_weight >= HARD_BALANCE_PRIORITY
-    number_of_days = len(payload.periods_per_day)
-
-    for class_id in sorted(regular_class_ids):
-        weekly_required = required_by_class[class_id]
-        balanced_low = weekly_required // number_of_days
-        balanced_high = (weekly_required + number_of_days - 1) // number_of_days
-        preferred_loads = _preferred_balanced_loads(payload, weekly_required)
+    for class_id in class_ids:
         day_loads: list[cp_model.IntVar] = []
+        required = required_periods_by_class.get(class_id, 0)
+        minimum_daily = required // max(1, len(payload.periods_per_day))
+        maximum_daily = (required + len(payload.periods_per_day) - 1) // max(
+            1, len(payload.periods_per_day)
+        )
 
         for day, periods in enumerate(payload.periods_per_day):
             occupancy = class_occupancy[(class_id, day)]
@@ -287,17 +235,12 @@ def add_policy_constraints(
             model.add(load == sum(occupancy))
             day_loads.append(load)
 
-            if hard_balance:
-                model.add(load >= balanced_low)
-                model.add(load <= balanced_high)
-
-            preferred_periods = _preferred_occupancy_for_load(
-                payload,
-                day,
-                preferred_loads[day],
-            )
-            for period, occupied in enumerate(occupancy):
-                model.add_hint(occupied, 1 if period in preferred_periods else 0)
+            if (
+                class_id in full_week_class_ids
+                and policy.quality.class_daily_balance_weight >= HARD_BALANCE_PRIORITY
+            ):
+                model.add(load >= minimum_daily)
+                model.add(load <= maximum_daily)
 
             afternoon_start = break_policy.afternoon_start_period
             late_slots = occupancy[afternoon_start:]
@@ -307,14 +250,6 @@ def add_policy_constraints(
                 )
                 model.add(sum(late_slots) >= afternoon)
                 model.add(sum(late_slots) <= len(late_slots) * afternoon)
-                model.add_hint(
-                    afternoon,
-                    1
-                    if any(
-                        period >= afternoon_start for period in preferred_periods
-                    )
-                    else 0,
-                )
                 day_weight = (
                     policy.quality.afternoon_day_weights[day]
                     if day < len(policy.quality.afternoon_day_weights)
@@ -324,9 +259,11 @@ def add_policy_constraints(
                 if total_weight:
                     objective_terms.append(afternoon * total_weight)
 
-        if len(day_loads) >= 2 and policy.quality.class_daily_balance_weight:
-            if hard_balance:
-                continue
+        if (
+            class_id in full_week_class_ids
+            and len(day_loads) >= 2
+            and policy.quality.class_daily_balance_weight
+        ):
             max_load = model.new_int_var(
                 0,
                 max(payload.periods_per_day),
