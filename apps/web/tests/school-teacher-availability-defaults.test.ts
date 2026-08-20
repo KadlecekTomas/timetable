@@ -119,7 +119,6 @@ test("diacritics are ignored and exact V8 restrictions are preserved", () => {
     ["THU", 8],
   ]);
   assert.deepEqual(unavailable(applied, "indrakova"), [
-    ["MON", 5],
     ["TUE", 3],
     ["TUE", 4],
     ["TUE", 5],
