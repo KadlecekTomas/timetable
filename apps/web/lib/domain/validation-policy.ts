@@ -5,11 +5,13 @@ import type {
   TimetableMove,
   ValidationIssue,
 } from "./contracts";
-import { lessonClassIds } from "./class-groups";
+import { classRequiredWeeklyPeriods, lessonClassIds } from "./class-groups";
 import {
   validateMove as validateLegacyMove,
   validateSchedule as validateLegacySchedule,
 } from "./validation";
+
+const FULL_WEEK_CLASS_MINIMUM_PERIODS = 20;
 
 function subjectCode(snapshot: CanonicalSnapshot, subjectId: string): string {
   return (
@@ -52,6 +54,12 @@ function policyIssues(
   const issues: ValidationIssue[] = [];
   const assignments = new Map(
     snapshot.assignments.map((assignment) => [assignment.id, assignment]),
+  );
+  const requiredPeriodsByClass = classRequiredWeeklyPeriods(snapshot.assignments);
+  const fullWeekClassIds = new Set(
+    [...requiredPeriodsByClass.entries()]
+      .filter(([, required]) => required >= FULL_WEEK_CLASS_MINIMUM_PERIODS)
+      .map(([classId]) => classId),
   );
   const classPeriods = new Map<string, Set<number>>();
   const teacherPeriods = new Map<string, Set<number>>();
@@ -108,25 +116,11 @@ function policyIssues(
     }
   }
 
-  const classWeeklyOccupancy = new Map<string, number>();
-  for (const [key, values] of classPeriods) {
-    const separator = key.lastIndexOf(":");
-    const classId = key.slice(0, separator);
-    classWeeklyOccupancy.set(
-      classId,
-      (classWeeklyOccupancy.get(classId) ?? 0) + values.size,
-    );
-  }
-
   for (const [key, values] of classPeriods) {
     const separator = key.lastIndexOf(":");
     const classId = key.slice(0, separator);
     const day = Number(key.slice(separator + 1));
-    if (
-      (classWeeklyOccupancy.get(classId) ?? 0) < snapshot.periods_per_day.length
-    ) {
-      continue;
-    }
+    if (!fullWeekClassIds.has(classId)) continue;
     if (classDayPatternAllowed(snapshot, values)) continue;
     issues.push({
       code: "POLICY_CLASS_DAY_PATTERN",
@@ -207,9 +201,6 @@ export function validateSchedule(
   const legacy = validateLegacySchedule(snapshot, lessons);
   if (!snapshot.policy) return legacy;
 
-  // Explicit SolverPolicy owns the class afternoon semantics. The legacy
-  // no-consecutive-afternoons rule contradicts the accepted V8 pattern where
-  // 33-hour classes deliberately use Tue/Wed/Thu afternoons.
   const ignored = new Set([
     "LUNCH_BREAK_CROSSED",
     "CLASS_HAS_INTERNAL_GAP",
