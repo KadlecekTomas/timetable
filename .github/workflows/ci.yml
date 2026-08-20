@@ -21,7 +21,17 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run format:check
+      - name: Print canonical Prettier diff for final release files
+        run: |
+          npm run format
+          git diff -- \
+            apps/web/lib/local/school-solver-policy.ts \
+            apps/web/lib/local/teaching-plan-school-v4.ts \
+            apps/web/test-support/current-school-v8-workbook-fixture.ts \
+            apps/web/tests/mandatory-school-splits.test.ts \
+            apps/web/tests/school-scheduling-preferences-generation.test.ts \
+            apps/web/tests/school-scheduling-preferences.test.ts
+          exit 1
       - run: npm run lint --workspace @timetable/web
       - run: npm run typecheck --workspace @timetable/web
       - run: npm run test --workspace @timetable/web
