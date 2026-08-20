@@ -36,6 +36,8 @@ function plan(): StaffingPlan {
       teacher("liskova", "Lišková", "Jiřina"),
       teacher("moravcova", "Moravcová", "Myřátská"),
       teacher("pokorna", "Pokorná", "Jaroslava"),
+      teacher("schoberova", "Schoberová"),
+      teacher("sloncikova", "Slončíková"),
       teacher("sarova", "Šárová", "Eliška"),
       teacher("sobotnik", "Šobotník", "Jan"),
       teacher("spankova", "Špánková"),
@@ -62,13 +64,13 @@ function unavailable(
   ]);
 }
 
-test("school defaults match all teachers by surname without requiring first names", () => {
+test("school defaults match all V8 teachers by surname without requiring first names", () => {
   const input = plan();
   input.teachers.find((item) => item.id === "cerna")!.unavailableDays = ["WED"];
 
   const applied = applySchoolTeacherAvailabilityDefaults(input);
 
-  assert.equal(applied.matchedSurnames.length, 19);
+  assert.equal(applied.matchedSurnames.length, 21);
   assert.deepEqual(applied.unmatchedSurnames, []);
   assert.deepEqual(applied.ambiguousSurnames, []);
 
@@ -95,9 +97,19 @@ test("school defaults match all teachers by surname without requiring first name
     ["THU", 7],
     ["THU", 8],
   ]);
+  assert.deepEqual(unavailable(applied.plan, "schoberova"), [
+    ["MON", 7],
+    ["MON", 8],
+    ["THU", 7],
+    ["THU", 8],
+  ]);
+  assert.deepEqual(unavailable(applied.plan, "sloncikova"), [
+    ["MON", 7],
+    ["MON", 8],
+  ]);
 });
 
-test("diacritics are ignored and exact school restrictions are preserved", () => {
+test("diacritics are ignored and exact V8 restrictions are preserved", () => {
   const applied = applySchoolTeacherAvailabilityDefaults(plan()).plan;
 
   assert.deepEqual(unavailable(applied, "dostalova"), [
@@ -117,10 +129,18 @@ test("diacritics are ignored and exact school restrictions are preserved", () =>
     ["THU", 4],
   ]);
   assert.deepEqual(unavailable(applied, "jakoubkova"), [
+    ["MON", 5],
     ["MON", 6],
+    ["TUE", 5],
+    ["TUE", 6],
+    ["WED", 5],
+    ["WED", 6],
     ["THU", 5],
+    ["THU", 6],
     ["FRI", 3],
     ["FRI", 4],
+    ["FRI", 5],
+    ["FRI", 6],
   ]);
   assert.deepEqual(unavailable(applied, "wild"), [
     ["MON", 5],
