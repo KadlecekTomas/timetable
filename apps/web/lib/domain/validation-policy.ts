@@ -5,10 +5,7 @@ import type {
   TimetableMove,
   ValidationIssue,
 } from "./contracts";
-import {
-  classRequiredWeeklyPeriods,
-  lessonClassIds,
-} from "./class-groups";
+import { classRequiredWeeklyPeriods, lessonClassIds } from "./class-groups";
 import {
   validateMove as validateLegacyMove,
   validateSchedule as validateLegacySchedule,
@@ -58,7 +55,9 @@ function policyIssues(
   const assignments = new Map(
     snapshot.assignments.map((assignment) => [assignment.id, assignment]),
   );
-  const requiredPeriodsByClass = classRequiredWeeklyPeriods(snapshot.assignments);
+  const requiredPeriodsByClass = classRequiredWeeklyPeriods(
+    snapshot.assignments,
+  );
   const fullWeekClassIds = new Set(
     [...requiredPeriodsByClass.entries()]
       .filter(([, required]) => required >= FULL_WEEK_CLASS_MINIMUM_PERIODS)
