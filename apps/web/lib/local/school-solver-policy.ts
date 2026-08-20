@@ -1,4 +1,46 @@
 import type { SolverPolicy } from "@/lib/domain/contracts";
+import type { LocalProject } from "./api";
+
+const CURRENT_SCHOOL_CLASS_CODES = [
+  "6.A",
+  "6.B",
+  "6.C",
+  "6.D",
+  "7.A",
+  "7.B",
+  "7.C",
+  "8.A",
+  "8.B",
+  "8.C",
+  "9.A",
+  "9.B",
+  "9.C",
+] as const;
+
+function normalizedPersonToken(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z]/g, "")
+    .toLocaleLowerCase("cs-CZ");
+}
+
+/**
+ * Detect the concrete FZŠ Chodovická 2026/2027 project before applying its
+ * school-specific V8 policy. Generic/synthetic projects must stay on the
+ * generic solver path and must never inherit named-school constraints.
+ */
+export function isCurrentSchoolV8Project(project: LocalProject): boolean {
+  const classCodes = new Set(project.classes.map((schoolClass) => schoolClass.code));
+  if (!CURRENT_SCHOOL_CLASS_CODES.every((code) => classCodes.has(code))) {
+    return false;
+  }
+
+  const surnames = new Set(
+    project.teachers.map((teacher) => normalizedPersonToken(teacher.lastName)),
+  );
+  return surnames.has("kadlecek") && surnames.has("spankova");
+}
 
 /**
  * FZŠ Chodovická 2026/2027 policy that reproduces the accepted V8 timetable rules.
