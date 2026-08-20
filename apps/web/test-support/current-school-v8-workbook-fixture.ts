@@ -245,16 +245,22 @@ export async function currentSchoolV8WorkbookBytes(): Promise<Uint8Array> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("List 1");
 
-  for (const [classCode, position] of Object.entries(CURRENT_SCHOOL_V8_LAYOUT)) {
+  for (const [classCode, position] of Object.entries(
+    CURRENT_SCHOOL_V8_LAYOUT,
+  )) {
     const rows = CURRENT_SCHOOL_V8_MATRIX[classCode] ?? [];
     sheet.getCell(position.row, position.column).value = classCode;
     sheet.getCell(position.row + 1, position.column).value = "Předměty";
-    sheet.getCell(position.row + 1, position.column + 1).value = "Učitel/učitelka";
-    sheet.getCell(position.row + 1, position.column + 2).value = "Časová dotace";
+    sheet.getCell(position.row + 1, position.column + 1).value =
+      "Učitel/učitelka";
+    sheet.getCell(position.row + 1, position.column + 2).value =
+      "Časová dotace";
     rows.forEach(([subject, teacher, periods], index) => {
       sheet.getCell(position.row + 2 + index, position.column).value = subject;
-      sheet.getCell(position.row + 2 + index, position.column + 1).value = teacher;
-      sheet.getCell(position.row + 2 + index, position.column + 2).value = periods;
+      sheet.getCell(position.row + 2 + index, position.column + 1).value =
+        teacher;
+      sheet.getCell(position.row + 2 + index, position.column + 2).value =
+        periods;
     });
   }
 
