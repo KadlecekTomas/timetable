@@ -154,6 +154,22 @@ test("JAZ2 stays class-scoped and Špánková receives the exact accepted V8 slo
             unavailableDays: ["FRI"],
             unavailablePeriods: [],
           },
+          {
+            id: "vasakova",
+            firstName: "Nikola",
+            lastName: "Vašáková",
+            targetWeeklyLoad: 12,
+            baseWeeklyLoad: 12,
+            subjectLoads: [
+              {
+                id: "load-vasakova-inf",
+                subjectCode: "INF",
+                weeklyPeriods: 12,
+              },
+            ],
+            unavailableDays: ["MON", "THU", "FRI"],
+            unavailablePeriods: [],
+          },
         ],
       }),
     );
@@ -190,7 +206,7 @@ test("JAZ2 stays class-scoped and Špánková receives the exact accepted V8 slo
       organization: classCode === "8.B" ? "WHOLE" : "SPLIT",
       rotationPlacement: "SAME_DAY",
       primaryTeacherId: "kadlecek",
-      secondaryTeacherId: classCode === "8.B" ? "" : "kadlecek",
+      secondaryTeacherId: classCode === "8.B" ? "" : "vasakova",
       splitGroupCount: 2,
     });
 
