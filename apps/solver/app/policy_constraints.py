@@ -9,7 +9,6 @@ from app.class_groups import assignment_class_ids, class_required_weekly_periods
 from app.models import SolveRequest
 from app.policy import daily_subject_limit, subject_code
 
-
 HARD_BALANCE_PRIORITY = 20_000
 
 
