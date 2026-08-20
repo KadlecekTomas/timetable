@@ -21,11 +21,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Print exact Prettier diff for policy validator
-        run: |
-          npx prettier --write apps/web/lib/domain/validation-policy.ts
-          git diff -- apps/web/lib/domain/validation-policy.ts
-          exit 1
+      - run: npm run format:check
       - run: npm run lint --workspace @timetable/web
       - run: npm run typecheck --workspace @timetable/web
       - run: npm run test --workspace @timetable/web
